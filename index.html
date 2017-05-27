@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="index.css">
+    <script src="sha1.js"></script>
+    <script src="http.js"></script>
+    <script src="index.js"></script>
+  </head>
+  <body>
+    <div style="position:absolute; top:550px; left:10px; padding:5px; border-radius: 6px; transition-duration: 0.8s;background:rgba(255,255,255,0.9);box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);" id='settings-pane'>
+      <table border="0" cellpadding="1" cellspacing="0">
+        <tr>
+          <td>Send:</td>
+          <td><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
+        </tr>
+        <tr>
+          <td>IP Address:</td>
+          <td><input type="text" id="bpc-url" class="con" value="localhost" style="width:200px;"/></td>
+        </tr>
+        <tr>
+          <td>Port:</td>
+          <td><input type="text" id="bpc-port" value="6010" class="con" style="width:200px;"/></td>
+        </tr>
+        <tr>
+          <td>Trace Logging:</td>
+          <td><input type="checkbox" id="bpc-trace"/></td>
+        </tr>
+        <tr>
+          <td colspan="2"><div id="log" class="con" style="height:260px;width:287px;overflow-y:scroll;background:#fff;border:1px solid #ccc"></div></td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="top:90px;" class="button-label">
+      First, click:
+    </div>
+    <div style="position:absolute; top:120px; left:325px;">
+      <button id="connect-disconnect" class="button button-blue">Connect</button>
+    </div>
+    <div style="top:190px;" class="button-label">
+      Then, click:
+    </div>
+    <div style="position:absolute; top:220px; left:325px;">
+      <button id="open-browser" class="button button-blue">Open Browser</button>
+    </div>
+    <div style="position:absolute; top:325px; left:435px;">
+      <button id="open-settings" class="button" style="width:40px;padding:5px;background:#fff;border:2px solid #ddd;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -350 1650 1700" width="20" height="20" style="fill:#ddd;"><path d="m1024 640q0 106-75 181-75 75-181 75-106 0-181-75-75-75-75-181 0-106 75-181 75-75 181-75 106 0 181 75 75 75 75 181zm512 109V527q0-12-8-23-8-11-20-13l-185-28q-19-54-39-91 35-50 107-138 10-12 10-25 0-13-9-23-27-37-99-108-72-71-94-71-12 0-26 9l-138 108q-44-23-91-38-16-136-29-186-7-28-36-28H657q-14 0-24 9Q622-111 621-98L593 86q-49 16-90 37L362 16Q352 7 337 7 323 7 312 18 186 132 147 186q-7 10-7 23 0 12 8 23 15 21 51 67 36 46 54 71-27 50-41 99L29 495Q16 497 8 508 0 518 0 531v222q0 12 8 23 8 11 19 13l186 28q14 46 39 92-40 57-107 138-10 12-10 24 0 10 9 23 26 36 99 108 73 72 95 72 13 0 26-10l138-107q44 23 91 38 16 136 29 186 7 28 36 28h222q14 0 25-8Q914 1391 915 1378l28-184q49-16 90-37l142 107q9 9 24 9 13 0 25-10 129-119 165-170 7-8 7-22 0-12-8-23-15-21-51-66-36-45-54-70 26-50 41-98l183-28q13-2 21-12 8-10 8-23z"/></svg>
+      </button>
+    </div>
+    
+
+
+  </body>
+</html>

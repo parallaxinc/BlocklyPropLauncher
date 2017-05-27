@@ -1,0 +1,70 @@
+@font-face {
+    font-family: Baloo Bhaina;
+    src: url('assets/BalooBhaina-regular.ttf'); 
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  background: url(assets/BlocklyProp-splash2.png);
+  background-repeat:no-repeat;
+}
+
+.con {
+  font-family: Andale Mono, Consolas, monospace;
+  font-weight: bold;
+  letter-spacing: -0.8px;
+}
+
+*:focus {
+    outline: none;
+}
+
+.button-label {
+  position: absolute;
+  text-align: center;
+  left: 325px;
+  width: 160px;
+  font-family: Baloo Bhaina;
+  font-size: 20px;
+}
+
+.button {
+    width: 150px;
+    border: none;
+    color: white;
+    padding: 12px 16px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    margin: 4px 2px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+    color: white; 
+    border-radius: 6px;
+}
+
+.button-blue {
+    background-color: #4472c4; 
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.button-blue:hover {
+    background-color: #335b9c;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.button-green {
+    background-color: #4caf50; /* Green */
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.button-green:hover {
+    background-color: #339037; /* Green */
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
