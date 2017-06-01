@@ -8,3 +8,4 @@ chrome.app.runtime.onLaunched.addListener(function() {
     }, state: "normal"
   });
 });
+
