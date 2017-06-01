@@ -17,11 +17,14 @@ function isJson(str) {
     return true;
 }
 
+// the version of this BPclient/app
+var clientVersion = '0.7.0';
+
 // A list of connected websockets.
 var connectedSockets = [];
 
-// ID of the connected USB serial port.
-var connectedUSB = null;
+// container for IDs of connected USB serial ports and what is being done with those ports.
+var connectedUSB = [];
 
 // Containers for the http and ws servers
 var server = new http.Server();
@@ -97,11 +100,11 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action + '<br>');
-            loadPropeller(ws_msg.action, ws_msg.payload, ws_msg.debug, ws_msg.portPath, ws_msg.success);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+            loadPropeller(socket, ws_msg.action, ws_msg.payload, ws_msg.debug, ws_msg.portPath, ws_msg.success);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
   
           // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
-            serialTerminal(ws_msg.action, ws_msg.portPath, ws_msg.baudrate); // action is "open" or "close"
+            serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate); // action is "open" or "close"
             log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud<br>');
   
           // send an updated port list
@@ -109,8 +112,12 @@ function connect_ws(ws_port, url_path) {
             sendPortList();
   
           // Handle unknown messages
+          } else if (ws_msg.type === "hello-browser") {
+            helloClient(socket, ws_msg.baudrate || 115200);
+  
+          // Handle unknown messages
           } else {
-            log('Unknown message type: ' + e.data + '<br>');
+            log('Unknown JSON message: ' + e.data + '<br>');
           }
         } else {
           log('Unknown message type: ' + e.data + '<br>');
@@ -132,6 +139,7 @@ function connect_ws(ws_port, url_path) {
           $('connect-disconnect').className = 'button button-blue';
           clearInterval(portListener);
           portListener = null;
+          chrome.app.window.current().drawAttention();
         }
       });
 
@@ -209,29 +217,53 @@ function sendPortList() {
   );
 }
 
-function loadPropeller(action, payload, debug, portPath, success) {
+function loadPropeller(sock, action, payload, debug, portPath, success) {
+  // TODO: disconnect USB is already active first.
+  // TODO: everything else :)
   
   
 }
 
-function serialTerminal(action, portPath, baudrate) {
+
+function helloClient(sock, baudrate) {
+  var msg_to_send = {type:'hello-client', version:clientVersion};
+  sock.send(JSON.stringify(msg_to_send));
+}
+
+
+function serialTerminal(sock, action, portPath, baudrate) {
+  // TODO: disconnect USB is already active first.
   if (action === "open") {
-    makeConnection(portPath, baudrate);
+    makeConnection(sock, portPath, baudrate, 'debug');
   } else {
-    breakConnection();
+    breakConnection(portPath);
   }
 }
 
 
 chrome.serial.onReceive.addListener(function(info) {
-  if(info.connectionId === connectedUSB) {
-    var output = null;
-    if(displayChars === true) {
-      output = ab2str(info.data);
-    } else {
-      output = ab2num(info.data);
+  var k;
+  for (k = 0; k < connectedUSB.length; k++) {
+    if (connectedUSB[k].connId === info.connectionId) {
+      break;
     }
-    // TODO: do something with the ouptut - send?  Use during Prop Programming...
+  k = null;
+  }
+
+  if(k) {
+    var output = null;
+    if(connectedUSB[k].mode === 'progNum') {
+      output = ab2num(info.data);
+    } else {
+      output = ab2str(info.data);
+      if(connectedUSB[k].mode === 'progStr') {
+        
+      } else {
+        // send to terminal in broswer tab
+        var msg_to_send = {type:'serial-debug', msg:output};
+        connectedUSB[k].wsSocket.send(msg_to_send);
+      }
+    }
   }
 });
 
@@ -243,7 +275,7 @@ var settings = {
   ctsFlowControl: false
 };
       
-var makeConnection = function(portPath, baudrate) {
+var makeConnection = function(sock, portPath, baudrate, connMode) {
       chrome.serial.connect(portPath, {
         'bitrate': buadrate,
         'dataBits': settings.dataBits,
@@ -254,21 +286,28 @@ var makeConnection = function(portPath, baudrate) {
         function(openInfo) {
         if (openInfo === undefined) {
           log('Unable to connect to device<br>');
-          connectedUSB = null;
+          //connectedUSB = null;
           return true;
         } else {
-          connectedUSB = parseInt(openInfo.connectionId);
-          log('Device connected to [' + connectedUSB + '] ' + portPath + '<br>');
+          connectedUSB.push({wsSocket:sock, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+          log('Device connected to [' + openInfo.connectionId + '] ' + portPath + '<br>');
           return false;
         }
     });
 };
  
-var breakConnection = function() {
-  if(connectedUSB !== null) {
-      chrome.serial.disconnect(connectedUSB, function() {
-      connectedUSB = null;
-      log('Device disconnected<br>');
+var breakConnection = function(portPath) {
+  var k;
+  for (k = 0; k < connectedUSB.length; k++) {
+    if (connectedUSB[k].path === portPath) {
+      break;
+    }
+  k = null;
+  }
+  if (k) {
+    chrome.serial.disconnect(connectedUSB[k].connId, function() {
+      connectedUSB.splice(k, 1);
+      log('Device [' + connectedUSB[k].connId + '] ' + portPath + ' disconnected<br>');
     });
   }
 };
