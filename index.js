@@ -43,12 +43,16 @@ document.addEventListener('DOMContentLoaded', function() {
       connect_ws($('bpc-port').value, $('bpc-url').value);
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
+      console.log('Connected');
+      openPort('COM1', 115200);
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].close();
       }
+      closePort();
+      console.log('Disonnected');
     }
   };
 
