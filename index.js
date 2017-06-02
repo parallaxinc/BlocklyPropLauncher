@@ -1,4 +1,4 @@
-//jQuery-like convience ;)
+// jQuery-like convience ;)
 function $(id) {
   return document.getElementById(id);
 }
@@ -32,6 +32,9 @@ var wsServer = new http.WebSocketServer(server);
 
 // Keep track of the interval that sends the port list so it can be turned off
 var portListener = null;
+
+// tag a new serial port for buffer flushing
+var serialJustOpened = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -99,13 +102,13 @@ function connect_ws(ws_port, url_path) {
           
           // load the propeller
           if (ws_msg.type === "load-prop") {
-            log('Loading Propeller ' + ws_msg.action + '<br>');
+            log('Loading Propeller ' + ws_msg.action);
             loadPropeller(socket, ws_msg.action, ws_msg.payload, ws_msg.debug, ws_msg.portPath, ws_msg.success);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
   
           // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
-            serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate); // action is "open" or "close"
-            log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud<br>');
+            serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open" or "close"
+            log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud');
   
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
@@ -114,13 +117,16 @@ function connect_ws(ws_port, url_path) {
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
+            $('connect-disconnect').innerHTML = 'Connected &#10003';
+            $('connect-disconnect').className = 'button button-green';
+            log('BlocklyProp site connected');
   
           // Handle unknown messages
           } else {
-            log('Unknown JSON message: ' + e.data + '<br>');
+            log('Unknown JSON message: ' + e.data);
           }
         } else {
-          log('Unknown message type: ' + e.data + '<br>');
+          log('Unknown message type: ' + e.data);
         }
       });
 
@@ -231,26 +237,46 @@ function helloClient(sock, baudrate) {
 }
 
 
-function serialTerminal(sock, action, portPath, baudrate) {
+function serialTerminal(sock, action, portPath, baudrate, msg) {
   // TODO: disconnect USB is already active first.
   if (action === "open") {
-    makeConnection(sock, portPath, baudrate, 'debug');
-  } else {
+    if (portPath.indexOf('dev/tty') === -1) {
+      log('Not opening: ' + portPath);
+      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
+      sock.send(JSON.stringify(msg_to_send));
+    } else {
+      makeConnection(sock, portPath, baudrate, 'debug');
+      log('opening ' + portPath);
+    }
+  } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
     breakConnection(portPath);
+  } else if (action === "msg") {
+    // must be something to send to the device - find its connection ID and send it.    
+    var cn, k = null;
+    for (cn = 0; cn < connectedUSB.length; cn++) {
+      if (connectedUSB[cn].path === portPath) {
+        k = cn;
+        break;
+      }
+    }
+    if (k !== null) {
+      chrome.serial.send(connectedUSB[k].connId, str2ab(msg), function() {
+          //log('sent: ' + msg);
+      });
+    }
   }
 }
 
 
 chrome.serial.onReceive.addListener(function(info) {
-  var k;
-  for (k = 0; k < connectedUSB.length; k++) {
-    if (connectedUSB[k].connId === info.connectionId) {
+  var cn, k = null;
+  for (cn = 0; cn < connectedUSB.length; cn++) {
+    if (connectedUSB[cn].connId === info.connectionId) {
+      k = cn;
       break;
     }
-  k = null;
   }
-
-  if(k) {
+  if(k !== null) {
     var output = null;
     if(connectedUSB[k].mode === 'progNum') {
       output = ab2num(info.data);
@@ -259,16 +285,30 @@ chrome.serial.onReceive.addListener(function(info) {
       if(connectedUSB[k].mode === 'progStr') {
         
       } else {
-        // send to terminal in broswer tab
-        var msg_to_send = {type:'serial-debug', msg:output};
-        connectedUSB[k].wsSocket.send(msg_to_send);
+        if(serialJustOpened === info.connectionId) {
+          chrome.serial.flush(serialJustOpened, function(result) {
+            if(result === true) {
+              serialJustOpened = null;
+            }
+          });
+        } else {
+          // send to terminal in broswer tab
+          var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
+          if(connectedSockets[connectedUSB[k].wsSocket]) {
+            connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+          }
+        }
       }
     }
+  } else {
+    // NOT 100% SURE ABOUT THIS!!!!
+    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
   }
 });
 
 
 var settings = {
+  bitrate: 115200,
   dataBits: 'eight',
   parityBit: 'no',
   stopBits: 'one',
@@ -276,8 +316,9 @@ var settings = {
 };
       
 var makeConnection = function(sock, portPath, baudrate, connMode) {
+  settings.bitrate = parseInt(baudrate);
       chrome.serial.connect(portPath, {
-        'bitrate': buadrate,
+        'bitrate': settings.bitrate,
         'dataBits': settings.dataBits,
         'parityBit': settings.parityBit,
         'stopBits': settings.stopBits,
@@ -287,27 +328,34 @@ var makeConnection = function(sock, portPath, baudrate, connMode) {
         if (openInfo === undefined) {
           log('Unable to connect to device<br>');
           //connectedUSB = null;
-          return true;
+          //return true;
         } else {
-          connectedUSB.push({wsSocket:sock, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-          log('Device connected to [' + openInfo.connectionId + '] ' + portPath + '<br>');
-          return false;
+          serialJustOpened = openInfo.connectionId;
+          for (var j = 0; j < connectedSockets.length; j++) {
+            if (connectedSockets[j] === sock) {
+              connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+              break;
+            }
+          }
+          log('Device connected to [' + openInfo.connectionId + '] ' + portPath);
+          
+          //return false;
         }
     });
 };
  
 var breakConnection = function(portPath) {
-  var k;
-  for (k = 0; k < connectedUSB.length; k++) {
-    if (connectedUSB[k].path === portPath) {
+  var cn, k = null;
+  for (cn = 0; cn < connectedUSB.length; cn++) {
+    if (connectedUSB[cn].path === portPath && portPath.indexOf('dev/tty') !== -1) {
+      k = cn;
       break;
     }
-  k = null;
   }
-  if (k) {
+  if (k !== null && connectedUSB[k] !== undefined && connectedUSB.length > 0) {
     chrome.serial.disconnect(connectedUSB[k].connId, function() {
+      log('Device [' + connectedUSB[k].connId + '] ' + portPath + ' disconnected');
       connectedUSB.splice(k, 1);
-      log('Device [' + connectedUSB[k].connId + '] ' + portPath + ' disconnected<br>');
     });
   }
 };
@@ -324,14 +372,17 @@ var ab2str = function(buf) {
 
 // Convert ArrayBuffer to Number Array
 var ab2num = function(buf) {
-  handshakeCheck = '';
-  PropVersion = '';
   var bufView = new Uint8Array(buf);
   var unis = [];
-  var tn = '';
   for (var i = 0; i < bufView.length; i++) {
     unis.push(bufView[i]);
   }
+  return unis;
+
+  /* ----- some code for prop programming -----
+  handshakeCheck = '';
+  PropVersion = '';
+  var tn = '';
   for (i = 0; i < unis.length; i++) {
     if(i < 125) {
       if(rxHandshake[i] === unis[i]) 
@@ -344,6 +395,8 @@ var ab2num = function(buf) {
       PropVersion = (PropVersion >> 2 & 0x3F) | ((unis[i] & 0x01) << 6) | ((unis[i] & 0x20) << 2);
   }
   return tn;
+  */
+  
 };
 
 // Converts String to ArrayBuffer.
