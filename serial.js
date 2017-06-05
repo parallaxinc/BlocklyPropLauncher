@@ -39,3 +39,43 @@ function closePort() {
 function isOpen() {
     return portId >= 0;
 };
+
+function talkToProp() {
+    console.log("talking to Propeller");
+    if(isOpen()) {
+        (function() {
+//           return transport.flush();
+//        })
+//        .then(function(){
+//            if(transport.isPaused()){
+//                return transport.unpause();
+//            }
+//        })
+//        .then(function(){
+          /*return*/ setControl({ dtr: false });
+        })/*)*/
+        .then(function(){
+            /*return*/ setControl({ dtr: true }).delay(100);
+        })
+//        .then(function(){
+//            transport.autoRecover = true;
+//            if(transport.isPaused()){
+//                return transport.unpause();
+//            }
+//        })
+        .then(function(){
+            /*return*/ flush();
+        })
+    };
+
+//    return nodefn.bindCallback(promise, cb);
+    console.log("done talking to Propeller");
+};
+
+function setControl(options) {
+    return chrome.serial.setControlSignals(portID, options);
+};
+
+function flush() {
+    return chrome.serial.flush(portID);
+};
