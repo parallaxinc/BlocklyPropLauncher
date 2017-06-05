@@ -1,15 +1,6 @@
+//TODO Enhanced (or integrate with index.js) to support multiple active connections (portIDs)
 
-/*
-var settings = {
-    bitrate: 115200,
-    dataBits: 'eight',
-    parityBit: 'no',
-    stopBits: 'one',
-    ctsFlowControl: false
-};
-*/
-
-var portID = 0;
+var portID = -1;
 
 function openPort(portPath, baudrate) {
     console.log("in open");
@@ -26,48 +17,25 @@ function openPort(portPath, baudrate) {
             } else {
                 portID = openInfo.connectionId;
                 console.log("Port ", portPath, " open with ID ", portID);
+//TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
             }
         });
 };
 
 function closePort() {
-    chrome.serial.disconnect(portID,
-        function(closeResult) {
-            if (closeResult === true) {
-                console.log("Port closed");
-            } else {
-                console.log("Port not closed");
-            }
-        });
-}
-
-/*
-var makeConnection = function(sock, portPath, baudrate, connMode) {
-    settings.bitrate = parseInt(baudrate);
-    chrome.serial.connect(portPath, {
-            'bitrate': settings.bitrate,
-            'dataBits': settings.dataBits,
-            'parityBit': settings.parityBit,
-            'stopBits': settings.stopBits,
-            'ctsFlowControl': settings.ctsFlowControl
-        },
-        function(openInfo) {
-            if (openInfo === undefined) {
-                log('Unable to connect to device<br>');
-                //connectedUSB = null;
-                //return true;
-            } else {
-                serialJustOpened = openInfo.connectionId;
-                for (var j = 0; j < connectedSockets.length; j++) {
-                    if (connectedSockets[j] === sock) {
-                        connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-                        break;
-                    }
+    if (isOpen) {
+        chrome.serial.disconnect(portID,
+            function (closeResult) {
+                if (closeResult === true) {
+                    portID = -1;
+                    console.log("Port closed");
+                } else {
+                    console.log("Port not closed");
                 }
-                log('Device connected to [' + openInfo.connectionId + '] ' + portPath);
-
-                //return false;
-            }
-        });
+            });
+    };
 };
-*/
+
+function isOpen() {
+    return portId >= 0;
+};
