@@ -27,26 +27,56 @@ function openPort(portPath, baudrate) {
 }
 
 function closePort() {
-    if (isOpen) {
-        chrome.serial.disconnect(portID,
-            function (closeResult) {
-                if (closeResult === true) {
-                    portID = -1;
-                    console.log("Port closed");
-                } else {
-                    console.log("Port not closed");
-                }
-            });
-    }
+    isOpen()
+        .then(function() {
+            chrome.serial.disconnect(portID,
+                function (closeResult) {
+                    if (closeResult === true) {
+                        portID = -1;
+                        console.log("Port closed");
+                    } else {
+                        console.log("Port not closed");
+                    }
+                });
+        });
 }
 
 function isOpen() {
-    return portId >= 0;
+    return new Promise(function(fulfill, reject) {
+        if (portID >= 0) {
+            fulfill(true);
+        } else {
+            reject(false);
+        };
+    });
 }
 
 function talkToProp() {
     console.log("talking to Propeller");
-
+    isOpen()
+        .then(function() {
+//           return transport.flush();
+//        })
+//        .then(function(){
+//            if(transport.isPaused()){
+//                return transport.unpause();
+//            }
+//        })
+//        .then(function(){
+            setControl({dtr: false})
+        })
+        .then(function() {
+            setControl({ dtr: true }).delay(100);
+        })
+//        .then(function(){
+//            transport.autoRecover = true;
+//            if(transport.isPaused()){
+//                return transport.unpause();
+//            }
+//        })
+        .then(function() {
+            flush();
+        });
 
 //    return nodefn.bindCallback(promise, cb);
     console.log("done talking to Propeller");
