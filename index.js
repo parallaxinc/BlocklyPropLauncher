@@ -44,8 +44,10 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
       console.log('Connected');
-      openPort('COM3', 115200);
-      talkToProp();
+      openPort('COM3', 115200)
+          .then(function(){
+              talkToProp();
+          });
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
