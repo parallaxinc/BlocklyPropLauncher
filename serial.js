@@ -69,13 +69,8 @@ function talkToProp() {
             setControl({dtr: true});
         })
         .then(function() {
-            setTimeout(function(){setControl({ dtr: false })}, 400);
+            setTimeout(function(){send("This is a test")}, 100);
         })
-        .then(function() {
-            setControl({ dtr: true });
-        })
-//        .then(function(){
-//            transport.autoRecover = true;
 //            if(transport.isPaused()){
 //                return transport.unpause();
 //            }
@@ -113,4 +108,36 @@ function flush() {
             }
         });
     });
+}
+
+function send(data) {
+    if (typeof data === 'string') {
+        data = str2ab(data);
+    }
+    if (data instanceof ArrayBuffer === false) {
+        data = buffer2ArrayBuffer(data);
+    }
+
+    return chrome.serial.send(portID, data, function (sendResult) {
+    });
+}
+
+// Convert string to ArrayBuffer
+function str2ab(str) {
+    var buf = new ArrayBuffer(str.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < str.length; i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+}
+
+// Convert buffer to ArrayBuffer
+function buffer2ArrayBuffer(buffer) {
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
 }
