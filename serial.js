@@ -82,10 +82,27 @@ function talkToProp() {
     console.log("done talking to Propeller");
 }
 
+//TODO determine if there's a better way to promisify callbacks (with boolean results)
 function setControl(options) {
-    return chrome.serial.setControlSignals(portID, options);
+    return new Promise(function(fulfill, reject) {
+        chrome.serial.setControlSignals(portID, options, function(controlResult) {
+            if (controlResult) {
+                fulfill(true);
+            } else {
+                reject(false);
+            }
+        });
+    });
 }
 
 function flush() {
-    return chrome.serial.flush(portID);
+    return new Promise(function(fulfill, reject) {
+        chrome.serial.flush(portID, function(flushResult) {
+            if (flushResult) {
+                fulfill(true);
+            } else {
+                reject(false);
+            }
+        });
+    });
 }
