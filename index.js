@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
       console.log('Connected');
       openPort('COM3', 115200)
+//      openPort('/dev/ttyUSB0', 115200)
           .then(function(){
               talkToProp();
           });
