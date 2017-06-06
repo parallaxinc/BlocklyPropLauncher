@@ -66,7 +66,13 @@ function talkToProp() {
             setControl({dtr: false})
         })
         .then(function() {
-            jQuery( setControl({ dtr: true }) ).delay(100);
+            setControl({dtr: true});
+        })
+        .then(function() {
+            setTimeout(function(){setControl({ dtr: false })}, 400);
+        })
+        .then(function() {
+            setControl({ dtr: true });
         })
 //        .then(function(){
 //            transport.autoRecover = true;
@@ -75,6 +81,8 @@ function talkToProp() {
 //            }
 //        })
         .then(function() {
+            setControl({dtr: false});
+            setControl({dtr: true});
             flush();
         });
 
