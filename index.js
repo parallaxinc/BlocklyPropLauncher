@@ -310,7 +310,8 @@ chrome.serial.onReceive.addListener(function(info) {
     }
   } else {
     // NOT 100% SURE ABOUT THIS!!!!
-    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
+//!!! Commented out the closing of "rouge serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
+//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
   }
 });
 
