@@ -1,4 +1,5 @@
 //TODO Enhance (or integrate with index.js) to support multiple active connections (portIDs); talkToProp and hearFromProp especially
+//TODO Revisit promisify and see if it will clean up code significantly
 
 var portID = -1;
 
@@ -128,6 +129,11 @@ txData.set(timingPulses, txHandshake.length+microBootLoader.length);
 //Add programming receive handler
 chrome.serial.onReceive.addListener(hearFromProp);
 
+/***********************************************************
+ *                 Serial Support Functions                *
+ ***********************************************************/
+
+//TODO Consider returning error object
 function openPort(portPath, baudrate) {
     console.log("in open");
     return new Promise(function(fulfill, reject) {
@@ -152,6 +158,7 @@ function openPort(portPath, baudrate) {
     });
 }
 
+//TODO Consider returning error object
 function closePort() {
     isOpen()
         .then(function() {
@@ -177,36 +184,92 @@ function isOpen() {
     });
 }
 
+//TODO determine if there's a better way to promisify callbacks (with boolean results)
+//TODO return error object
+function setControl(options) {
+    return new Promise(function(fulfill, reject) {
+        chrome.serial.setControlSignals(portID, options, function(controlResult) {
+            if (controlResult) {
+                fulfill(true);
+            } else {
+                reject(false);
+            }
+        });
+    });
+}
+
+//TODO return error object
+function flush() {
+// Empty transmit and receive buffers
+    return new Promise(function(fulfill, reject) {
+        chrome.serial.flush(portID, function(flushResult) {
+            if (flushResult) {
+                fulfill(true);
+            } else {
+                reject(false);
+            }
+        });
+    });
+}
+
+//TODO Check send callback
+//TODO Consider returning error object
+function send(data) {
+// Transmit data
+    // Convert data from string or buffer to an ArrayBuffer
+    if (typeof data === 'string') {
+        data = str2ab(data);
+    } else {
+        if (data instanceof ArrayBuffer === false) {
+            data = buffer2ArrayBuffer(data);
+        }
+    }
+
+    return chrome.serial.send(portID, data, function (sendResult) {
+    });
+}
+
+function buffer2ArrayBuffer(buffer) {
+// Convert buffer to ArrayBuffer
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
+}
+
+
+/***********************************************************
+ *             Propeller Programming Functions             *
+ ***********************************************************/
+
+//TODO Add error handling
+//TODO Make identify/program optional
 function talkToProp() {
+// Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
     isOpen()
         .then(function(){
             propComm = propCommStart;
-            setControl({dtr: false})
+            setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
-        .then(function() {
-            flush();
-        })
-        .then(function() {
-            setControl({dtr: true});
-        })
-        .then(function() {
-            setTimeout(function(){send(txData)}, 100);
-//        })
-//        .then(function() {
-//            flush();
-        });
-
-//    return nodefn.bindCallback(promise, cb);
-    console.log("done talking to Propeller");
+        .then(flush())                                                          //Flush receive buffer (during Propeller reset)
+        .then(setControl({dtr: true}))                                          //End Propeller Reset
+        .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+        .then(isMicroBootLoaderReady())                                         //Verify package accepted
+        ;
 }
 
 function hearFromProp(info) {
 // Receive Propeller's responses during programming.  Parse responses from expected stages for validation.
 
-//    console.log("hearFromProp: received", info.data.byteLength, "bytes =", ab2num(info.data));
+    console.log("Received", info.data.byteLength, "bytes =", ab2num(info.data));
     // Exit immediately if we're not programming
-    if (propComm.stage === sgIdle) {return}
+    if (propComm.stage === sgIdle) {
+        console.log("...ignoring");
+        return
+    }
 
     var stream = ab2num(info.data);
     var sIdx = 0;
@@ -281,49 +344,7 @@ function hearFromProp(info) {
     }
 }
 
-//TODO determine if there's a better way to promisify callbacks (with boolean results)
-function setControl(options) {
-    return new Promise(function(fulfill, reject) {
-        chrome.serial.setControlSignals(portID, options, function(controlResult) {
-            if (controlResult) {
-                fulfill(true);
-            } else {
-                reject(false);
-            }
-        });
-    });
-}
+function isMicroBootLoaderReady() {
+// Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
 
-function flush() {
-    return new Promise(function(fulfill, reject) {
-        chrome.serial.flush(portID, function(flushResult) {
-            if (flushResult) {
-                fulfill(true);
-            } else {
-                reject(false);
-            }
-        });
-    });
-}
-
-function send(data) {
-    if (typeof data === 'string') {
-        data = str2ab(data);
-    }
-    if (data instanceof ArrayBuffer === false) {
-        data = buffer2ArrayBuffer(data);
-    }
-
-    return chrome.serial.send(portID, data, function (sendResult) {
-    });
-}
-
-// Convert buffer to ArrayBuffer
-function buffer2ArrayBuffer(buffer) {
-    var buf = new ArrayBuffer(buffer.length);
-    var bufView = new Uint8Array(buf);
-    for (var i = 0; i < buffer.length; i++) {
-        bufView[i] = buffer[i];
-    }
-    return buf;
 }
