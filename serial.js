@@ -259,7 +259,7 @@ function hearFromProp(info) {
         //Received RAM Checksum response?
         propComm.ramCheck = stream[sIdx++];
         //Set next stage according to result
-        propComm.stage = propComm.ramCheck === $FE ? sgEEProgram : sgIdle;
+        propComm.stage = propComm.ramCheck === 0xFE ? sgEEProgram : sgIdle;
     }
 
     // Receive EEPROM Programmed response
@@ -267,7 +267,7 @@ function hearFromProp(info) {
         //Received EEPROM Programmed response?
         propComm.eeProg = stream[sIdx++];
         //Set next stage according to result
-        propComm.stage = propComm.eeProg === $FE ? sgEEChecksum : sgIdle;
+        propComm.stage = propComm.eeProg === 0xFE ? sgEEChecksum : sgIdle;
     }
 
     // Receive EEPROM Checksum response
@@ -276,7 +276,7 @@ function hearFromProp(info) {
         propComm.eeCheck = stream[sIdx++];
         //Set next stage according to result
 //TODO Enable next stage
-//        propComm.stage = propComm.eeProg === $FE ? sgEEChecksum : sgIdle;
+//        propComm.stage = propComm.eeProg === 0xFE ? sgEEChecksum : sgIdle;
         progComm.stage = sgIdle;
     }
 }
@@ -316,16 +316,6 @@ function send(data) {
 
     return chrome.serial.send(portID, data, function (sendResult) {
     });
-}
-
-// Convert string to ArrayBuffer
-function str2ab(str) {
-    var buf = new ArrayBuffer(str.length);
-    var bufView = new Uint8Array(buf);
-    for (var i = 0; i < str.length; i++) {
-        bufView[i] = str.charCodeAt(i);
-    }
-    return buf;
 }
 
 // Convert buffer to ArrayBuffer
