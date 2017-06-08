@@ -2,10 +2,12 @@
 //TODO Revisit promisify and see if it will clean up code significantly
 
 var portID = -1;
+var portBaudrate = 0;
+const initialBaudrate = 115200;
 
 // propComm status values
-const stInvalid = -1;
-const stValidating = 0;
+const stValidating = -1;
+const stInvalid = 0;
 const stValid = 1;
 
 // propComm stage values
@@ -136,6 +138,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
 //TODO Consider returning error object
 function openPort(portPath, baudrate) {
     console.log("in open");
+    portBaudrate = baudrate ? baudrate : initialBaudrate;
     return new Promise(function(fulfill, reject) {
         chrome.serial.connect(portPath, {
                 'bitrate': parseInt(baudrate),
@@ -252,12 +255,14 @@ function talkToProp() {
     isOpen()
         .then(function(){
             Object.assign(propComm, propCommStart);
+            var deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;        //Calculate package delivery time
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
         .then(flush())                                                          //Flush receive buffer (during Propeller reset)
         .then(setControl({dtr: true}))                                          //End Propeller Reset
         .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMicroBootLoaderReady())                                         //Verify package accepted
+        .then(isMicroBootLoaderReady(deliveryTime))                             //Verify package accepted
+        .then(function() {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
         ;
 }
 
@@ -344,7 +349,21 @@ function hearFromProp(info) {
     }
 }
 
-function isMicroBootLoaderReady() {
+//TODO Enable checking of Micro Boot Loader "Ready" signal
+function isMicroBootLoaderReady(timeout) {
 // Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
-
+    setTimeout(function() {
+        var promise = new Promise(function(fulfill, reject) {
+            //Check handshake
+            if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
+            //Check version
+            if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
+            //Check RAM checksum
+            if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
+            //Check Micro Boot Loader "Ready" signal
+//        if (propComm.????? !== stValid) { reject(Error("Micro Boot Loader failed.")) }
+            fulfill(true);
+        });
+    }, timeout);
+    return promise;
 }
