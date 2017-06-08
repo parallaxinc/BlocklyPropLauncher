@@ -251,7 +251,7 @@ function talkToProp() {
     console.log("talking to Propeller");
     isOpen()
         .then(function(){
-            propComm = propCommStart;
+            Object.assign(propComm, propCommStart);
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
         .then(flush())                                                          //Flush receive buffer (during Propeller reset)
