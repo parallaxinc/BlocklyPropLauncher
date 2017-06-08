@@ -69,11 +69,8 @@ function parseFile(payload) {
     progSize = getValueAt(fs, 0x08, 1, 2);
 
     // get the file checksum and verify it, if ok, return the 
-    var cs = fs[5];
-    fs[5] = 0;
-    if (checksumArray(fs, progSize) === cs) {
-      fs[5] = cs;
-      
+    if (checksumArray(fs, progSize) === 0) {
+
       // if necessary, trunc the program to the size spec'd in the file header.
       for (var z = 0; z < progSize; z++) {
         outBuf += String.fromCharCode(fs[z]) || 0;

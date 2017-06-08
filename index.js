@@ -456,7 +456,7 @@ function checksumArray(arr, l) {
   var chksm = 236;
   for (var a = 0; a < l; a++) {
     if (isNumber(arr[a])) {
-      chksm = ((arr[a] + chksm) & 255);
+      chksm = arr[a] + chksm;
     }
   }
   chksm = (256 - chksm) & 255;
