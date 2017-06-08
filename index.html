@@ -4,6 +4,7 @@
     <link rel="stylesheet" href="index.css">
     <script src="sha1.js"></script>
     <script src="http.js"></script>
+    <script src="parser.js"></script>
     <script src="index.js"></script>
   </head>
   <body>
@@ -11,22 +12,23 @@
       <table border="0" cellpadding="1" cellspacing="0">
         <tr>
           <td>Send:</td>
-          <td><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
+          <td colspan="2"><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
         </tr>
         <tr>
           <td>IP Address:</td>
-          <td><input type="text" id="bpc-url" class="con" value="localhost" style="width:200px;"/></td>
+          <td><input type="text" id="bpc-url" class="con" value="localhost" style="width:170px;"/></td>
+          <td rowspan="2"><button id='save-settings' style="width:24px;">S</button></td>
         </tr>
         <tr>
           <td>Port:</td>
-          <td><input type="text" id="bpc-port" value="6009" class="con" style="width:200px;"/></td>
+          <td><input type="text" id="bpc-port" value="6009" class="con" style="width:170px;"/></td>
         </tr>
         <tr>
           <td>Trace Logging:</td>
-          <td><input type="checkbox" id="bpc-trace"/></td>
+          <td colspan="2"><input type="checkbox" id="bpc-trace"/></td>
         </tr>
         <tr>
-          <td colspan="2"><div id="log" class="con" style="height:260px;width:287px;overflow-y:scroll;background:#fff;border:1px solid #ccc"></div></td>
+          <td colspan="3"><div id="log" class="con" style="height:260px;width:287px;overflow-y:scroll;background:#fff;border:1px solid #ccc"></div></td>
         </tr>
       </table>
     </div>
