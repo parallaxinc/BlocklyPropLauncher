@@ -8,12 +8,12 @@ const stValidating = 0;
 const stValid = 1;
 
 // propComm stage values
-const sgIdle = 0;
-const sgHandshake = 1;
-const sgVersion = 2;
-const sgRAMChecksum = 3;
-const sgEEProgram = 4;
-const sgEEChecksum = 5;
+const sgIdle = -1;
+const sgHandshake = 0;
+const sgVersion = 1;
+const sgRAMChecksum = 2;
+const sgEEProgram = 3;
+const sgEEChecksum = 4;
 
 // Propeller Communication (propComm) status
 var propComm = {};
@@ -21,7 +21,7 @@ const propCommStart = {
     stage     : sgHandshake,
     rxCount   : 0,
     handshake : stValidating,
-    version   : 0,
+    version   : -1,
     ramCheck  : stValidating,
     eeProg    : stValidating,
     eeCheck   : stValidating
@@ -253,17 +253,32 @@ function hearFromProp(info) {
             }
         }
     }
-/*
-    if (propComm.stage === sgRAMChecksum) {
 
+    // Receive RAM Checksum
+    if (propComm.stage === sgRAMChecksum && sIdx < stream.length) {
+        //Received RAM Checksum response?
+        propComm.ramCheck = stream[sIdx++];
+        //Set next stage according to result
+        propComm.stage = propComm.ramCheck === $FE ? sgEEProgram : sgIdle;
     }
-    if (propComm.stage === sgEEProgram) {
 
+    // Receive EEPROM Programmed response
+    if (propComm.stage === sgEEProgram && sIdx < stream.length) {
+        //Received EEPROM Programmed response?
+        propComm.eeProg = stream[sIdx++];
+        //Set next stage according to result
+        propComm.stage = propComm.eeProg === $FE ? sgEEChecksum : sgIdle;
     }
-    if (propComm.stage === sgEEChecksum) {
 
+    // Receive EEPROM Checksum response
+    if (propComm.stage === sgEEChecksum && sIdx < stream.length) {
+        //Received EEPROM Checksum response?
+        propComm.eeCheck = stream[sIdx++];
+        //Set next stage according to result
+//TODO Enable next stage
+//        propComm.stage = propComm.eeProg === $FE ? sgEEChecksum : sgIdle;
+        progComm.stage = sgIdle;
     }
-*/
 }
 
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
