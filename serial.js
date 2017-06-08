@@ -16,8 +16,9 @@ const sgEEProgram = 4;
 const sgEEChecksum = 5;
 
 // Propeller Communication (propComm) status
-var propComm = {
-    stage     : sgIdle,
+var propComm = {};
+const propCommStart = {
+    stage     : sgHandshake,
     rxCount   : 0,
     handshake : stValidating,
     version   : 0,
@@ -179,74 +180,80 @@ function isOpen() {
 function talkToProp() {
     console.log("talking to Propeller");
     isOpen()
-        .then(function() {
-
-//           return transport.flush();
-//        })
-//        .then(function(){
-//            if(transport.isPaused()){
-//                return transport.unpause();
-//            }
-//        })
-//        .then(function(){
-            propComm.stage = sgHandshake;
+        .then(function(){
+            propComm = propCommStart;
             setControl({dtr: false})
+        })
+        .then(function() {
+            flush();
         })
         .then(function() {
             setControl({dtr: true});
         })
         .then(function() {
             setTimeout(function(){send(txData)}, 100);
-        })
-//            if(transport.isPaused()){
-//                return transport.unpause();
-//            }
 //        })
-        .then(function() {
-            setControl({dtr: false});
-            setControl({dtr: true});
-            flush();
+//        .then(function() {
+//            flush();
         });
 
 //    return nodefn.bindCallback(promise, cb);
     console.log("done talking to Propeller");
 }
-//TODO flag that we're programming so this receiver doesn't work needlessly
+
 function hearFromProp(info) {
+// Receive Propeller's responses during programming.  Parse responses from expected stages for validation.
+
 //    console.log("hearFromProp: received", info.data.byteLength, "bytes =", ab2num(info.data));
     // Exit immediately if we're not programming
     if (propComm.stage === sgIdle) {return}
 
     var stream = ab2num(info.data);
-    var i = 0;
+    var sIdx = 0;
 
+    // Validate rxHandshake
     if (propComm.stage === sgHandshake) {
-        if (propComm.rxCount < rxHandshake.length) {
-            const len = Math.min(stream.length, rxHandshake.length-propComm.rxCount);
-            while (i < len && propComm.rxCount < rxHandshake.length) {
-                //More data to match against rxHandshake...
-                if (stream[i++] === rxHandshake[propComm.rxCount++]) {
-                    //Handshake matches so far...
-                    if (propComm.rxCount === rxHandshake.length) {
-                        //Entire handshake matches!  Note valid and prep for next stage
-                        propComm.handshake = stValid;
-                        propComm.rxCount = 0;
-                        propComm.stage = sgVersion;
-                        break;
-                    }
-                } else {
-                    //Handshake failure!  Ignore the rest
-                    propComm.handshake = stInvalid;
-                    propComm.stage = sgIdle;
+        while (sIdx < stream.length && propComm.rxCount < rxHandshake.length) {
+            //More data to match against rxHandshake...
+            if (stream[sIdx++] === rxHandshake[propComm.rxCount++]) {
+                //Handshake matches so far...
+                if (propComm.rxCount === rxHandshake.length) {
+                    //Entire handshake matches!  Note valid and prep for next stage
+                    propComm.handshake = stValid;
+                    propComm.rxCount = 0;
+                    propComm.stage = sgVersion;
                     break;
                 }
+            } else {
+                //Handshake failure!  Ignore the rest
+                propComm.handshake = stInvalid;
+                propComm.stage = sgIdle;
+                break;
+            }
+        }
+    }
+
+    // Extract Propeller version
+    if (propComm.stage === sgVersion) {
+        while (sIdx < stream.length && propComm.rxCount < 4) {
+            //More data to decode into Propeller version (4 bytes, 2 data bits per byte)
+            propComm.version = (propComm.version >> 2 & 0x3F) | ((stream[sIdx] & 0x01) << 6) | ((stream[sIdx] & 0x20) << 2);
+            sIdx++;
+            if (++propComm.rxCount === 4) {
+                //Received all 4 bytes
+                if (propComm.version === 1) {
+                    //Version matches expected value!  Prep for next stage
+                    propComm.rxCount = 0;
+                    propComm.stage = sgRAMChecksum;
+                } else {
+                    //Unexpected version!  Ignore the rest
+                    propComm.stage = sgIdle;
+                }
+                break;
             }
         }
     }
 /*
-    if (propComm.stage === sgVersion) {
-
-    }
     if (propComm.stage === sgRAMChecksum) {
 
     }
