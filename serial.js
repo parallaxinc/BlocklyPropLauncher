@@ -2,13 +2,31 @@
 
 var portID = -1;
 
-var handshake = {
-    Valid   : false,
-    RxCount : 0,
-    Version : 0
+// propComm status values
+const stInvalid = -1;
+const stValidating = 0;
+const stValid = 1;
+
+// propComm stage values
+const sgIdle = 0;
+const sgHandshake = 1;
+const sgVersion = 2;
+const sgRAMChecksum = 3;
+const sgEEProgram = 4;
+const sgEEChecksum = 5;
+
+// Propeller Communication (propComm) status
+var propComm = {
+    stage     : sgIdle,
+    rxCount   : 0,
+    handshake : stValidating,
+    version   : 0,
+    ramCheck  : stValidating,
+    eeProg    : stValidating,
+    eeCheck   : stValidating
 };
 
-const TxHandshake = [
+const txHandshake = [
     0x49,                                                                            /*First timing template ('1' and '0') plus first two bits of handshake ('0' and '1')*/
     0xAA,0x52,0xA5,0xAA,0x25,0xAA,0xD2,0xCA,0x52,0x25,0xD2,0xD2,0xD2,0xAA,0x49,0x92, /*Remaining 248 bits of handshake...*/
     0xC9,0x2A,0xA5,0x25,0x4A,0x49,0x49,0x2A,0x25,0x49,0xA5,0x4A,0xAA,0x2A,0xA9,0xCA,
@@ -27,10 +45,10 @@ const TxHandshake = [
     0x93,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0xF2                           /*Download command (1; program RAM and run); 11 bytes*/
 ];
 
-const RxHandshake = [
+const rxHandshake = [
     0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  /*The RxHandshake array consists of 125 bytes encoded to represent the expected*/
     0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  /*250-bit (125-byte @ 2 bits/byte) response of continuing-LFSR stream bits from*/
-    0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  /*the Propeller, prompted by the timing templates following the TxHandshake stream.*/
+    0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  /*the Propeller, prompted by the timing templates following the txHandshake stream.*/
     0xEF,0xCE,0xCF,0xEE,0xEF,0xEE,0xEE,0xEE,0xEE,0xEF,0xEE,0xCF,0xCF,0xEF,0xEE,0xCE,
     0xEF,0xEF,0xEF,0xEF,0xCE,0xEF,0xEE,0xEF,0xCF,0xEF,0xCF,0xCF,0xCE,0xCE,0xCE,0xCF,
     0xCF,0xEF,0xCE,0xEE,0xCF,0xEE,0xEF,0xCE,0xCE,0xCE,0xEF,0xEF,0xCF,0xCF,0xEE,0xEE,
@@ -38,7 +56,7 @@ const RxHandshake = [
     0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
 ];
 
-const MicroBootLoader = [
+const microBootLoader = [
     0x9a,0xd2,0x93,0x92,0x92,0x92,0x92,                                              /*Patched and Encoded Micro Boot Loader*/
     0x92,0x92,0x92,0xf2,0x92,0x92,0x92,0x4a,0x29,0xca,0x52,0xd2,0x92,0x52,0xa5,0xc9,
     0x92,0x92,0xc9,0xd2,0x92,0x92,0x92,0x92,0xd2,0x92,0x25,0x92,0x92,0x92,0x49,0xc9,
@@ -99,12 +117,12 @@ const MicroBootLoader = [
     0xd2,0x92,0x4a,0x2a,0x92,0xa5,0x92,0x49,0xc9,0x92,0x92,0x92,0x92,0x92,0xfe
 ];
 
-var TimingPulses = new Array(3110).fill(0xF9);
+var timingPulses = new Array(3110).fill(0xF9);
 
-var TxData = new Uint8Array(TxHandshake.length+MicroBootLoader.length+TimingPulses.length);
-TxData.set(TxHandshake, 0);
-TxData.set(MicroBootLoader, TxHandshake.length);
-TxData.set(TimingPulses, TxHandshake.length+MicroBootLoader.length);
+var txData = new Uint8Array(txHandshake.length+microBootLoader.length+timingPulses.length);
+txData.set(txHandshake, 0);
+txData.set(microBootLoader, txHandshake.length);
+txData.set(timingPulses, txHandshake.length+microBootLoader.length);
 
 //Add programming receive handler
 chrome.serial.onReceive.addListener(hearFromProp);
@@ -171,13 +189,14 @@ function talkToProp() {
 //            }
 //        })
 //        .then(function(){
+            propComm.stage = sgHandshake;
             setControl({dtr: false})
         })
         .then(function() {
             setControl({dtr: true});
         })
         .then(function() {
-            setTimeout(function(){send(TxData)}, 100);
+            setTimeout(function(){send(txData)}, 100);
         })
 //            if(transport.isPaused()){
 //                return transport.unpause();
@@ -192,15 +211,52 @@ function talkToProp() {
 //    return nodefn.bindCallback(promise, cb);
     console.log("done talking to Propeller");
 }
-
+//TODO flag that we're programming so this receiver doesn't work needlessly
 function hearFromProp(info) {
 //    console.log("hearFromProp: received", info.data.byteLength, "bytes =", ab2num(info.data));
-    var stream = ab2num(info.data);
-    const len = Math.min(stream.length, RxHandshake.length);
+    // Exit immediately if we're not programming
+    if (propComm.stage === sgIdle) {return}
 
-    for (var i=0; i < len; i++) {
+    var stream = ab2num(info.data);
+    var i = 0;
+
+    if (propComm.stage === sgHandshake) {
+        if (propComm.rxCount < rxHandshake.length) {
+            const len = Math.min(stream.length, rxHandshake.length-propComm.rxCount);
+            while (i < len && propComm.rxCount < rxHandshake.length) {
+                //More data to match against rxHandshake...
+                if (stream[i++] === rxHandshake[propComm.rxCount++]) {
+                    //Handshake matches so far...
+                    if (propComm.rxCount === rxHandshake.length) {
+                        //Entire handshake matches!  Note valid and prep for next stage
+                        propComm.handshake = stValid;
+                        propComm.rxCount = 0;
+                        propComm.stage = sgVersion;
+                        break;
+                    }
+                } else {
+                    //Handshake failure!  Ignore the rest
+                    propComm.handshake = stInvalid;
+                    propComm.stage = sgIdle;
+                    break;
+                }
+            }
+        }
+    }
+/*
+    if (propComm.stage === sgVersion) {
 
     }
+    if (propComm.stage === sgRAMChecksum) {
+
+    }
+    if (propComm.stage === sgEEProgram) {
+
+    }
+    if (propComm.stage === sgEEChecksum) {
+
+    }
+*/
 }
 
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
