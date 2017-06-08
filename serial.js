@@ -252,10 +252,11 @@ function buffer2ArrayBuffer(buffer) {
 function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
+    var deliveryTime = 0;
     isOpen()
         .then(function(){
             Object.assign(propComm, propCommStart);
-            var deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;        //Calculate package delivery time
+            deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
         .then(flush())                                                          //Flush receive buffer (during Propeller reset)
@@ -352,18 +353,17 @@ function hearFromProp(info) {
 //TODO Enable checking of Micro Boot Loader "Ready" signal
 function isMicroBootLoaderReady(timeout) {
 // Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
-    setTimeout(function() {
-        var promise = new Promise(function(fulfill, reject) {
-            //Check handshake
-            if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
-            //Check version
-            if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
-            //Check RAM checksum
-            if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
-            //Check Micro Boot Loader "Ready" signal
+    var promise = new Promise(function(fulfill, reject) {
+        //Check handshake
+        if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
+        //Check version
+        if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
+        //Check RAM checksum
+        if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
+        //Check Micro Boot Loader "Ready" signal
 //        if (propComm.????? !== stValid) { reject(Error("Micro Boot Loader failed.")) }
-            fulfill(true);
-        });
-    }, timeout);
+        fulfill(true);
+    });
+    setTimeout(promise(), timeout);
     return promise;
 }
