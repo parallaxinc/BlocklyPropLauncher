@@ -1,9 +1,18 @@
+// TODO: allow user to change port and server IP/addr.  Feilds and button are there, but no supporting code.
+// TODO: update bkg img to include S3 robot.
+// TODO: ELF/eeprom/binary parsing/formatting.
+// TODO: 
+
+
+
+
+
 // jQuery-like convience ;)
 function $(id) {
   return document.getElementById(id);
 }
 
-// TODO: turn this into a hidden field and downloadable datestamped file.
+// TODO: provide mechanism for this to be a downloadable date-stamped file.
 function log(text) {
   $('log').innerHTML += text + '<br>';
 }
@@ -128,7 +137,7 @@ function connect_ws(ws_port, url_path) {
             $('connect-disconnect').innerHTML = 'Connected &#10003';
             $('connect-disconnect').className = 'button button-green';
             log('BlocklyProp site connected');
-  
+
           // Handle unknown messages
           } else {
             log('Unknown JSON message: ' + e.data);
@@ -214,6 +223,7 @@ function connect_ws(ws_port, url_path) {
   //});
 }
 
+
 function sendPortList() {
   chrome.serial.getDevices(
     function(ports) {
@@ -231,11 +241,11 @@ function sendPortList() {
   );
 }
 
+
 function loadPropeller(sock, action, payload, debug, portPath, success) {
-  // TODO: disconnect USB is already active first.
+  // TODO: disconnect USB if already active first?
   // TODO: everything else :)
-  
-  
+  console.log(parseFile(payload));
 }
 
 
@@ -246,7 +256,7 @@ function helloClient(sock, baudrate) {
 
 
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  // TODO: disconnect USB is already active first.
+  // TODO: disconnect USB is already active first?
   if (action === "open") {
     if (portPath.indexOf('dev/tty') === -1) {
       log('Not opening: ' + portPath);
@@ -418,6 +428,15 @@ var str2ab = function(str) {
   return buf;
 };
 
+var str2buf = function(str) {
+  var buf = new ArrayBuffer(str.length);
+  var bufView = new Uint8Array(buf);
+  for (var i = 0; i < str.length; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return bufView;
+};
+
 var getIndexByValue = function(element, value) {
   var list = element.options;
   for (var i = 0; i < list.length; i++) {
@@ -426,5 +445,41 @@ var getIndexByValue = function(element, value) {
     }
   }
 };
+
+function isNumber(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
+// calculate the checksum of a Propeller program image (byte 5 must be 0x00)
+function checksumArray(arr, l) {
+  if (!l) l = arr.length;
+  var chksm = 236;
+  for (var a = 0; a < l; a++) {
+    if (isNumber(arr[a])) {
+      chksm = ((arr[a] + chksm) & 255);
+    }
+  }
+  chksm = (256 - chksm) & 255;
+  return chksm;
+}
+
+// retrieves a value from a byte array, parameters for address, endianness, and number of bytes
+function getValueAt(arr, addr, order, byteCount) {
+  var o = 0, k;
+  if (order === 1) {
+    for (k = addr + byteCount - 1; k >= addr; k--) {
+      o = o + arr[k];
+      if (k !== addr)
+        o = o * 256;
+    }
+  } else {
+    for (k = addr; k <= addr + byteCount - 1; k++) {
+      o = o + arr[k];
+      if (k !== addr + byteCount - 1)
+        o = o * 256;
+    }
+  }
+  return o;
+}
 
 
