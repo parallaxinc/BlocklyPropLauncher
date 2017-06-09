@@ -377,15 +377,15 @@ function isMicroBootLoaderReady(timeout) {
         return new Promise(function(fulfill, reject) {
             console.log("promise working: ", propComm);
             //Check handshake
-            while (propComm.handshake === stValidating) {}
+//            while (propComm.handshake === stValidating) {}
             if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
             console.log("handshake valid");
             //Check version
-            while (propComm.version === stValidating) {}
+//            while (propComm.version === stValidating) {}
             if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
             console.log("version valid");
             //Check RAM checksum
-            while (propComm.ramCheck === stValidating) {}
+//            while (propComm.ramCheck === stValidating) {}
             if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
             console.log("RAM Check valid");
             //Check Micro Boot Loader "Ready" signal
