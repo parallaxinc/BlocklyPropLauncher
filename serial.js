@@ -140,7 +140,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
 function openPort(portPath, baudrate) {
     console.log("in open");
     portBaudrate = baudrate ? baudrate : initialBaudrate;
-    return new Promise(function(fulfill, reject) {
+    return new Promise(function(reject, reject) {
         chrome.serial.connect(portPath, {
                 'bitrate': parseInt(baudrate),
                 'dataBits': 'eight',
@@ -154,7 +154,7 @@ function openPort(portPath, baudrate) {
                 } else {
                     portID = openInfo.connectionId;
                     console.log("Port", portPath, "open with ID", portID);
-                    fulfill(portID);
+                    reject(portID);
 //TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
                 }
             }
@@ -179,9 +179,9 @@ function closePort() {
 }
 
 function isOpen() {
-    return new Promise(function(fulfill, reject) {
+    return new Promise(function(resolve, reject) {
         if (portID >= 0) {
-            fulfill(true);
+            resolve(true);
         } else {
             reject(false);
         };
@@ -191,10 +191,10 @@ function isOpen() {
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
 //TODO return error object
 function setControl(options) {
-    return new Promise(function(fulfill, reject) {
+    return new Promise(function(resolve, reject) {
         chrome.serial.setControlSignals(portID, options, function(controlResult) {
             if (controlResult) {
-                fulfill(true);
+                resolve(true);
             } else {
                 reject(false);
             }
@@ -205,10 +205,10 @@ function setControl(options) {
 //TODO return error object
 function flush() {
 // Empty transmit and receive buffers
-    return new Promise(function(fulfill, reject) {
+    return new Promise(function(resolve, reject) {
         chrome.serial.flush(portID, function(flushResult) {
             if (flushResult) {
-                fulfill(true);
+                resolve(true);
             } else {
                 reject(false);
             }
@@ -254,7 +254,7 @@ function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
 
-//    isMicroBootLoaderReady(2000).then(function(){console.log("fulfilled")}, function(e){console.log("rejected", e)});
+//    isMicroBootLoaderReady(2000).then(function(){console.log("resolved")}, function(e){console.log("rejected", e)});
 
     var deliveryTime = 0;
     isOpen()
@@ -373,7 +373,7 @@ function isMicroBootLoaderReady(timeout) {
    Error is "Propeller not found" unless handshake proper & version received; error is more specific thereafter.*/
 
     var promise = function() {
-        return new Promise(function(fulfill, reject) {
+        return new Promise(function(resolve, reject) {
             console.log("MBLReady working: ", propComm);
             var verify = sgHandshake;
             var vError = "Propeller not found.";
@@ -409,7 +409,7 @@ function isMicroBootLoaderReady(timeout) {
             }
             while (Date.now() < timeout && verify > sgIdle);
             console.log("MBLReady done: ", propComm);
-            if (verify === sgIdle) {console.log("fulfilling"); fulfill()} else {console.log("rejecting"); reject(Error(vError))};
+            if (verify === sgIdle) {console.log("resolving"); resolve()} else {console.log("rejecting"); reject(Error(vError))};
         })
     };
 
@@ -418,10 +418,10 @@ function isMicroBootLoaderReady(timeout) {
 
     /*
      var promise = function() {
-     return new Promise(function(fulfill, reject) {
+     return new Promise(function(resolve, reject) {
      console.log("isMicroBootReady?");
      setTimeout(function() {
-     fulfill();
+     resolve();
      }, 3000);
      });
      }
@@ -432,9 +432,9 @@ function isMicroBootLoaderReady(timeout) {
 }
 
 function timedPromise(promise, timeout){
-// Takes in a promise and returns it as a promise that rejects in timeout milliseconds if not fulfilled beforehand
+// Takes in a promise and returns it as a promise that rejects in timeout milliseconds if not resolved beforehand
     var expired = function() {
-        return new Promise(function (fulfill, reject) {
+        return new Promise(function (resolve, reject) {
             var id = setTimeout(function() {
                 console.log("Timed out!");
                 clearTimeout(id);
