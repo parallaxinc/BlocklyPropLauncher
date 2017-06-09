@@ -252,6 +252,9 @@ function buffer2ArrayBuffer(buffer) {
 function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
+
+    isMicroBootLoaderReady(2000).then(function(){console.log("fulfilled")}, function(e){console.log("rejected", e)});
+/*
     var deliveryTime = 0;
     isOpen()
         .then(function(){
@@ -262,9 +265,10 @@ function talkToProp() {
         .then(flush())                                                          //Flush receive buffer (during Propeller reset)
         .then(setControl({dtr: true}))                                          //End Propeller Reset
         .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMicroBootLoaderReady(deliveryTime))                             //Verify package accepted
+        .then(isMicroBootLoaderReady(2000))                             //Verify package accepted
         .then(function() {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
         ;
+*/
 }
 
 function hearFromProp(info) {
@@ -353,17 +357,55 @@ function hearFromProp(info) {
 //TODO Enable checking of Micro Boot Loader "Ready" signal
 function isMicroBootLoaderReady(timeout) {
 // Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
-    var promise = new Promise(function(fulfill, reject) {
-        //Check handshake
-        if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
-        //Check version
-        if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
-        //Check RAM checksum
-        if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
-        //Check Micro Boot Loader "Ready" signal
+
+    var promise = function() {
+        return new Promise(function(fulfill, reject) {
+            console.log("isMicroBootReady?");
+            setTimeout(function() {
+                fulfill();
+            }, 3000);
+        });
+    }
+
+//    return promise();
+    return timedPromise(promise, timeout);
+
+/*
+    var promise = function() {
+        return new Promise(function(fulfill, reject) {
+            reject('Blah');
+            console.log("promise working: ", propComm);
+            //Check handshake
+            if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
+            console.log("handshake valid");
+            //Check version
+            if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
+            console.log("version valid");
+            //Check RAM checksum
+            if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
+            console.log("RAM Check valid");
+            //Check Micro Boot Loader "Ready" signal
 //        if (propComm.????? !== stValid) { reject(Error("Micro Boot Loader failed.")) }
-        fulfill(true);
-    });
-    setTimeout(promise(), timeout);
-    return promise;
+            fulfill(true);
+        });
+    };
+    return timedPromise(promise, timeout);
+*/
+//    setTimeout(function() {promise}, timeout);
+//    return promise;
+}
+
+function timedPromise(promise, timeout){
+// Takes in a promise and returns it as a promise that rejects in timeout milliseconds if not fulfilled beforehand
+    var expired = function() {
+        return new Promise(function (fulfill, reject) {
+            var id = setTimeout(function() {
+                console.log("Timed out!");
+                clearTimeout(id);
+                reject('Timed out in ' + timeout + ' ms.');
+            }, timeout);
+        })
+    };
+    // Returns a promise race between passed-in promise and timeout promise
+    return Promise.race([promise(), expired()])
 }
