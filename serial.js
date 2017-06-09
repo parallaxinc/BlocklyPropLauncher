@@ -11,6 +11,7 @@ const stInvalid = 0;
 const stValid = 1;
 
 // propComm stage values
+const sgError = -2;
 const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
@@ -258,16 +259,15 @@ function talkToProp() {
     var deliveryTime = 0;
     isOpen()
         .then(function(){
-            Object.assign(propComm, propCommStart);
+            Object.assign(propComm, propCommStart);                             //Reset propComm object
             deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
-        .then(flush()                                                           //Flush receive buffer (during Propeller reset)
-        .then(setControl({dtr: true})                                           //End Propeller Reset
+        .then(flush())                                                          //Flush receive buffer (during Propeller reset)
+        .then(setControl({dtr: true}))                                          //End Propeller Reset
         .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMicroBootLoaderReady(2000)                                      //Verify package accepted
+        .then(isMicroBootLoaderReady(2000))                                     //Verify package accepted
         .then(function(){console.log("Success!")}, function(e){console.log("Error: %s", e.message)})
-        )))
         ;
 
 }
@@ -357,46 +357,67 @@ function hearFromProp(info) {
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
 function isMicroBootLoaderReady(timeout) {
-// Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
-
-/*
-    var promise = function() {
-        return new Promise(function(fulfill, reject) {
-            console.log("isMicroBootReady?");
-            setTimeout(function() {
-                fulfill();
-            }, 3000);
-        });
-    }
-
-//    return promise();
-    return timedPromise(promise, timeout);
-*/
+/* Return a promise that verifies the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+   Rejects if any error occurs or if timeout expires.
+   Error is "Propeller not found" unless handshake proper & version received; error is more specific thereafter.*/
 
     var promise = function() {
         return new Promise(function(fulfill, reject) {
-            console.log("promise working: ", propComm);
-            //Check handshake
-//            while (propComm.handshake === stValidating) {}
-            if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
-            console.log("handshake valid");
-            //Check version
-//            while (propComm.version === stValidating) {}
-            if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
-            console.log("version valid");
-            //Check RAM checksum
-//            while (propComm.ramCheck === stValidating) {}
-            if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
-            console.log("RAM Check valid");
-            //Check Micro Boot Loader "Ready" signal
-//        if (propComm.????? !== stValid) { reject(Error("Micro Boot Loader failed.")) }
-            fulfill();
-        });
+            console.log("MBLReady working: ", propComm);
+            var verify = sgHandshake;
+            var vError = "Propeller not found.";
+            timeout += Date.now();
+            do {
+                //Check handshake
+                if (verify === sgHandshake) {
+                    if (propComm.handshake !== stValidating) {
+                        verify = propComm.handshake === stValid ? sgVersion : sgError;
+                        if (verify === sgVersion) {console.log("Handshake valid");}
+                    }
+                }
+                //Check version
+                if (verify === sgVersion) {
+                    if (propComm.version !== stValidating) {
+                        if (propComm.version === stValid) {
+                            verify = sgRAMChecksum;
+                            console.log("Version valid");
+                        } else {
+                            verify = sgError;
+                            vError = "Found Propeller version %d - expected version 1.";
+                        }
+                    }
+                }
+                //Check RAM checksum
+                if (verify === sgRAMChecksum) {
+                    vError = "RAM checksum failure.";
+                    if (propComm.ramCheck !== stValidating) {
+                        verify = propComm.ramCheck === stValid ? sgIdle : sgError;
+                        if (verify === sgIdle) {console.log("RAM Checksum valid");}
+                    }
+                }
+            }
+            while (Date.now() < timeout && verify > sgIdle);
+            console.log("MBLReady done: ", propComm);
+            if (verify === sgIdle) {console.log("fulfilling"); fulfill()} else {console.log("rejecting"); reject(Error(vError))};
+        })
     };
-    return timedPromise(promise, timeout);
 
-//    setTimeout(function() {promise}, timeout);
-//    return promise;
+    return promise();
+
+
+    /*
+     var promise = function() {
+     return new Promise(function(fulfill, reject) {
+     console.log("isMicroBootReady?");
+     setTimeout(function() {
+     fulfill();
+     }, 3000);
+     });
+     }
+
+     //    return promise();
+     return timedPromise(promise, timeout);
+     */
 }
 
 function timedPromise(promise, timeout){
