@@ -263,12 +263,23 @@ function talkToProp() {
             deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
-        .then(flush())                                                          //Flush receive buffer (during Propeller reset)
-        .then(setControl({dtr: true}))                                          //End Propeller Reset
-        .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMicroBootLoaderReady(2000))                                     //Verify package accepted
-        .then(function(){console.log("Success!")}, function(e){console.log("Error: %s", e.message)})
+        .then(function() {
+            flush();                                                            //Flush receive buffer (during Propeller reset)
+        })
+        .then(function() {
+            setControl({dtr: true});                                            //End Propeller Reset
+        })
+        .then(function() {
+            setTimeout(function () {                                            //After Post-Reset-Delay...
+                send(txData)                                                    //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+            }, 100);
+        })
+        .then(function() {
+            isMicroBootLoaderReady(2000)                                        //Verify package accepted
+        })
+//        .then(function(){console.log("Success!")}, function(e){console.log("Error: %s", e.message)})
         ;
+
 
 }
 
