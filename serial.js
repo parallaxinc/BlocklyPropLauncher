@@ -24,7 +24,7 @@ const propCommStart = {
     stage     : sgHandshake,
     rxCount   : 0,
     handshake : stValidating,
-    version   : -1,
+    version   : stValidating,
     ramCheck  : stValidating,
     eeProg    : stValidating,
     eeCheck   : stValidating
@@ -253,8 +253,8 @@ function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
 
-    isMicroBootLoaderReady(2000).then(function(){console.log("fulfilled")}, function(e){console.log("rejected", e)});
-/*
+//    isMicroBootLoaderReady(2000).then(function(){console.log("fulfilled")}, function(e){console.log("rejected", e)});
+
     var deliveryTime = 0;
     isOpen()
         .then(function(){
@@ -262,13 +262,14 @@ function talkToProp() {
             deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
             setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
-        .then(flush())                                                          //Flush receive buffer (during Propeller reset)
-        .then(setControl({dtr: true}))                                          //End Propeller Reset
+        .then(flush()                                                           //Flush receive buffer (during Propeller reset)
+        .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(setTimeout(function(){send(txData)}, 100))                        //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMicroBootLoaderReady(2000))                             //Verify package accepted
-        .then(function() {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
+        .then(isMicroBootLoaderReady(2000)                                      //Verify package accepted
+        .then(function(){console.log("Success!")}, function(e){console.log("Error: %s", e.message)})
+        )))
         ;
-*/
+
 }
 
 function hearFromProp(info) {
@@ -330,26 +331,26 @@ function hearFromProp(info) {
     // Receive RAM Checksum
     if (propComm.stage === sgRAMChecksum && sIdx < stream.length) {
         //Received RAM Checksum response?
-        propComm.ramCheck = stream[sIdx++];
+        propComm.ramCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
         //Set next stage according to result
-        propComm.stage = propComm.ramCheck === 0xFE ? sgEEProgram : sgIdle;
+        propComm.stage = propComm.ramCheck ? sgEEProgram : sgIdle;
     }
 
     // Receive EEPROM Programmed response
     if (propComm.stage === sgEEProgram && sIdx < stream.length) {
         //Received EEPROM Programmed response?
-        propComm.eeProg = stream[sIdx++];
+        propComm.eeProg = stream[sIdx++] === 0xFE ? stValid : stInvalid;
         //Set next stage according to result
-        propComm.stage = propComm.eeProg === 0xFE ? sgEEChecksum : sgIdle;
+        propComm.stage = propComm.eeProg ? sgEEChecksum : sgIdle;
     }
 
     // Receive EEPROM Checksum response
     if (propComm.stage === sgEEChecksum && sIdx < stream.length) {
         //Received EEPROM Checksum response?
-        propComm.eeCheck = stream[sIdx++];
+        propComm.eeCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
         //Set next stage according to result
 //TODO Enable next stage
-//        propComm.stage = propComm.eeProg === 0xFE ? sgEEChecksum : sgIdle;
+//        propComm.stage = propComm.eeCheck ? sgNEXT_STAGE : sgIdle;
         progComm.stage = sgIdle;
     }
 }
@@ -358,6 +359,7 @@ function hearFromProp(info) {
 function isMicroBootLoaderReady(timeout) {
 // Verify that Propeller Handshake, Version, and Micro Boot Loader delivery succeeded
 
+/*
     var promise = function() {
         return new Promise(function(fulfill, reject) {
             console.log("isMicroBootReady?");
@@ -369,28 +371,30 @@ function isMicroBootLoaderReady(timeout) {
 
 //    return promise();
     return timedPromise(promise, timeout);
+*/
 
-/*
     var promise = function() {
         return new Promise(function(fulfill, reject) {
-            reject('Blah');
             console.log("promise working: ", propComm);
             //Check handshake
+            while (propComm.handshake === stValidating) {}
             if (propComm.handshake !== stValid) { reject(Error("Propeller not found.")) }
             console.log("handshake valid");
             //Check version
+            while (propComm.version === stValidating) {}
             if (propComm.version !== 1) { reject(Error("Found Propeller version %d - expected version 1.")) }
             console.log("version valid");
             //Check RAM checksum
+            while (propComm.ramCheck === stValidating) {}
             if (propComm.ramCheck !== stValid) { reject(Error("RAM checksum failure.")) }
             console.log("RAM Check valid");
             //Check Micro Boot Loader "Ready" signal
 //        if (propComm.????? !== stValid) { reject(Error("Micro Boot Loader failed.")) }
-            fulfill(true);
+            fulfill();
         });
     };
     return timedPromise(promise, timeout);
-*/
+
 //    setTimeout(function() {promise}, timeout);
 //    return promise;
 }
