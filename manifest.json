@@ -5,7 +5,7 @@
   "manifest_version": 2,
   "minimum_chrome_version": "42",
   
-  "permissions": ["browser", "serial"],
+  "permissions": ["browser", "serial", "storage"],
 
   "sockets": {
     "tcp": {
