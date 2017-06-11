@@ -268,7 +268,8 @@ function talkToProp() {
         .then(function() {
             setTimeout(function() {send(txData)}, 100);                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         })
-        .then(isMicroBootLoaderReady(2000)                                      //Verify package accepted
+        .then(function() {console.log("Starting MBLReady")})
+        .then(isMicroBootLoaderReady(1000)                                      //Verify package accepted
         .then(function()
             {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
         ))));
@@ -358,11 +359,12 @@ function hearFromProp(info) {
 }
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
-function isMicroBootLoaderReady(timeout) {
-/* Return a promise that verifies the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-   Rejects if any error occurs or if timeout expires.
+function isMicroBootLoaderReady(waittime) {
+/* Return a promise that waits for waittime then verifies the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+   Rejects if any error occurs.
    Error is "Propeller not found" unless handshake proper & version received; error is more specific thereafter.*/
 
+/*
     var promise = function() {
         return new Promise(function(resolve, reject) {
             console.log("MBLReady working: ", propComm);
@@ -404,22 +406,24 @@ function isMicroBootLoaderReady(timeout) {
         })
     };
 
+    setTimeout(promise, waittime);
     return promise();
 
+//     return timedPromise(promise, timeout);
 
-    /*
-     var promise = function() {
-     return new Promise(function(resolve, reject) {
-     console.log("isMicroBootReady?");
-     setTimeout(function() {
-     resolve();
-     }, 3000);
-     });
-     }
+*/
 
-     //    return promise();
-     return timedPromise(promise, timeout);
-     */
+    var promise = function() {
+        return new Promise(function(resolve, reject) {
+        console.log("Done!");
+        resolve();
+        });
+    }
+             //function() {promise}
+    setTimeout(promise, waittime);
+    return promise;
+
+
 }
 
 function timedPromise(promise, timeout){
