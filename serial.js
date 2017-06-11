@@ -360,70 +360,27 @@ function hearFromProp(info) {
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
 function isMicroBootLoaderReady(waittime) {
-/* Return a promise that waits for waittime then verifies the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+/* Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
    Rejects if any error occurs.
-   Error is "Propeller not found" unless handshake proper & version received; error is more specific thereafter.*/
+   Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
-/*
-    var promise = function() {
-        return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
+
+        function verifier() {
             console.log("MBLReady working: ", propComm);
-            var verify = sgHandshake;
-            var vError = "Propeller not found.";
-            timeout += Date.now();
-            do {
-                //Check handshake
-                if (verify === sgHandshake) {
-                    if (propComm.handshake !== stValidating) {
-                        verify = propComm.handshake === stValid ? sgVersion : sgError;
-                        if (verify === sgVersion) {console.log("Handshake valid");}
-                    }
-                }
-                //Check version
-                if (verify === sgVersion) {
-                    if (propComm.version !== stValidating) {
-                        if (propComm.version === stValid) {
-                            verify = sgRAMChecksum;
-                            console.log("Version valid");
-                        } else {
-                            verify = sgError;
-                            vError = "Found Propeller version %d - expected version 1.";
-                        }
-                    }
-                }
-                //Check RAM checksum
-                if (verify === sgRAMChecksum) {
-                    vError = "RAM checksum failure.";
-                    if (propComm.ramCheck !== stValidating) {
-                        verify = propComm.ramCheck === stValid ? sgIdle : sgError;
-                        if (verify === sgIdle) {console.log("RAM Checksum valid");}
-                    }
-                }
-            }
-            while (Date.now() < timeout && verify > sgIdle);
-            console.log("MBLReady done: ", propComm);
-            if (verify === sgIdle) {console.log("resolving"); resolve()} else {console.log("rejecting"); reject(Error(vError))};
-        })
-    };
+            //Check handshake and version
+            if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
+            //Check for proper version
+            if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1."))}
+            //Check RAM checksum
+            if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum."))}
+            if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
+            console.log("MBLReady done");
+            resolve();
+        }
 
-    setTimeout(promise, waittime);
-    return promise();
-
-//     return timedPromise(promise, timeout);
-
-*/
-
-    var promise = function() {
-        return new Promise(function(resolve, reject) {
-        console.log("Done!");
-        resolve();
-        });
-    }
-             //function() {promise}
-    setTimeout(promise, waittime);
-    return promise;
-
-
+        setTimeout(verifier, waittime);
+    });
 }
 
 function timedPromise(promise, timeout){
