@@ -140,7 +140,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
 function openPort(portPath, baudrate) {
     console.log("in open");
     portBaudrate = baudrate ? baudrate : initialBaudrate;
-    return new Promise(function(reject, reject) {
+    return new Promise(function(resolve, reject) {
         chrome.serial.connect(portPath, {
                 'bitrate': parseInt(baudrate),
                 'dataBits': 'eight',
@@ -154,7 +154,7 @@ function openPort(portPath, baudrate) {
                 } else {
                     portID = openInfo.connectionId;
                     console.log("Port", portPath, "open with ID", portID);
-                    reject(portID);
+                    resolve(portID);
 //TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
                 }
             }
@@ -254,33 +254,24 @@ function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
 
-//    isMicroBootLoaderReady(2000).then(function(){console.log("resolved")}, function(e){console.log("rejected", e)});
+//    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
 
     var deliveryTime = 0;
     isOpen()
         .then(function(){
             Object.assign(propComm, propCommStart);                             //Reset propComm object
             deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
-            setControl({dtr: false})                                            //Start Propeller Reset Signal
         })
+        .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
+        .then(flush()                                                           //Flush receive buffer (during Propeller reset)
+        .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(function() {
-            flush();                                                            //Flush receive buffer (during Propeller reset)
+            setTimeout(function() {send(txData)}, 100);                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         })
-        .then(function() {
-            setControl({dtr: true});                                            //End Propeller Reset
-        })
-        .then(function() {
-            setTimeout(function () {                                            //After Post-Reset-Delay...
-                send(txData)                                                    //Send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-            }, 100);
-        })
-        .then(function() {
-            isMicroBootLoaderReady(2000)                                        //Verify package accepted
-        })
-//        .then(function(){console.log("Success!")}, function(e){console.log("Error: %s", e.message)})
-        ;
-
-
+        .then(isMicroBootLoaderReady(2000)                                      //Verify package accepted
+        .then(function()
+            {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
+        ))));
 }
 
 function hearFromProp(info) {
@@ -438,7 +429,7 @@ function timedPromise(promise, timeout){
             var id = setTimeout(function() {
                 console.log("Timed out!");
                 clearTimeout(id);
-                reject('Timed out in ' + timeout + ' ms.');
+                reject(Error('Timed out in ' + timeout + ' ms.'));
             }, timeout);
         })
     };
