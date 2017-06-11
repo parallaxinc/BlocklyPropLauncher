@@ -256,11 +256,11 @@ function talkToProp() {
 
 //    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
 
-    var deliveryTime = 0;
+    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
+                                                                                //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     isOpen()
-        .then(function(){
+        .then(function() {
             Object.assign(propComm, propCommStart);                             //Reset propComm object
-            deliveryTime = 1+(txData.byteLength*10000)/portBaudrate;            //Calculate package delivery time
         })
         .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
         .then(flush()                                                           //Flush receive buffer (during Propeller reset)
@@ -268,8 +268,7 @@ function talkToProp() {
         .then(function() {
             setTimeout(function() {send(txData)}, 100);                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         })
-        .then(function() {console.log("Starting MBLReady")})
-        .then(isMicroBootLoaderReady(1000)                                      //Verify package accepted
+        .then(isMicroBootLoaderReady(deliveryTime)                              //Verify package accepted
         .then(function()
             {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
         ))));
@@ -378,7 +377,7 @@ function isMicroBootLoaderReady(waittime) {
             console.log("MBLReady done");
             resolve();
         }
-
+        console.log("MBLReady waiting for %d ms", waittime);
         setTimeout(verifier, waittime);
     });
 }
