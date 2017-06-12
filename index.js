@@ -1,9 +1,6 @@
 // TODO: allow user to change port and server IP/addr.  Feilds and button are there, but no supporting code.
 // TODO: update bkg img to include S3 robot.
-// TODO: ELF/eeprom/binary parsing/formatting.
-// TODO: 
-
-
+// TODO: Add all linking messages/data for the BlocklyProp site via the websocket connection.
 
 
 
@@ -47,6 +44,14 @@ var serialJustOpened = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
+  chrome.storage.sync.get('s_port', function(result) {
+    $('bpc-port').value = result.s_port || '6009';
+  });
+  
+  chrome.storage.sync.get('s_url', function(result) {
+    $('bpc-url').value = result.s_url || 'localhost';
+  });
+
   $('connect-disconnect').onclick = function() {
     if($('connect-disconnect').innerHTML === 'Connect') {
       connect_ws($('bpc-port').value, $('bpc-url').value);
@@ -73,6 +78,18 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
   };
   
+  // TODO: re-write this to use onblur and/or onchange to auto-save. 
+  $('refresh-connection').onclick = function() {
+    $('connect-disconnect').innerHTML = 'Connect';
+    $('connect-disconnect').className = 'button button-blue';
+    for (var i = 0; i < connectedSockets.length; i++) {
+      connectedSockets[i].close();
+    }
+    
+    chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
+    chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
+  };
+
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top === '550px') {
       $('settings-pane').style.top = '10px';
@@ -80,7 +97,6 @@ document.addEventListener('DOMContentLoaded', function() {
       $('settings-pane').style.top = '550px';
     }
   };
-  
 });
 
 function connect_ws(ws_port, url_path) {
@@ -397,25 +413,6 @@ var ab2num = function(buf) {
     unis.push(bufView[i]);
   }
   return unis;
-
-  /* ----- some code for prop programming -----
-  handshakeCheck = '';
-  PropVersion = '';
-  var tn = '';
-  for (i = 0; i < unis.length; i++) {
-    if(i < 125) {
-      if(rxHandshake[i] === unis[i]) 
-        handshakeCheck += 'P';
-    }
-    tn += ' 0x' + unis[i].toString(16) + ',';
-  }
-  if(unis.length > 128) {
-    for (i = 125; i <= 128; i++)
-      PropVersion = (PropVersion >> 2 & 0x3F) | ((unis[i] & 0x01) << 6) | ((unis[i] & 0x20) << 2);
-  }
-  return tn;
-  */
-  
 };
 
 // Converts String to ArrayBuffer.
@@ -450,7 +447,7 @@ function isNumber(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
-// calculate the checksum of a Propeller program image (byte 5 must be 0x00)
+// calculate the checksum of a Propeller program image:
 function checksumArray(arr, l) {
   if (!l) l = arr.length;
   var chksm = 236;

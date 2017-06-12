@@ -9,27 +9,28 @@
     <script src="index.js"></script>
   </head>
   <body>
-    <div style="position:absolute; top:550px; left:10px; padding:5px; border-radius: 6px; transition-duration: 0.8s;background:rgba(255,255,255,0.9);box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);" id='settings-pane'>
+    <div id='settings-pane'>
       <table border="0" cellpadding="1" cellspacing="0">
         <tr>
+          <!-- change this to a list of ports available? -->
           <td>Send:</td>
           <td colspan="2"><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
         </tr>
         <tr>
           <td>IP Address:</td>
-          <td><input type="text" id="bpc-url" class="con" value="localhost" style="width:170px;"/></td>
-          <td rowspan="2"><button id='save-settings' style="width:24px;">S</button></td>
+          <td><input type="text" id="bpc-url" class="con" style="width:170px;"/></td>
+          <td rowspan="2"><button id='refresh-connection' style="width:24px;">&#x21bb;</button></td>
         </tr>
         <tr>
           <td>Port:</td>
-          <td><input type="text" id="bpc-port" value="6009" class="con" style="width:170px;"/></td>
+          <td><input type="text" id="bpc-port" class="con" style="width:170px;"/></td>
         </tr>
         <tr>
           <td>Trace Logging:</td>
           <td colspan="2"><input type="checkbox" id="bpc-trace"/></td>
         </tr>
         <tr>
-          <td colspan="3"><div id="log" class="con" style="height:260px;width:287px;overflow-y:scroll;background:#fff;border:1px solid #ccc"></div></td>
+          <td colspan="3"><div id="log" class="con"></div></td>
         </tr>
       </table>
     </div>
