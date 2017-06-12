@@ -254,16 +254,18 @@ function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
 
-//    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
-
     var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
+    function resetPropComm() {
+    // Reset propComm object to initial values
+        Object.assign(propComm, propCommStart);
+        return Promise.resolve();
+    }
+
     isOpen()
-        .then(function() {
-            Object.assign(propComm, propCommStart);                             //Reset propComm object
-        })
+        .then(resetPropComm()                                                   //Reset propComm object
         .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
-        .then(flush()                                                           //Flush receive buffer (during Propeller reset)
+        .then(flush()                                                           //Flush transmit/receive buffers (during Propeller reset)
         .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(function() {
             setTimeout(function() {send(txData)}, 100);                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
@@ -271,7 +273,9 @@ function talkToProp() {
         .then(isMicroBootLoaderReady(deliveryTime)                              //Verify package accepted
         .then(function()
             {console.log("Success!")}, function(e) {console.log("Error: %s", e.message)})
-        ))));
+        )))));
+
+//    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
 }
 
 function hearFromProp(info) {
@@ -358,8 +362,9 @@ function hearFromProp(info) {
 }
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
-function isMicroBootLoaderReady(waittime) {
-/* Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+function isMBLReady(waittime) {
+/* Is Micro Boot Loader delivered and Ready?
+   Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
    Rejects if any error occurs.
    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
