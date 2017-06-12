@@ -16,19 +16,24 @@ const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
-const sgMBLReady = 3;
+const sgMBLResponse = 3;
 //const sgEEProgram = 3;
 //const sgEEChecksum = 4;
 
-// Propeller Communication (propComm) status
-var propComm = {};
-const propCommStart = {
-    stage     : sgHandshake,
-    rxCount   : 0,
-    handshake : stValidating,
-    version   : stValidating,
-    ramCheck  : stValidating,
-    mblReady  : []
+// Propeller Communication (propComm) status; categorizes Propeller responses
+var propComm = {};                                  //Holds current status
+var mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Loader responses
+
+const propCommStart = {                             //propCommStart is used to initialize propComm
+    stage       : sgHandshake,                      //Propeller Protocol Stage
+    rxCount     : 0,                                //Current count of receive bytes (for stage)
+    handshake   : stValidating,                     //ROM-resident boot loader RxHandshake response validity
+    version     : stValidating,                     //ROM-resident boot loader Propeller version number response validity
+    ramCheck    : stValidating,                     //ROM-resident boot loader RAM Checksum response validity
+    mblResponse : stValidating,                     //Micro Boot Loader response format validity
+    mblRespBuf  : new Uint8Array(mblRespAB),        //Micro Boot Loader responses data (unsigned byte format)
+    mblPacketId : new Int32Array(mblRespAB, 0, 1),  //Micro Boot Loader requested next packet id (32-bit signed int format)
+    mblTransId  : new Int32Array(mblRespAB, 4, 1)   //Micro Boot Loader transmission id (32-bit signed int format)
 //    eeProg    : stValidating,
 //    eeCheck   : stValidating
 };
@@ -256,7 +261,7 @@ function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
     console.log("talking to Propeller");
 
-    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
+    var deliveryTime = 400+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     function resetPropComm() {
     // Reset propComm object to initial values
@@ -270,7 +275,7 @@ function talkToProp() {
         .then(flush()                                                           //Flush transmit/receive buffers (during Propeller reset)
         .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(function() {setTimeout(function() {send(txData)}, 100)})          //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMBLReady(deliveryTime)                                          //Verify package accepted
+        .then(isMBLReady(1, deliveryTime)                                       //Verify package accepted
         .then(function() {console.log("Found Propeller!")})
         .catch(function(e) {console.log("Error: %s", e.message)})
         )))));
@@ -340,53 +345,36 @@ function hearFromProp(info) {
         //Received RAM Checksum response?
         propComm.ramCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
         //Set next stage according to result
-        propComm.stage = propComm.ramCheck ? sgMBLReady : sgIdle;
+        propComm.rxCount = 0;
+        propComm.stage = propComm.ramCheck ? sgMBLResponse : sgIdle;
     }
 
     // Receive Micro Boot Loader's "Ready" Signal
-    if (propComm.stage === sgMBLReady) {
-        while (sIdx < stream.length && propComm.rxCount++ < 8) {
-            propComm.mblReady.push(stream[sIdx++]);
-            //Set next stage according to result
-            //TODO Prep for next stage
-            if (propComm.rxCount === 8) {propComm.stage = sgIdle}
+    if (propComm.stage === sgMBLResponse) {
+        while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
+            propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
+            //Finish stage when expected response size received
+            if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+                propComm.stage = sgIdle;
+                //Valid if end of stream, otherwise something's wrong (invalid response)
+                propComm.mblResponse = stream.length === sIdx ? stValid : stInvalid;
+            }
         }
     }
-
-
-/*
-    // Receive EEPROM Programmed response
-    if (propComm.stage === sgEEProgram && sIdx < stream.length) {
-        //Received EEPROM Programmed response?
-        propComm.eeProg = stream[sIdx++] === 0xFE ? stValid : stInvalid;
-        //Set next stage according to result
-        propComm.stage = propComm.eeProg ? sgEEChecksum : sgIdle;
-    }
-
-    // Receive EEPROM Checksum response
-    if (propComm.stage === sgEEChecksum && sIdx < stream.length) {
-        //Received EEPROM Checksum response?
-        propComm.eeCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
-        //Set next stage according to result
-//TODO Enable next stage
-//        propComm.stage = propComm.eeCheck ? sgNEXT_STAGE : sgIdle;
-        progComm.stage = sgIdle;
-    }
-*/
-
 }
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
-function isMBLReady(waittime) {
+function isMBLReady(packetId, waittime) {
 /* Is Micro Boot Loader delivered and Ready?
    Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+   Micro Boot Loader must respond with packetId for success (resolve).
    Rejects if any error occurs.
    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
     return new Promise(function(resolve, reject) {
 
         function verifier() {
-            console.log("MBLReady working: ", propComm.mblReady);
+//            console.log("MBLReady working: ", propComm.mblReady);
             //Check handshake and version
             if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
             //Check for proper version
@@ -395,11 +383,11 @@ function isMBLReady(waittime) {
             if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum."))}
             if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
             //Check Micro Boot Loader Ready Signal
-            if (JSON.stringify(propComm.mblReady) !== JSON.stringify([1,0,0,0,0,0,0,0])) {reject(Error("Micro Boot Loader failed."))}
-            console.log("MBLReady done");
+            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed."))}
+//            console.log("MBLReady done");
             resolve();
         }
-        console.log("MBLReady waiting for %d ms", waittime);
+//        console.log("MBLReady waiting for %d ms", waittime);
         setTimeout(verifier, waittime);
     });
 }
