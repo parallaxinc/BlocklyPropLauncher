@@ -4,6 +4,7 @@
 var portID = -1;
 var portBaudrate = 0;
 const initialBaudrate = 115200;
+const finalBaudrate = 921600;
 
 // propComm status values
 const stValidating = -1;
@@ -187,11 +188,7 @@ function closePort() {
 
 function isOpen() {
     return new Promise(function(resolve, reject) {
-        if (portID >= 0) {
-            resolve(true);
-        } else {
-            reject(false);
-        };
+        portID >= 0 ? resolve() : reject()
     });
 }
 
@@ -200,11 +197,7 @@ function isOpen() {
 function setControl(options) {
     return new Promise(function(resolve, reject) {
         chrome.serial.setControlSignals(portID, options, function(controlResult) {
-            if (controlResult) {
-                resolve(true);
-            } else {
-                reject(false);
-            }
+            controlResult ? resolve() : reject(Error("Can not set " + options))
         });
     });
 }
@@ -214,11 +207,7 @@ function flush() {
 // Empty transmit and receive buffers
     return new Promise(function(resolve, reject) {
         chrome.serial.flush(portID, function(flushResult) {
-            if (flushResult) {
-                resolve(true);
-            } else {
-                reject(false);
-            }
+            flushResult ? resolve() : reject(Error("Can not flush transmit/receive buffer"))
         });
     });
 }
@@ -231,11 +220,8 @@ function send(data) {
     if (typeof data === 'string') {
         data = str2ab(data);
     } else {
-        if (data instanceof ArrayBuffer === false) {
-            data = buffer2ArrayBuffer(data);
-        }
+        if (data instanceof ArrayBuffer === false) {data = buffer2ArrayBuffer(data)}
     }
-
     return chrome.serial.send(portID, data, function (sendResult) {
     });
 }
