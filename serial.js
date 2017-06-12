@@ -16,8 +16,9 @@ const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
-const sgEEProgram = 3;
-const sgEEChecksum = 4;
+const sgMBLReady = 3;
+//const sgEEProgram = 3;
+//const sgEEChecksum = 4;
 
 // Propeller Communication (propComm) status
 var propComm = {};
@@ -27,8 +28,9 @@ const propCommStart = {
     handshake : stValidating,
     version   : stValidating,
     ramCheck  : stValidating,
-    eeProg    : stValidating,
-    eeCheck   : stValidating
+    mblReady  : []
+//    eeProg    : stValidating,
+//    eeCheck   : stValidating
 };
 
 const txHandshake = [
@@ -338,9 +340,21 @@ function hearFromProp(info) {
         //Received RAM Checksum response?
         propComm.ramCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
         //Set next stage according to result
-        propComm.stage = propComm.ramCheck ? sgEEProgram : sgIdle;
+        propComm.stage = propComm.ramCheck ? sgMBLReady : sgIdle;
     }
 
+    // Receive Micro Boot Loader's "Ready" Signal
+    if (propComm.stage === sgMBLReady) {
+        while (sIdx < stream.length && propComm.rxCount++ < 8) {
+            propComm.mblReady.push(stream[sIdx++]);
+            //Set next stage according to result
+            //TODO Prep for next stage
+            if (propComm.rxCount === 8) {propComm.stage = sgIdle}
+        }
+    }
+
+
+/*
     // Receive EEPROM Programmed response
     if (propComm.stage === sgEEProgram && sIdx < stream.length) {
         //Received EEPROM Programmed response?
@@ -358,6 +372,8 @@ function hearFromProp(info) {
 //        propComm.stage = propComm.eeCheck ? sgNEXT_STAGE : sgIdle;
         progComm.stage = sgIdle;
     }
+*/
+
 }
 
 //TODO Enable checking of Micro Boot Loader "Ready" signal
@@ -370,7 +386,7 @@ function isMBLReady(waittime) {
     return new Promise(function(resolve, reject) {
 
         function verifier() {
-            console.log("MBLReady working: ", propComm);
+            console.log("MBLReady working: ", propComm.mblReady);
             //Check handshake and version
             if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
             //Check for proper version
@@ -378,6 +394,8 @@ function isMBLReady(waittime) {
             //Check RAM checksum
             if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum."))}
             if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
+            //Check Micro Boot Loader Ready Signal
+            if (JSON.stringify(propComm.mblReady) !== JSON.stringify([1,0,0,0,0,0,0,0])) {reject(Error("Micro Boot Loader failed."))}
             console.log("MBLReady done");
             resolve();
         }
