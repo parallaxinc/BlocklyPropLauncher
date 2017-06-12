@@ -82,9 +82,10 @@ document.addEventListener('DOMContentLoaded', function() {
     for (var i = 0; i < connectedSockets.length; i++) {
       connectedSockets[i].close();
     }
-    
-    chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
-    chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
+    if(chrome.storage) {
+      chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
+      chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
+    }
   };
 
   $('open-settings').onclick = function() {
