@@ -146,11 +146,13 @@ chrome.serial.onReceive.addListener(hearFromProp);
 
 //TODO Consider returning error object
 function openPort(portPath, baudrate) {
-    console.log("in open");
-    portBaudrate = baudrate ? baudrate : initialBaudrate;
+//Open serial port at portPath with baudrate.
+//baudrate is optional; defaults to initialBaudrate
     return new Promise(function(resolve, reject) {
+        console.log("Attempting to open port");
+        portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         chrome.serial.connect(portPath, {
-                'bitrate': parseInt(baudrate),
+                'bitrate': portBaudrate,
                 'dataBits': 'eight',
                 'parityBit': 'no',
                 'stopBits': 'one',
@@ -190,6 +192,23 @@ function isOpen() {
     return new Promise(function(resolve, reject) {
         portID >= 0 ? resolve() : reject()
     });
+}
+
+function changeBaudrate(baudrate) {
+//Change port's baudrate.
+//baudrate is optional (defaults to finalBaudrate)
+
+//    return Promise.resolve(function() {console.log("Changing baudrate to " + portBaudrate)});
+
+    return new Promise(function(resolve, reject) {
+        portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
+        console.log("Changing baudrate to " + portBaudrate);
+        chrome.serial.update(portID, {'bitrate': portBaudrate}, function(updateResult) {
+            updateResult ? resolve() : reject(Error("Can not set baudrate: " + baudrate));
+        });
+        resolve();
+    });
+
 }
 
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
@@ -262,9 +281,11 @@ function talkToProp() {
         .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(function() {setTimeout(function() {send(txData)}, 100)})          //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(isMBLReady(1, deliveryTime)                                       //Verify package accepted
+        .then(function() {console.log("Done with isBMLReady?")})
+        .then(changeBaudrate()                                                  //Bump up to faster finalBaudrate
         .then(function() {console.log("Found Propeller!")})
         .catch(function(e) {console.log("Error: %s", e.message)})
-        )))));
+        ))))));
 
 //    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
     console.log("done talking to Propeller");
@@ -272,7 +293,6 @@ function talkToProp() {
 
 function hearFromProp(info) {
 // Receive Propeller's responses during programming.  Parse responses from expected stages for validation.
-
     console.log("Received", info.data.byteLength, "bytes =", ab2num(info.data));
     // Exit immediately if we're not programming
     if (propComm.stage === sgIdle) {
@@ -360,7 +380,7 @@ function isMBLReady(packetId, waittime) {
     return new Promise(function(resolve, reject) {
 
         function verifier() {
-//            console.log("MBLReady working: ", propComm.mblReady);
+            console.log("MBLReady working: ", propComm.mblPacketId[0]);
             //Check handshake and version
             if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
             //Check for proper version
@@ -370,10 +390,10 @@ function isMBLReady(packetId, waittime) {
             if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
             //Check Micro Boot Loader Ready Signal
             if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed."))}
-//            console.log("MBLReady done");
+            console.log("MBLReady done");
             resolve();
         }
-//        console.log("MBLReady waiting for %d ms", waittime);
+        console.log("MBLReady waiting for %d ms", waittime);
         setTimeout(verifier, waittime);
     });
 }
