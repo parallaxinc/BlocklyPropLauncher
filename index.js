@@ -44,13 +44,18 @@ var serialJustOpened = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
-  chrome.storage.sync.get('s_port', function(result) {
-    $('bpc-port').value = result.s_port || '6009';
-  });
-  
-  chrome.storage.sync.get('s_url', function(result) {
-    $('bpc-url').value = result.s_url || 'localhost';
-  });
+  if(chrome.storage) {
+    chrome.storage.sync.get('s_port', function(result) {
+      $('bpc-port').value = result.s_port || '6009';
+    });
+    
+    chrome.storage.sync.get('s_url', function(result) {
+      $('bpc-url').value = result.s_url || 'localhost';
+    });
+  } else {
+    $('bpc-port').value = '6009';
+    $('bpc-url').value = 'localhost';
+  }
 
   $('connect-disconnect').onclick = function() {
     if($('connect-disconnect').innerHTML === 'Connect') {
