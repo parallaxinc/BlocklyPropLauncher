@@ -269,10 +269,12 @@ function talkToProp() {
         .then(setControl({dtr: true})                                           //End Propeller Reset
         .then(function() {setTimeout(function() {send(txData)}, 100)})          //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(isMBLReady(deliveryTime)                                          //Verify package accepted
-        .catch(function(e) {console.log("Error: %s", e.message)}
-        ))))));
+        .then(function() {console.log("Found Propeller!")})
+        .catch(function(e) {console.log("Error: %s", e.message)})
+        )))));
 
 //    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
+    console.log("done talking to Propeller");
 }
 
 function hearFromProp(info) {
