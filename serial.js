@@ -269,12 +269,17 @@ function talkToProp() {
                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     function resetPropComm() {
     // Reset propComm object to initial values
-        Object.assign(propComm, propCommStart);
-        return Promise.resolve();
+        return new Promise(function(resolve) {
+            Object.assign(propComm, propCommStart);
+            resolve();
+        })
     }
 
     function chain(func) {
-        return Promise.resolve(func());
+        return new Promise(function(resolve) {
+            func();
+            resolve();
+        })
     }
 
     isOpen()
@@ -377,14 +382,12 @@ function sendLoader(waittime) {
 // Return a promise that waits for waittime then sends communication package including loader.
 
     return new Promise(function(resolve, reject) {
-
-        function txPackage() {
+        console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+        setTimeout(function() {
             console.log("Transmitting loader package");
             send(txData);
             resolve();
-        }
-        console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
-        setTimeout(txPackage, waittime);
+        }, waittime);
     });
 }
 
