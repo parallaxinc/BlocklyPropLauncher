@@ -283,7 +283,7 @@ function talkToProp() {
         .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
         .then(flush()                                                           //Flush transmit/receive buffers (during Propeller reset)
         .then(setControl({dtr: true})                                           //End Propeller Reset
-        .then(chain(function() {setTimeout(function() {send(txData)}, 100)})    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+        .then(sendLoader(100)                                                   //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(isLoaderReady(1, deliveryTime)                                    //Verify package accepted
         .then(function() {console.log("Finished isLoaderReady?")})
 //        .then(changeBaudrate()                                                //Bump up to faster finalBaudrate
@@ -371,6 +371,21 @@ function hearFromProp(info) {
             }
         }
     }
+}
+
+function sendLoader(waittime) {
+// Return a promise that waits for waittime then sends communication package including loader.
+
+    return new Promise(function(resolve, reject) {
+
+        function txPackage() {
+            console.log("Transmitting loader package");
+            send(txData);
+            resolve();
+        }
+        console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+        setTimeout(txPackage, waittime);
+    });
 }
 
 function isLoaderReady(packetId, waittime) {
