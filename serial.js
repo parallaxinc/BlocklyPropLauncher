@@ -264,7 +264,6 @@ function buffer2ArrayBuffer(buffer) {
 //TODO Make identify/program optional
 function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
-    console.log("talking to Propeller");
 
     var deliveryTime = 400+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
@@ -274,21 +273,26 @@ function talkToProp() {
         return Promise.resolve();
     }
 
+    function chain(func) {
+        return Promise.resolve(func());
+    }
+
     isOpen()
+        .then(chain(function() {console.log("talking to Propeller")})
         .then(resetPropComm()                                                   //Reset propComm object
         .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
         .then(flush()                                                           //Flush transmit/receive buffers (during Propeller reset)
         .then(setControl({dtr: true})                                           //End Propeller Reset
-        .then(function() {setTimeout(function() {send(txData)}, 100)})          //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isMBLReady(1, deliveryTime)                                       //Verify package accepted
-        .then(function() {console.log("Done with isBMLReady?")})
-        .then(changeBaudrate()                                                  //Bump up to faster finalBaudrate
+        .then(chain(function() {setTimeout(function() {send(txData)}, 100)})    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+        .then(isLoaderReady(1, deliveryTime)                                    //Verify package accepted
+        .then(function() {console.log("Finished isLoaderReady?")})
+//        .then(changeBaudrate()                                                //Bump up to faster finalBaudrate
         .then(function() {console.log("Found Propeller!")})
         .catch(function(e) {console.log("Error: %s", e.message)})
-        ))))));
+        .then(function() {console.log("done talking to Propeller")})
+        )))))));
 
 //    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
-    console.log("done talking to Propeller");
 }
 
 function hearFromProp(info) {
@@ -369,8 +373,7 @@ function hearFromProp(info) {
     }
 }
 
-//TODO Enable checking of Micro Boot Loader "Ready" signal
-function isMBLReady(packetId, waittime) {
+function isLoaderReady(packetId, waittime) {
 /* Is Micro Boot Loader delivered and Ready?
    Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
    Micro Boot Loader must respond with packetId for success (resolve).
@@ -380,7 +383,7 @@ function isMBLReady(packetId, waittime) {
     return new Promise(function(resolve, reject) {
 
         function verifier() {
-            console.log("MBLReady working: ", propComm.mblPacketId[0]);
+            console.log("Checking loader package delivery");
             //Check handshake and version
             if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
             //Check for proper version
@@ -390,10 +393,10 @@ function isMBLReady(packetId, waittime) {
             if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
             //Check Micro Boot Loader Ready Signal
             if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed."))}
-            console.log("MBLReady done");
+            console.log("Done checking delivery");
             resolve();
         }
-        console.log("MBLReady waiting for %d ms", waittime);
+        console.log("Waiting %d ms for Micro Boot Loader delivery", waittime);
         setTimeout(verifier, waittime);
     });
 }
