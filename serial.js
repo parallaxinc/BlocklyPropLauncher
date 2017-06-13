@@ -145,6 +145,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
  ***********************************************************/
 
 //TODO Consider returning error object
+//TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
 function openPort(portPath, baudrate) {
 //Open serial port at portPath with baudrate.
 //baudrate is optional; defaults to initialBaudrate
@@ -165,7 +166,6 @@ function openPort(portPath, baudrate) {
                     portID = openInfo.connectionId;
                     console.log("Port", portPath, "open with ID", portID);
                     resolve(portID);
-//TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
                 }
             }
         );
@@ -189,6 +189,7 @@ function closePort() {
 }
 
 function isOpen() {
+//Return promise that is resolved if port is open, rejected otherwise
     return new Promise(function(resolve, reject) {
         portID >= 0 ? resolve() : reject()
     });
@@ -208,7 +209,6 @@ function changeBaudrate(baudrate) {
 }
 
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
-//TODO return error object
 function setControl(options) {
     return new Promise(function(resolve, reject) {
         chrome.serial.setControlSignals(portID, options, function(controlResult) {
@@ -217,7 +217,6 @@ function setControl(options) {
     });
 }
 
-//TODO return error object
 function flush() {
 // Empty transmit and receive buffers
     return new Promise(function(resolve, reject) {
@@ -256,13 +255,11 @@ function buffer2ArrayBuffer(buffer) {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
-//TODO Add error handling
-//TODO Make identify/program optional
 function talkToProp() {
-// Transmit identifying (and optionally programming) stream to Propeller
+// Transmit programming stream to Propeller
 
-    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
-                                                                                //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
+    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;  //Calculate package delivery time
+                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     isOpen()
         .then(function() {       Object.assign(propComm, propCommStart)} )       //Reset propComm object
         .then(function() {       console.log("Generating reset signal")} )
@@ -272,8 +269,7 @@ function talkToProp() {
         .then(function() {return sendLoader(100)}                        )       //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(function() {return isLoaderReady(1, deliveryTime)}         )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
-        .catch(function(err) {console.log("Error: %s", err.message)}     )
-        ;
+        .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
 }
 
 function hearFromProp(info) {
@@ -375,7 +371,6 @@ function isLoaderReady(packetId, waittime) {
    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
     return new Promise(function(resolve, reject) {
-
         function verifier() {
             console.log("Verifying package delivery");
             //Check handshake and version
