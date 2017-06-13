@@ -45,11 +45,11 @@ const propCommStart = {                             //propCommStart is used to i
 };
 
 //Loader type; used for generateLoaderPacket()
-const ltCore = 0;
-const ltVerifyRAM = 1;
-const ltProgramEEPROM = 2;
-const ltReadyToLaunch = 3;
-const ltLaunchNow = 4;
+const ltCore = -1;
+const ltVerifyRAM = 0;
+const ltProgramEEPROM = 1;
+const ltReadyToLaunch = 2;
+const ltLaunchNow = 3;
 
 //Add programming receive handler
 chrome.serial.onReceive.addListener(hearFromProp);
@@ -174,7 +174,9 @@ function talkToProp() {
 
 
 
-    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
+//    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
+    generateLoaderPacket(ltVerifyRAM, 1);
+
 
 /*!!!
     var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;  //Calculate expected max package delivery time
@@ -522,6 +524,9 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
     //Loader LaunchFinal snippet
     const launchNow = [0x66,0x00,0x7C,0x5C];
 
+    //Executable code snippet array (indexed by loaderType starting at ltVerifyRAM)
+    var exeSnippet = [verifyRAM, programVerifyEEPROM, readyToLaunch, launchNow];
+
     //Checksum value of Initial Call Frame (0xFF, 0xFF, 0xF9, 0xFF, 0xFF, 0xFF, 0xF9, 0xFF); not included in
     //Raw Loader Image, but auto-inserted by ROM-resident boot loader, so it's checksum value must be included in image.
     const initCallFrameChecksum = 236;
@@ -561,7 +566,10 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
 
     } else {
         //Prepare loader's special executable packet
-
+        txData = new ArrayBuffer(2*4+exeSnippet[loaderType].length);                            //Set txData size for header plus executable packet
+        tv = new Uint8Array(txData);
+        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
+        tv.set(exeSnippet[loaderType], 8);                                                      //Copy the executable packet code into it
     }
 
 
