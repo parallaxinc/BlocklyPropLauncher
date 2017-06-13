@@ -5,6 +5,8 @@ var portID = -1;
 var portBaudrate = 0;
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
+var txData;                                         //Data to transmit to the Propeller (size/contents created later)
+
 
 // propComm status values
 const stValidating = -1;
@@ -166,6 +168,13 @@ function buffer2ArrayBuffer(buffer) {
 
 function talkToProp() {
 // Transmit programming stream to Propeller
+
+
+
+    generateLoaderPacket(); //!!!
+
+
+
     var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;  //Calculate expected max package delivery time
                                                                                  //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     function sendLoader(waittime) {
@@ -436,13 +445,27 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
         0x35,0xC7,0x08,0x35,0x2C,0x32,0x00,0x00
     ];
 
-    /*Offset (in bytes) from end of Raw Loader Image (above) to the start of host-initialized values that exist within it.  Host-Initialized values are
-      constants in the source (Propeller Assembly code) that are intended to be replaced by the host (the computer running 'this' code) before packetization
-      and transmission of the image to the Propeller.  Host-Initialized Values are Initial Bit Time, Final Bit Time, 1.5x Bit Time, Failsafe timeout,
-      End of Packet Timeout, Start/Stop Time, SCL High Time, SCL Low Time, and ExpectedID.  In addition to replacing these values, the host needs to update
-      the image's checksum at word 5.*/
-    //                            Value Bytes    Spin Bytes*
-    const rawLoaderInitOffset = - (   10*4   ) - (    8   );     // *DAT block data is always placed before the first Spin method
+    /*Offset (in bytes) within the Raw Loader Image (above) to the start of host-initialized values that exist within it.  Host-Initialized values are
+     constants in the source (Propeller Assembly code) that are intended to be replaced by the host (the computer running 'this' code) before packetization
+     and transmission of the image to the Propeller.  Host-Initialized Values are Initial Bit Time, Final Bit Time, 1.5x Bit Time, Failsafe timeout,
+     End of Packet Timeout, Start/Stop Time, SCL High Time, SCL Low Time, and ExpectedID.  In addition to replacing these values, the host needs to update
+     the image's checksum at word 5.*/
+    //                                         Value Bytes    Spin Bytes*
+    const InitOffset = rawLoaderImage.length - (   10*4   ) - (    8   );     // *DAT block data is always placed before the first Spin method
+
+    //Loader patching workspace
+    var loaderWorkspace = new ArrayBuffer(rawLoaderImage.length);
+    var patchedLoader = new Uint8Array(loaderWorkspace, 0);
+    var bootClkSel    = new DataView(loaderWorkspace, InitOffset,     4);     //Booter's clock selection bits
+    var iBitTime      = new DataView(loaderWorkspace, InitOffset + 4, 4);     //Initial Bit Time (baudrate in clock cycles)
+    var fBitTime      = new DataView(loaderWorkspace, InitOffset + 8, 4);     //Final Bit Time (baudrate in clock cycles)
+    var bitTime1_5    = new DataView(loaderWorkspace, InitOffset + 12, 4);    //1.5x Final Bit Time
+    var failsafe      = new DataView(loaderWorkspace, InitOffset + 16, 4);    //Failsafe Timeout
+    var endOfPacket   = new DataView(loaderWorkspace, InitOffset + 20, 4);    //EndOfPacket Timeout
+    var sTime         = new DataView(loaderWorkspace, InitOffset + 24, 4);    //Minimum EEPROM Start/Stop Condition setup/hold time
+    var sclHighTime   = new DataView(loaderWorkspace, InitOffset + 28, 4);    //Minimum EEPROM SCL high time
+    var sclLowTime    = new DataView(loaderWorkspace, InitOffset + 32, 4);    //Minimum EEPROM SCL low time
+    var expectedID    = new DataView(loaderWorkspace, InitOffset + 36, 4);    //First Expected Packet ID; total packet count
 
     //Maximum number of cycles by which the detection of a start bit could be off (as affected by the Loader code)
     const maxRxSenseError = 23;
@@ -495,9 +518,37 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
     //Raw Loader Image, but auto-inserted by ROM-resident boot loader, so it's checksum value must be included in image.
     const initCallFrameChecksum = 236;
 
+    //Maximum needed RAM Checksum timing pulses (per Propeller response window specs)
+    var timingPulses = new Array(3110).fill(0xF9);
+
+
+    var workspace = new ArrayBuffer(5120);
+
+
+//!!!    var txData = new Uint8Array(txHandshake.length+microBootLoader.length+timingPulses.length);
+/*
+    //Workspace buffer
+    var workspace = new ArrayBuffer(5120);
+    var buffer = new Uint8Array(workspace, 0);
+
+    var DataView()
+
+    buffer.set(txHandshake, 0);
+    buffer.set(microBootLoader, txHandshake.length);
+    buffer.set(timingPulses, txHandshake.length+microBootLoader.length);
+
+    txData = buffer.subarray(0, txHandshake.length+microBootLoader.length+timingPulses.length);
+
+//    buf = new Uint8Array(workspace, 0, txHandshake.length+microBootLoader.length+timingPulses.length);
+//    txData = new ArrayBuffer(txHandshake.length+microBootLoader.length+timingPulses.length);
+//    txView = new Uint8Array(txData);
+//    txView.set(buf, txData.byteLength-4000);
+*/
 }
 
 
+
+//Scratchpad
 const microBootLoader = [
     0x9a,0xd2,0x93,0x92,0x92,0x92,0x92,                                              /*Patched and Encoded Micro Boot Loader*/
     0x92,0x92,0x92,0xf2,0x92,0x92,0x92,0x4a,0x29,0xca,0x52,0xd2,0x92,0x52,0xa5,0xc9,
@@ -558,10 +609,3 @@ const microBootLoader = [
     0x92,0xc9,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0x92,0xd2,0x4a,0x49,0x25,0x2a,
     0xd2,0x92,0x4a,0x2a,0x92,0xa5,0x92,0x49,0xc9,0x92,0x92,0x92,0x92,0x92,0xfe
 ];
-
-var timingPulses = new Array(3110).fill(0xF9);
-
-var txData = new Uint8Array(txHandshake.length+microBootLoader.length+timingPulses.length);
-txData.set(txHandshake, 0);
-txData.set(microBootLoader, txHandshake.length);
-txData.set(timingPulses, txHandshake.length+microBootLoader.length);
