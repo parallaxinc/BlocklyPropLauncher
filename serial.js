@@ -261,44 +261,19 @@ function buffer2ArrayBuffer(buffer) {
 function talkToProp() {
 // Transmit identifying (and optionally programming) stream to Propeller
 
-    var deliveryTime = 400+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
+    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1; //Calculate package delivery time
                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
-    function resetPropComm() {
-    // Reset propComm object to initial values
-        return new Promise(function(resolve) {
-            Object.assign(propComm, propCommStart);
-            resolve();
-        })
-    }
-
-    function startReset() {return setControl({dtr: false})}
-
-    function endReset() {return setControl({dtr: true})}
-
-    function sendPackage() {return sendLoader(100)}
-
-    function checkLoader() {return isLoaderReady(1, deliveryTime)}
-
-    function chain(func) {
-        return new Promise(function(resolve) {
-            func();
-            resolve();
-        })
-    }
-
     isOpen()
-        .then(resetPropComm)                                       //Reset propComm object
-        .then(function() {console.log("Generating reset signal")})
-        .then(startReset)                                          //Start Propeller Reset Signal
-        .then(flush)                                               //Flush transmit/receive buffers (during Propeller reset)
-        .then(endReset)                                            //End Propeller Reset
-        .then(sendPackage)                                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(checkLoader)                                         //Verify package accepted
-        .then(changeBaudrate)                                      //Bump up to faster finalBaudrate
-        .catch(function(err) {console.log("Error: %s", err.message)})
+        .then(function() {       Object.assign(propComm, propCommStart)} )       //Reset propComm object
+        .then(function() {       console.log("Generating reset signal")} )
+        .then(function() {return setControl({dtr: false})}               )       //Start Propeller Reset Signal
+        .then(function() {return flush()}                                )       //Flush transmit/receive buffers (during Propeller reset)
+        .then(function() {return setControl({dtr: true})}                )       //End Propeller Reset
+        .then(function() {return sendLoader(100)}                        )       //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+        .then(function() {return isLoaderReady(1, deliveryTime)}         )       //Verify package accepted
+        .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
+        .catch(function(err) {console.log("Error: %s", err.message)}     )
         ;
-
-//    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
 }
 
 function hearFromProp(info) {
