@@ -196,19 +196,15 @@ function isOpen() {
 
 function changeBaudrate(baudrate) {
 //Change port's baudrate.
-//baudrate is optional (defaults to finalBaudrate)
-
-//    return Promise.resolve(function() {console.log("Changing baudrate to " + portBaudrate)});
-
+//baudrate is optional; defaults to finalBaudrate
+    portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
-        portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
         console.log("Changing baudrate to " + portBaudrate);
         chrome.serial.update(portID, {'bitrate': portBaudrate}, function(updateResult) {
             updateResult ? resolve() : reject(Error("Can not set baudrate: " + baudrate));
         });
         resolve();
     });
-
 }
 
 //TODO determine if there's a better way to promisify callbacks (with boolean results)
@@ -275,6 +271,14 @@ function talkToProp() {
         })
     }
 
+    function startReset() {return setControl({dtr: false})}
+
+    function endReset() {return setControl({dtr: true})}
+
+    function sendPackage() {return sendLoader(100)}
+
+    function checkLoader() {return isLoaderReady(1, deliveryTime)}
+
     function chain(func) {
         return new Promise(function(resolve) {
             func();
@@ -283,19 +287,16 @@ function talkToProp() {
     }
 
     isOpen()
-        .then(chain(function() {console.log("talking to Propeller")})
-        .then(resetPropComm()                                                   //Reset propComm object
-        .then(setControl({dtr: false})                                          //Start Propeller Reset Signal
-        .then(flush()                                                           //Flush transmit/receive buffers (during Propeller reset)
-        .then(setControl({dtr: true})                                           //End Propeller Reset
-        .then(sendLoader(100)                                                   //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(isLoaderReady(1, deliveryTime)                                    //Verify package accepted
-        .then(function() {console.log("Finished isLoaderReady?")})
-//        .then(changeBaudrate()                                                //Bump up to faster finalBaudrate
-        .then(function() {console.log("Found Propeller!")})
-        .catch(function(e) {console.log("Error: %s", e.message)})
-        .then(function() {console.log("done talking to Propeller")})
-        )))))));
+        .then(resetPropComm)                                       //Reset propComm object
+        .then(function() {console.log("Generating reset signal")})
+        .then(startReset)                                          //Start Propeller Reset Signal
+        .then(flush)                                               //Flush transmit/receive buffers (during Propeller reset)
+        .then(endReset)                                            //End Propeller Reset
+        .then(sendPackage)                                         //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+        .then(checkLoader)                                         //Verify package accepted
+        .then(changeBaudrate)                                      //Bump up to faster finalBaudrate
+        .catch(function(err) {console.log("Error: %s", err.message)})
+        ;
 
 //    isMicroBootLoaderReady(2000).then(function(m){console.log("resolved", m)}, function(e){console.log("rejected", e.message)});
 }
@@ -384,7 +385,7 @@ function sendLoader(waittime) {
     return new Promise(function(resolve, reject) {
         console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
         setTimeout(function() {
-            console.log("Transmitting loader package");
+            console.log("Transmitting package");
             send(txData);
             resolve();
         }, waittime);
@@ -401,20 +402,20 @@ function isLoaderReady(packetId, waittime) {
     return new Promise(function(resolve, reject) {
 
         function verifier() {
-            console.log("Checking loader package delivery");
+            console.log("Verifying package delivery");
             //Check handshake and version
-            if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found."))}
+            if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return}
             //Check for proper version
-            if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1."))}
+            if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return}
             //Check RAM checksum
-            if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum."))}
-            if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure."))}
+            if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return}
+            if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return}
             //Check Micro Boot Loader Ready Signal
-            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed."))}
-            console.log("Done checking delivery");
+            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return}
+            console.log("Found Propeller!  Micro Boot Loader ready.");
             resolve();
         }
-        console.log("Waiting %d ms for Micro Boot Loader delivery", waittime);
+        console.log("Waiting %d ms for package delivery", waittime);
         setTimeout(verifier, waittime);
     });
 }
