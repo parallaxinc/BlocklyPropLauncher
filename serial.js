@@ -7,6 +7,9 @@ const initialBaudrate = 115200;                     //Initial Propeller communic
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
 var txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
+const defaultClockSpeed = 80000000;
+const defaultClockMode = 0x6F;
+
 
 // propComm status values
 const stValidating = -1;
@@ -171,10 +174,9 @@ function talkToProp() {
 
 
 
-    generateLoaderPacket(); //!!!
+    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
 
-
-
+/*!!!
     var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;  //Calculate expected max package delivery time
                                                                                  //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     function sendLoader(waittime) {
@@ -190,10 +192,12 @@ function talkToProp() {
     }
 
     function isLoaderReady(packetId, waittime) {
+!!!*/
     /* Is Micro Boot Loader delivered and Ready?
      Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
      Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
      Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
+/*!!!
         return new Promise(function(resolve, reject) {
             function verifier() {
                 console.log("Verifying package delivery");
@@ -224,6 +228,7 @@ function talkToProp() {
         .then(function() {return isLoaderReady(1, deliveryTime)}         )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
+!!!*/
 }
 
 function hearFromProp(info) {
@@ -456,6 +461,9 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
     //Loader patching workspace
     var loaderWorkspace = new ArrayBuffer(rawLoaderImage.length);
     var patchedLoader = new Uint8Array(loaderWorkspace, 0);
+    var bootClkSpeed  = new DataView(loaderWorkspace, 0,              4);     //Booter's clock speed
+    var bootClkMode   = new DataView(loaderWorkspace, 4,              1);     //Booter's clock mode (1 byte)
+    var bootChecksum  = new DataView(loaderWorkspace, 5,              1);     //Booter's checksum (1 byte)
     var bootClkSel    = new DataView(loaderWorkspace, InitOffset,     4);     //Booter's clock selection bits
     var iBitTime      = new DataView(loaderWorkspace, InitOffset + 4, 4);     //Initial Bit Time (baudrate in clock cycles)
     var fBitTime      = new DataView(loaderWorkspace, InitOffset + 8, 4);     //Final Bit Time (baudrate in clock cycles)
@@ -521,8 +529,57 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
     //Maximum needed RAM Checksum timing pulses (per Propeller response window specs)
     var timingPulses = new Array(3110).fill(0xF9);
 
+    //Packet workspace
+    var packet = new ArrayBuffer(5120);
 
-    var workspace = new ArrayBuffer(5120);
+    if (loaderType === ltCore) {
+        //Generate specially-prepared stream of Micro Boot Loader's core (with handshake, timing templates, and host-initialized timing
+
+        //Prepare Loader Image with patched clock metrics and host-initialized values in little-endian form (regardless of platform)
+        patchedLoader.set(rawLoaderImage, 0);                                                  //Copy raw loader image for adjustments and processing
+        bootClkSpeed.setUint32(0, clockSpeed, true);                                           //Set booter's clock speed
+        bootClkMode.setUint8(0, clockMode);                                                    //Set booter's clock mode (1 byte)
+        bootClkSel.setUint32(0, clockMode & 0x07, true);                                       //Booter's clock selection bits
+        iBitTime.setUint32(0, Math.round(clockSpeed / initialBaudrate), true);                 //Initial Bit Time (baudrate in clock cycles)
+        fBitTime.setUint32(0, Math.round(clockSpeed / finalBaudrate), true);                   //Final Bit Time (baudrate in clock cycles)
+        bitTime1_5.setUint32(0, Math.round(((1.5 * clockSpeed) / finalBaudrate) - maxRxSenseError), true);  //1.5x Final Bit Time minus maximum start bit sense error
+        failsafe.setUint32(0, 2 * Math.trunc(clockSpeed / (3 * 4)), true);                     //Failsafe Timeout (seconds-worth of Loader's Receive loop iterations)
+        endOfPacket.setUint32(0, Math.round(2 * clockSpeed / finalBaudrate * 10 / 12), true);  //EndOfPacket Timeout (2 bytes worth of Loader's Receive loop iterations)
+        sTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);            //Minimum EEPROM Start/Stop Condition setup/hold time (400 KHz = 1/0.6 µS); Minimum 14 cycles}
+        sclHighTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);      //Minimum EEPROM SCL high time (400 KHz = 1/0.6 µS); Minimum 14 cycles
+        sclLowTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000013), 14), true);       //Minimum EEPROM SCL low time (400 KHz = 1/1.3 µS); Minimum 26 cycles
+        expectedID.setUint32(0, packetId, true);                                               //First Expected Packet ID; total packet count
+
+        //Recalculate and update checksum
+        bootChecksum.setUint8(0, 0);
+        var checksum = initCallFrameChecksum;
+        for (var idx = 0; idx < patchedLoader.byteLength; idx++) {checksum += patchedLoader[idx]}
+        bootChecksum.setUint8(0, 0x100-(checksum & 0xFF));
+
+        //Generate Micro Boot Loader Download Stream from patchedLoader
+
+
+    } else {
+        //Prepare loader's special executable packet
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //!!!    var txData = new Uint8Array(txHandshake.length+microBootLoader.length+timingPulses.length);
