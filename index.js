@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].close();
       }
-      closePort();
+//      closePort();
       console.log('Disonnected');
     }
   };
