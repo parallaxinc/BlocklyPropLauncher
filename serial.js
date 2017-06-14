@@ -88,6 +88,7 @@ function openPort(portPath, baudrate) {
     });
 }
 
+//TODO Promisify closePort()
 //TODO Consider returning error object
 function closePort() {
     isOpen()
@@ -105,15 +106,16 @@ function closePort() {
 }
 
 function isOpen() {
-//Return promise that is resolved if port is open, rejected otherwise
+// Return a promise that is resolved if port is open, rejected otherwise
     return new Promise(function(resolve, reject) {
         portID >= 0 ? resolve() : reject()
     });
 }
 
+//TODO: Determine of portBaudrate... statement need be inside the Promise
 function changeBaudrate(baudrate) {
-//Change port's baudrate.
-//baudrate is optional; defaults to finalBaudrate
+// Return a promise that changes the port's baudrate.
+// baudrate is optional; defaults to finalBaudrate
     portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
         console.log("Changing baudrate to " + portBaudrate);
@@ -124,8 +126,8 @@ function changeBaudrate(baudrate) {
     });
 }
 
-//TODO determine if there's a better way to promisify callbacks (with boolean results)
 function setControl(options) {
+// Return a promise that sets/clears the control option(s).
     return new Promise(function(resolve, reject) {
         chrome.serial.setControlSignals(portID, options, function(controlResult) {
             controlResult ? resolve() : reject(Error("Can not set " + options))
@@ -134,7 +136,7 @@ function setControl(options) {
 }
 
 function flush() {
-// Empty transmit and receive buffers
+// Return a promise that empties the transmit and receive buffers
     return new Promise(function(resolve, reject) {
         chrome.serial.flush(portID, function(flushResult) {
             flushResult ? resolve() : reject(Error("Can not flush transmit/receive buffer"))
@@ -206,9 +208,9 @@ function talkToProp(binImage) {
 
     function isLoaderReady(packetId, waittime) {
     /* Is Micro Boot Loader delivered and Ready?
-     Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-     Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
-     Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
+    Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+    Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
+    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
         return new Promise(function(resolve, reject) {
             function verifier() {
@@ -227,6 +229,17 @@ function talkToProp(binImage) {
             }
             console.log("Waiting %d ms for package delivery", waittime);
             setTimeout(verifier, waittime);
+        });
+    }
+
+    function sendUserApp() {
+    // Return a promise that delivers the user application to the Micro Boot Loader.
+        return new Promise(function(resolve, reject) {
+            function sendUA() {
+                console.log("Delivering user application");
+                resolve();
+            }
+            setTimeout(sendUA);
         });
     }
 
@@ -254,21 +267,22 @@ function talkToProp(binImage) {
         .then(function() {return sendLoader(100)}                        )       //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(function() {return isLoaderReady(packetId, deliveryTime)}  )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
+        .then(function() {return sendUserApp()}                          )       //Send user application
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
 
 /* R&D Delphi Code
  {Transmit packetized target application}
  i := 0;
  repeat {Transmit target application packets}                                             {Transmit application image}
- TxBuffLength := 2 + Min((XBee.MaxDataSize div 4)-2, FBinSize - i);                     {  Determine packet length (in longs); header + packet limit or remaining data length}
- SetLength(TxBuf, TxBuffLength*4);                                                      {  Set buffer length (Packet Length) (in longs)}
- Move(PacketID, TxBuf[0], 4);                                                           {  Store Packet ID (skip over Transmission ID field; "TransmitPacket" will fill that)}
- Move(FBinImage[i*4], TxBuf[8], (TxBuffLength-2)*4);                                    {  Store section of data}
- UpdateProgress(0, 'Sending packet: ' + (TotalPackets-PacketID+1).ToString + ' of ' + TotalPackets.ToString);
- if TransmitPacket <> PacketID-1 then                                                   {  Transmit packet (retransmit as necessary)}
- raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
- inc(i, TxBuffLength-2);                                                                {  Increment image index}
- dec(PacketID);                                                                         {  Decrement Packet ID (to next packet)}
+   TxBuffLength := 2 + Min((XBee.MaxDataSize div 4)-2, FBinSize - i);                     {  Determine packet length (in longs); header + packet limit or remaining data length}
+   SetLength(TxBuf, TxBuffLength*4);                                                      {  Set buffer length (Packet Length) (in longs)}
+   Move(PacketID, TxBuf[0], 4);                                                           {  Store Packet ID (skip over Transmission ID field; "TransmitPacket" will fill that)}
+   Move(FBinImage[i*4], TxBuf[8], (TxBuffLength-2)*4);                                    {  Store section of data}
+   UpdateProgress(0, 'Sending packet: ' + (TotalPackets-PacketID+1).ToString + ' of ' + TotalPackets.ToString);
+   if TransmitPacket <> PacketID-1 then                                                   {  Transmit packet (retransmit as necessary)}
+     raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
+   inc(i, TxBuffLength-2);                                                                {  Increment image index}
+   dec(PacketID);                                                                         {  Decrement Packet ID (to next packet)}
  {repeat - Transmit target application packets...}
  until PacketID = 0;                                                                      {Loop until done}
 
@@ -278,20 +292,20 @@ function talkToProp(binImage) {
  {Send verify RAM command}                                                                {Verify RAM Checksum}
  GenerateLoaderPacket(ltVerifyRAM, PacketID);                                             {Generate VerifyRAM executable packet}
  if TransmitPacket <> -Checksum then                                                      {Transmit packet (retransmit as necessary)}
- raise EHardDownload.Create('Error: RAM Checksum Failure!');                            {  Error if RAM Checksum differs}
+   raise EHardDownload.Create('Error: RAM Checksum Failure!');                            {  Error if RAM Checksum differs}
  PacketID := -Checksum;                                                                   {Ready next packet; ID's by -checksum now }
 
  {Program EEPROM too?}
  if ToEEPROM then
- begin
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for EEPROM programming', True);
- UpdateProgress(+1, 'Programming EEPROM');
+   begin
+   SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for EEPROM programming', True);
+   UpdateProgress(+1, 'Programming EEPROM');
 
- {Send Program/Verify EEPROM command}                                                   {Program and Verify EEPROM}
- GenerateLoaderPacket(ltProgramEEPROM, PacketID);                                       {Generate ProgramEEPROM executable packet}
- if TransmitPacket(False, 8000) <> -Checksum*2 then                                     {Transmit packet (retransmit as necessary)}
- raise EHardDownload.Create('Error: EEPROM Programming Failure!');                    {  Error if EEPROM Checksum differs}
- PacketID := -Checksum*2;                                                               {Ready next packet; ID's by -checksum*2 now }
+   {Send Program/Verify EEPROM command}                                                   {Program and Verify EEPROM}
+   GenerateLoaderPacket(ltProgramEEPROM, PacketID);                                       {Generate ProgramEEPROM executable packet}
+   if TransmitPacket(False, 8000) <> -Checksum*2 then                                     {Transmit packet (retransmit as necessary)}
+     raise EHardDownload.Create('Error: EEPROM Programming Failure!');                    {  Error if EEPROM Checksum differs}
+   PacketID := -Checksum*2;                                                               {Ready next packet; ID's by -checksum*2 now }
  end;
 
  SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Requesting Application Launch', True);
@@ -300,7 +314,7 @@ function talkToProp(binImage) {
  {Send verified/launch command}                                                           {Verified/Launch}
  GenerateLoaderPacket(ltReadyToLaunch, PacketID);                                         {Generate ReadyToLaunch executable packet}
  if TransmitPacket <> PacketID-1 then                                                     {Transmit packet (Launch step 1); retransmit as necessary}
- raise EHardDownload.Create('Error: communication failed!');                            {  Error if unexpected response}
+   raise EHardDownload.Create('Error: communication failed!');                            {  Error if unexpected response}
  dec(PacketID);                                                                           {Ready next packet}
 
  SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Application Launching', True);
