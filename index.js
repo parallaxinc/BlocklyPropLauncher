@@ -62,12 +62,16 @@ document.addEventListener('DOMContentLoaded', function() {
       connect_ws($('bpc-port').value, $('bpc-url').value);
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
+      console.log('Connected');
+//      loadPropeller(null, 'RAM', null, null, 'COM3', null);
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].close();
       }
+//      closePort();
+      console.log('Disonnected');
     }
   };
 
@@ -256,13 +260,6 @@ function sendPortList() {
 }
 
 
-function loadPropeller(sock, action, payload, debug, portPath, success) {
-  // TODO: disconnect USB if already active first?
-  // TODO: everything else :)
-  console.log(parseFile(payload));
-}
-
-
 function helloClient(sock, baudrate) {
   var msg_to_send = {type:'hello-client', version:clientVersion};
   sock.send(JSON.stringify(msg_to_send));
@@ -334,7 +331,8 @@ chrome.serial.onReceive.addListener(function(info) {
     }
   } else {
     // NOT 100% SURE ABOUT THIS!!!!
-    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
+//!!! Commented out the closing of "rouge serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
+//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
   }
 });
 
