@@ -174,8 +174,8 @@ function talkToProp() {
 
 
 
-//    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
-    generateLoaderPacket(ltVerifyRAM, 1);
+    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
+//    generateLoaderPacket(ltVerifyRAM, 1);  //!!!
 
 
 /*!!!
@@ -362,48 +362,54 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
 
      Propeller Download Stream Translator array.  Index into this array with the "Binary Value" (usually 5 bits) to translate,
      the incoming bit size (again, usually 5), and the desired data element to retrieve (0 = translation, 1 = translated bit count.
-     A portion of the array is not applicable (unused "[0,0]").
+     A portion of the array is not applicable (unused "[0,0]") including the first column (0 bits input).
 
      Propeller Download Stream Translator (pDSTx) Usage:
 
                Binary     Incoming    Translation
                Value      Bit Size    and Bit Count
           pDSTx[0..31,      1..5,         0..1]
+*/
 
-                        *****  1-BIT  *****     *****  2-BIT  *****     *****  3-BIT  *****     *****  4-BIT  *****     *****  5-BIT  *****       */
-    const pDSTx = [  [  /*0b00000*/ [0xFE, 1],  /*0b00000*/ [0xF2, 2],  /*0b00000*/ [0x92, 3],  /*0b00000*/ [0x92, 3],  /*0b00000*/ [0x92, 3]  ],
-                     [  /*0b00001*/ [0xFF, 1],  /*0b00001*/ [0xF9, 2],  /*0b00001*/ [0xC9, 3],  /*0b00001*/ [0xC9, 3],  /*0b00001*/ [0xC9, 3]  ],
-                     [                [0,0],    /*0b00010*/ [0xFA, 2],  /*0b00010*/ [0xCA, 3],  /*0b00010*/ [0xCA, 3],  /*0b00010*/ [0xCA, 3]  ],
-                     [                [0,0],    /*0b00011*/ [0xFD, 2],  /*0b00011*/ [0xE5, 3],  /*0b00011*/ [0x25, 4],  /*0b00011*/ [0x25, 4]  ],
-                     [                [0,0],                  [0,0],    /*0b00100*/ [0xD2, 3],  /*0b00100*/ [0xD2, 3],  /*0b00100*/ [0xD2, 3]  ],
-                     [                [0,0],                  [0,0],    /*0b00101*/ [0xE9, 3],  /*0b00101*/ [0x29, 4],  /*0b00101*/ [0x29, 4]  ],
-                     [                [0,0],                  [0,0],    /*0b00110*/ [0xEA, 3],  /*0b00110*/ [0x2A, 4],  /*0b00110*/ [0x2A, 4]  ],
-                     [                [0,0],                  [0,0],    /*0b00111*/ [0xFA, 3],  /*0b00111*/ [0x95, 4],  /*0b00111*/ [0x95, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01000*/ [0x92, 3],  /*0b01000*/ [0x92, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01001*/ [0x49, 4],  /*0b01001*/ [0x49, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01010*/ [0x4A, 4],  /*0b01010*/ [0x4A, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01011*/ [0xA5, 4],  /*0b01011*/ [0xA5, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01100*/ [0x52, 4],  /*0b01100*/ [0x52, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01101*/ [0xA9, 4],  /*0b01101*/ [0xA9, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01110*/ [0xAA, 4],  /*0b01110*/ [0xAA, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],    /*0b01111*/ [0xD5, 4],  /*0b01111*/ [0xD5, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10000*/ [0x92, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10001*/ [0xC9, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10010*/ [0xCA, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10011*/ [0x25, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10100*/ [0xD2, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10101*/ [0x29, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10110*/ [0x2A, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10111*/ [0x95, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11000*/ [0x92, 3]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11001*/ [0x49, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11010*/ [0x4A, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11011*/ [0xA5, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11100*/ [0x52, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11101*/ [0xA9, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11110*/ [0xAA, 4]  ],
-                     [                [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11111*/ [0x55, 5]  ]
+    const pDSTx = [
+        /* 0-BITs     *****  1-BIT  *****     *****  2-BIT  *****     *****  3-BIT  *****     *****  4-BIT  *****     *****  5-BIT  *****       */
+        [  [0,0],    /*0b00000*/ [0xFE, 1],  /*0b00000*/ [0xF2, 2],  /*0b00000*/ [0x92, 3],  /*0b00000*/ [0x92, 3],  /*0b00000*/ [0x92, 3]  ],
+        [  [0,0],    /*0b00001*/ [0xFF, 1],  /*0b00001*/ [0xF9, 2],  /*0b00001*/ [0xC9, 3],  /*0b00001*/ [0xC9, 3],  /*0b00001*/ [0xC9, 3]  ],
+        [  [0,0],                  [0,0],    /*0b00010*/ [0xFA, 2],  /*0b00010*/ [0xCA, 3],  /*0b00010*/ [0xCA, 3],  /*0b00010*/ [0xCA, 3]  ],
+        [  [0,0],                  [0,0],    /*0b00011*/ [0xFD, 2],  /*0b00011*/ [0xE5, 3],  /*0b00011*/ [0x25, 4],  /*0b00011*/ [0x25, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],    /*0b00100*/ [0xD2, 3],  /*0b00100*/ [0xD2, 3],  /*0b00100*/ [0xD2, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],    /*0b00101*/ [0xE9, 3],  /*0b00101*/ [0x29, 4],  /*0b00101*/ [0x29, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],    /*0b00110*/ [0xEA, 3],  /*0b00110*/ [0x2A, 4],  /*0b00110*/ [0x2A, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],    /*0b00111*/ [0xFA, 3],  /*0b00111*/ [0x95, 4],  /*0b00111*/ [0x95, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01000*/ [0x92, 3],  /*0b01000*/ [0x92, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01001*/ [0x49, 4],  /*0b01001*/ [0x49, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01010*/ [0x4A, 4],  /*0b01010*/ [0x4A, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01011*/ [0xA5, 4],  /*0b01011*/ [0xA5, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01100*/ [0x52, 4],  /*0b01100*/ [0x52, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01101*/ [0xA9, 4],  /*0b01101*/ [0xA9, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01110*/ [0xAA, 4],  /*0b01110*/ [0xAA, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b01111*/ [0xD5, 4],  /*0b01111*/ [0xD5, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10000*/ [0x92, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10001*/ [0xC9, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10010*/ [0xCA, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10011*/ [0x25, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10100*/ [0xD2, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10101*/ [0x29, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10110*/ [0x2A, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b10111*/ [0x95, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11000*/ [0x92, 3]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11001*/ [0x49, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11010*/ [0x4A, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11011*/ [0xA5, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11100*/ [0x52, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11101*/ [0xA9, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11110*/ [0xAA, 4]  ],
+        [  [0,0],                  [0,0],                  [0,0],                  [0,0],                  [0,0],    /*0b11111*/ [0x55, 5]  ]
     ];
+
+    //Power of 2 - 1 array.  Index into this array with the desired power of 2 (1 through 5) and element value is mask equal to power of 2 minus 1
+    pwr2m1 = [ 0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F ];
+
 
     const txHandshake = [                                                                //Transmit Handshake pattern.
         0x49,                                                                            //First timing template ('1' and '0') plus first two bits of handshake ('0' and '1')
@@ -461,21 +467,25 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
     const InitOffset = rawLoaderImage.length - (   10*4   ) - (    8   );     // *DAT block data is always placed before the first Spin method
 
     //Loader patching workspace
-    var loaderWorkspace = new ArrayBuffer(rawLoaderImage.length);
-    var patchedLoader = new Uint8Array(loaderWorkspace, 0);
-    var bootClkSpeed  = new DataView(loaderWorkspace, 0,              4);     //Booter's clock speed
-    var bootClkMode   = new DataView(loaderWorkspace, 4,              1);     //Booter's clock mode (1 byte)
-    var bootChecksum  = new DataView(loaderWorkspace, 5,              1);     //Booter's checksum (1 byte)
-    var bootClkSel    = new DataView(loaderWorkspace, InitOffset,     4);     //Booter's clock selection bits
-    var iBitTime      = new DataView(loaderWorkspace, InitOffset + 4, 4);     //Initial Bit Time (baudrate in clock cycles)
-    var fBitTime      = new DataView(loaderWorkspace, InitOffset + 8, 4);     //Final Bit Time (baudrate in clock cycles)
-    var bitTime1_5    = new DataView(loaderWorkspace, InitOffset + 12, 4);    //1.5x Final Bit Time
-    var failsafe      = new DataView(loaderWorkspace, InitOffset + 16, 4);    //Failsafe Timeout
-    var endOfPacket   = new DataView(loaderWorkspace, InitOffset + 20, 4);    //EndOfPacket Timeout
-    var sTime         = new DataView(loaderWorkspace, InitOffset + 24, 4);    //Minimum EEPROM Start/Stop Condition setup/hold time
-    var sclHighTime   = new DataView(loaderWorkspace, InitOffset + 28, 4);    //Minimum EEPROM SCL high time
-    var sclLowTime    = new DataView(loaderWorkspace, InitOffset + 32, 4);    //Minimum EEPROM SCL low time
-    var expectedID    = new DataView(loaderWorkspace, InitOffset + 36, 4);    //First Expected Packet ID; total packet count
+    var patchWorkspace = new ArrayBuffer(rawLoaderImage.length);
+    var patchedLoader = new Uint8Array(patchWorkspace, 0);
+    var bootClkSpeed  = new DataView(patchWorkspace, 0,              4);     //Booter's clock speed
+    var bootClkMode   = new DataView(patchWorkspace, 4,              1);     //Booter's clock mode (1 byte)
+    var bootChecksum  = new DataView(patchWorkspace, 5,              1);     //Booter's checksum (1 byte)
+    var bootClkSel    = new DataView(patchWorkspace, InitOffset,     4);     //Booter's clock selection bits
+    var iBitTime      = new DataView(patchWorkspace, InitOffset + 4, 4);     //Initial Bit Time (baudrate in clock cycles)
+    var fBitTime      = new DataView(patchWorkspace, InitOffset + 8, 4);     //Final Bit Time (baudrate in clock cycles)
+    var bitTime1_5    = new DataView(patchWorkspace, InitOffset + 12, 4);    //1.5x Final Bit Time
+    var failsafe      = new DataView(patchWorkspace, InitOffset + 16, 4);    //Failsafe Timeout
+    var endOfPacket   = new DataView(patchWorkspace, InitOffset + 20, 4);    //EndOfPacket Timeout
+    var sTime         = new DataView(patchWorkspace, InitOffset + 24, 4);    //Minimum EEPROM Start/Stop Condition setup/hold time
+    var sclHighTime   = new DataView(patchWorkspace, InitOffset + 28, 4);    //Minimum EEPROM SCL high time
+    var sclLowTime    = new DataView(patchWorkspace, InitOffset + 32, 4);    //Minimum EEPROM SCL low time
+    var expectedID    = new DataView(patchWorkspace, InitOffset + 36, 4);    //First Expected Packet ID; total packet count
+
+    //Loader encoding workspace
+    var encodeWorkspace = new ArrayBuffer(rawLoaderImage.length / 4 * 11);   //Reserve up to 11 bytes per encoded long
+    var encodedLoader = new Uint8Array(encodeWorkspace, 0);
 
     //Maximum number of cycles by which the detection of a start bit could be off (as affected by the Loader code)
     const maxRxSenseError = 23;
@@ -562,8 +572,28 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
         bootChecksum.setUint8(0, 0x100-(checksum & 0xFF));
 
         //Generate Micro Boot Loader Download Stream from patchedLoader
-
-
+        var bCount = 0;
+        var loaderEncodedSize = 0;
+        while (bCount < patchedLoader.byteLength * 8) {                                         //For all bits in data stream...
+            var bitsIn = Math.min(5, patchedLoader.byteLength * 8 - bCount);                    //  Determine number of bits in current unit to translate; usually 5 bits
+            var bValue = ( (patchedLoader[Math.trunc(bCount / 8)] >>> (bCount % 8)) +           //  Extract next translation unit (contiguous bits, LSB first; usually 5 bits)
+                (patchedLoader[Math.trunc(bCount / 8) + 1] << (8 - (bCount % 8))) ) & pwr2m1[bitsIn];
+            encodedLoader[loaderEncodedSize++] = pDSTx[bValue, bitsIn, 0];                      //  Translate unit to encoded byte
+            bCount += pDSTx[bValue, bitsIn, 1];                                                 //  Increment bit index (usually 3, 4, or 5 bits, but can be 1 or 2 at end of stream)
+        }
+        //Prepare loader packet
+        //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
+        txData = new ArrayBuffer(txHandshake.length+11+encodedLoader.byteLength+timingPulses.length);
+        tv = new Uint8Array(txData);
+        tv.set(txHandshake, 0);
+        var txLength = txHandshake.length;
+        var rawSize = rawLoaderImage.length/4;
+        for (idx = 0; idx < 11; idx++) {
+            tv[txLength++] = 0x92 | (idx < 10 ? 0x00 : 0x60) | rawSize & 1 | (rawSize & 2) << 2 | (rawSize & 4) << 4;
+            rawSize = rawSize >>> 3;
+        }
+        tv.set(encodedLoader, txLength);
+        tv.set(timingPulses, txLength+encodedLoader.byteLength);
     } else {
         //Prepare loader's special executable packet
         txData = new ArrayBuffer(2*4+exeSnippet[loaderType].length);                            //Set txData size for header plus executable packet
@@ -571,15 +601,6 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
         tv.set(exeSnippet[loaderType], 8);                                                      //Copy the executable packet code into it
     }
-
-
-
-
-
-
-
-
-
 
 
 
