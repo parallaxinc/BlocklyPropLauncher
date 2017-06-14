@@ -467,20 +467,20 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 
     //Loader patching workspace
     var patchWorkspace = new ArrayBuffer(rawLoaderImage.length);
-    var patchedLoader = new Uint8Array(patchWorkspace, 0);
-    var bootClkSpeed = new DataView(patchWorkspace, 0, 4);                      //Booter's clock speed
-    var bootClkMode = new DataView(patchWorkspace, 4, 1);                       //Booter's clock mode (1 byte)
-    var bootChecksum = new DataView(patchWorkspace, 5, 1);                      //Booter's checksum (1 byte)
-    var bootClkSel = new DataView(patchWorkspace, InitOffset, 4);               //Booter's clock selection bits
-    var iBitTime = new DataView(patchWorkspace, InitOffset + 4, 4);             //Initial Bit Time (baudrate in clock cycles)
-    var fBitTime = new DataView(patchWorkspace, InitOffset + 8, 4);             //Final Bit Time (baudrate in clock cycles)
-    var bitTime1_5 = new DataView(patchWorkspace, InitOffset + 12, 4);          //1.5x Final Bit Time
-    var failsafe = new DataView(patchWorkspace, InitOffset + 16, 4);            //Failsafe Timeout
-    var endOfPacket = new DataView(patchWorkspace, InitOffset + 20, 4);         //EndOfPacket Timeout
-    var sTime = new DataView(patchWorkspace, InitOffset + 24, 4);               //Minimum EEPROM Start/Stop Condition setup/hold time
-    var sclHighTime = new DataView(patchWorkspace, InitOffset + 28, 4);         //Minimum EEPROM SCL high time
-    var sclLowTime = new DataView(patchWorkspace, InitOffset + 32, 4);          //Minimum EEPROM SCL low time
-    var expectedID = new DataView(patchWorkspace, InitOffset + 36, 4);          //First Expected Packet ID; total packet count
+    var patchedLoader  = new Uint8Array(patchWorkspace,               0);
+    var bootClkSpeed   = new DataView(patchWorkspace, 0,              4);       //Booter's clock speed
+    var bootClkMode    = new DataView(patchWorkspace, 4,              1);       //Booter's clock mode (1 byte)
+    var bootChecksum   = new DataView(patchWorkspace, 5,              1);       //Booter's checksum (1 byte)
+    var bootClkSel     = new DataView(patchWorkspace, InitOffset,     4);       //Booter's clock selection bits
+    var iBitTime       = new DataView(patchWorkspace, InitOffset + 4, 4);       //Initial Bit Time (baudrate in clock cycles)
+    var fBitTime       = new DataView(patchWorkspace, InitOffset + 8, 4);       //Final Bit Time (baudrate in clock cycles)
+    var bitTime1_5     = new DataView(patchWorkspace, InitOffset + 12, 4);      //1.5x Final Bit Time
+    var failsafe       = new DataView(patchWorkspace, InitOffset + 16, 4);      //Failsafe Timeout
+    var endOfPacket    = new DataView(patchWorkspace, InitOffset + 20, 4);      //EndOfPacket Timeout
+    var sTime          = new DataView(patchWorkspace, InitOffset + 24, 4);      //Minimum EEPROM Start/Stop Condition setup/hold time
+    var sclHighTime    = new DataView(patchWorkspace, InitOffset + 28, 4);      //Minimum EEPROM SCL high time
+    var sclLowTime     = new DataView(patchWorkspace, InitOffset + 32, 4);      //Minimum EEPROM SCL low time
+    var expectedID     = new DataView(patchWorkspace, InitOffset + 36, 4);      //First Expected Packet ID; total packet count
 
     //Loader encoding workspace
     var encodeWorkspace = new ArrayBuffer(rawLoaderImage.length / 4 * 11);      //Reserve up to 11 bytes per encoded long
