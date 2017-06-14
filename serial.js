@@ -236,6 +236,7 @@ function talkToProp(binImage) {
     //TODO address "transmitPacket" comments
     //TODO make sure Transmission ID is placed
     //TODO verify TotalPackets used somewhere
+    //TODO may have to decrement packetId elsewhere
     //TODO determine if txPacketLength and idx can be in bytes instead of longs
     function sendUserApp() {
     // Return a promise that delivers the user application to the Micro Boot Loader.
@@ -278,7 +279,7 @@ function talkToProp(binImage) {
                     function verifier() {
                         console.log("Verifying loader acknowledgement");
                         //Check Micro Boot Loader response
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId-1) {reject(Error("Download failed")); return}
+                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Download failed")); return}
                         console.log("Packet received.");
                         resolve();
                     }
