@@ -234,37 +234,39 @@ function talkToProp(binImage) {
     }
 
     //TODO address "transmitPacket" comments
+    //TODO make sure Transmission ID is placed
     //TODO verify TotalPackets used somewhere
     //TODO determine if txPacketLength and idx can be in bytes instead of longs
     function sendUserApp() {
     // Return a promise that delivers the user application to the Micro Boot Loader.
         return new Promise(function(resolve, reject) {
+
             function sendUA() {
-                console.log("Delivering user application");
-                //Prep to receive next MBL response
-                propComm.mblResponse = stValidating;
-                propComm.stage = sgMBLResponse;
+                return new Promise(function(resolve, reject) {
+                    console.log("Delivering user application");
+                    //Prep to receive next MBL response
+                    propComm.mblResponse = stValidating;
+                    propComm.stage = sgMBLResponse;
 
-                var idx = 0;
-//                repeat {Transmit target application packets}                                             {Transmit application image}
+                    var idx = 0;
+                //repeat {Transmit target application packets}                                             {Transmit application image}
 
-                var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
-                    Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
-                txData = new ArrayBuffer(txPacketLength*4);                                                //Set packet length (in longs)}
-                tv = new Uint8Array(txData);
-                (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
-                tv.set(binImage.subarray(idx*4, (txPacketLength-2)*4), 8);                                 //Store section of binary image
-                send(txData);                                                                              //Transmit packet
+                    var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
+                        Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
+                    binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
+                    txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
+                    txView = new Uint8Array(txData);
+                    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
+                    txView.set(binView, 8);                                                                    //Store section of binary image
+                    send(txData);                                                                              //Transmit packet
+                    idx += txPacketLength - 2;                                                                 //Increment image index
+                    packetId--;                                                                                //Decrement Packet ID (to next packet)
 
-//                    raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
+                //{repeat - Transmit target application packets...}
+                //until PacketID = 0;                                                                      {Loop until done}
 
-                idx += txPacketLength-2;                                                                   //Increment image index
-                packetId--;                                                                                //Decrement Packet ID (to next packet)
-
-//                {repeat - Transmit target application packets...}
-//                until PacketID = 0;                                                                      {Loop until done}
-
-                resolve();
+                    resolve();
+                })
             }
 //TODO Verify transmission ID
             function loaderAcknowledged(waittime) {
@@ -284,7 +286,7 @@ function talkToProp(binImage) {
                     setTimeout(verifier, waittime);
                 });
             }
-
+//TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
             //No delay, but call sendUA promise with setTimeout for asynchronous processing
             setTimeout(function() {
                 sendUA()
@@ -716,22 +718,22 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         //Prepare loader packet
         //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
         txData = new ArrayBuffer(txHandshake.length + 11 + encodedLoader.byteLength + timingPulses.length);
-        tv = new Uint8Array(txData);
-        tv.set(txHandshake, 0);
+        txView = new Uint8Array(txData);
+        txView.set(txHandshake, 0);
         var txLength = txHandshake.length;
         var rawSize = rawLoaderImage.length / 4;
         for (idx = 0; idx < 11; idx++) {
-            tv[txLength++] = 0x92 | (idx < 10 ? 0x00 : 0x60) | rawSize & 1 | (rawSize & 2) << 2 | (rawSize & 4) << 4;
+            txView[txLength++] = 0x92 | (idx < 10 ? 0x00 : 0x60) | rawSize & 1 | (rawSize & 2) << 2 | (rawSize & 4) << 4;
             rawSize = rawSize >>> 3;
         }
-        tv.set(encodedLoader, txLength);
-        tv.set(timingPulses, txLength + encodedLoader.byteLength);
+        txView.set(encodedLoader, txLength);
+        txView.set(timingPulses, txLength + encodedLoader.byteLength);
     } else {
         //Generate special loader's executable packet according to loaderType (> ltCore)
         txData = new ArrayBuffer(2 * 4 + exeSnippet[loaderType].length);                        //Set txData size for header plus executable packet
-        tv = new Uint8Array(txData);
+        txView = new Uint8Array(txData);
         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
-        tv.set(exeSnippet[loaderType], 8);                                                      //Copy the executable packet code into it
+        txView.set(exeSnippet[loaderType], 8);                                                      //Copy the executable packet code into it
     }
 
 }
