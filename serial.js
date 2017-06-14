@@ -171,6 +171,24 @@ function buffer2ArrayBuffer(buffer) {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
+//TODO This is hard-coded.  Adjust to properly handle parameters from real caller
+function loadPropeller(sock, action, payload, debug, portPath, success) {
+//    console.log(parseFile(payload));
+
+    const binImage = [
+        0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
+        0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
+        0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
+    ];
+
+    openPort(portPath, 115200)
+    //      openPort('/dev/ttyUSB0', 115200)
+        .then(function(){
+            talkToProp(buffer2ArrayBuffer(binImage));
+        });
+}
+
+
 function talkToProp(binImage) {
 // Deliver Propeller Application (binImage) to Propeller
 
@@ -216,7 +234,7 @@ function talkToProp(binImage) {
     var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
     var packetId = totalPackets;
     //Calculate target application's full checksum (used for RAM Checksum confirmation)}
-    checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
+    var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
     for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx]}  //Add in all Propeller Application Image bytes (retaining full checksum value)
 
     //Pre-generate communication and loader package (saves time during during initial communication)
@@ -237,6 +255,64 @@ function talkToProp(binImage) {
         .then(function() {return isLoaderReady(packetId, deliveryTime)}  )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
+
+/* R&D Delphi Code
+ {Transmit packetized target application}
+ i := 0;
+ repeat {Transmit target application packets}                                             {Transmit application image}
+ TxBuffLength := 2 + Min((XBee.MaxDataSize div 4)-2, FBinSize - i);                     {  Determine packet length (in longs); header + packet limit or remaining data length}
+ SetLength(TxBuf, TxBuffLength*4);                                                      {  Set buffer length (Packet Length) (in longs)}
+ Move(PacketID, TxBuf[0], 4);                                                           {  Store Packet ID (skip over Transmission ID field; "TransmitPacket" will fill that)}
+ Move(FBinImage[i*4], TxBuf[8], (TxBuffLength-2)*4);                                    {  Store section of data}
+ UpdateProgress(0, 'Sending packet: ' + (TotalPackets-PacketID+1).ToString + ' of ' + TotalPackets.ToString);
+ if TransmitPacket <> PacketID-1 then                                                   {  Transmit packet (retransmit as necessary)}
+ raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
+ inc(i, TxBuffLength-2);                                                                {  Increment image index}
+ dec(PacketID);                                                                         {  Decrement Packet ID (to next packet)}
+ {repeat - Transmit target application packets...}
+ until PacketID = 0;                                                                      {Loop until done}
+
+ SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for RAM checksum', True);
+ UpdateProgress(+1, 'Verifying RAM');
+
+ {Send verify RAM command}                                                                {Verify RAM Checksum}
+ GenerateLoaderPacket(ltVerifyRAM, PacketID);                                             {Generate VerifyRAM executable packet}
+ if TransmitPacket <> -Checksum then                                                      {Transmit packet (retransmit as necessary)}
+ raise EHardDownload.Create('Error: RAM Checksum Failure!');                            {  Error if RAM Checksum differs}
+ PacketID := -Checksum;                                                                   {Ready next packet; ID's by -checksum now }
+
+ {Program EEPROM too?}
+ if ToEEPROM then
+ begin
+ SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for EEPROM programming', True);
+ UpdateProgress(+1, 'Programming EEPROM');
+
+ {Send Program/Verify EEPROM command}                                                   {Program and Verify EEPROM}
+ GenerateLoaderPacket(ltProgramEEPROM, PacketID);                                       {Generate ProgramEEPROM executable packet}
+ if TransmitPacket(False, 8000) <> -Checksum*2 then                                     {Transmit packet (retransmit as necessary)}
+ raise EHardDownload.Create('Error: EEPROM Programming Failure!');                    {  Error if EEPROM Checksum differs}
+ PacketID := -Checksum*2;                                                               {Ready next packet; ID's by -checksum*2 now }
+ end;
+
+ SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Requesting Application Launch', True);
+ UpdateProgress(+1, 'Requesting Application Launch');
+
+ {Send verified/launch command}                                                           {Verified/Launch}
+ GenerateLoaderPacket(ltReadyToLaunch, PacketID);                                         {Generate ReadyToLaunch executable packet}
+ if TransmitPacket <> PacketID-1 then                                                     {Transmit packet (Launch step 1); retransmit as necessary}
+ raise EHardDownload.Create('Error: communication failed!');                            {  Error if unexpected response}
+ dec(PacketID);                                                                           {Ready next packet}
+
+ SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Application Launching', True);
+ UpdateProgress(+1, 'Application Launching');
+
+ {Send launch command}                                                                    {Verified}
+ GenerateLoaderPacket(ltLaunchNow, PacketID);                                             {Generate LaunchNow executable packet}
+ TransmitPacket(True);                                                                    {Transmit last packet (Launch step 2) only once (no retransmission); ignoring any response}
+ UpdateProgress(+1, 'Success');
+*/
+
+
 }
 
 function hearFromProp(info) {

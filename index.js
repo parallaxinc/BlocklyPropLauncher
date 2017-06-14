@@ -63,11 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
       console.log('Connected');
-      openPort('COM3', 115200)
-//      openPort('/dev/ttyUSB0', 115200)
-          .then(function(){
-              talkToProp();
-          });
+      loadPropeller(null, 'RAM', null, null, 'COM3', null);
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
@@ -261,13 +257,6 @@ function sendPortList() {
       }
     }
   );
-}
-
-
-function loadPropeller(sock, action, payload, debug, portPath, success) {
-  // TODO: disconnect USB if already active first?
-  // TODO: everything else :)
-  console.log(parseFile(payload));
 }
 
 
