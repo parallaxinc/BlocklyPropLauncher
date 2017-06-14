@@ -2,14 +2,16 @@
 //TODO Revisit promisify and see if it will clean up code significantly
 
 var portID = -1;
-var portBaudrate = 0;
+var portBaudrate = 0;                               //Current baud rate
+
+// Programming metrics
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
 var txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
-
+const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
 
 // propComm status values
 const stValidating = -1;
@@ -51,7 +53,7 @@ const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
-//Add programming receive handler
+//Add programming protocol serial receive handler
 chrome.serial.onReceive.addListener(hearFromProp);
 
 /***********************************************************
@@ -169,8 +171,8 @@ function buffer2ArrayBuffer(buffer) {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
-function talkToProp() {
-// Transmit programming stream to Propeller
+function talkToProp(binImage) {
+// Deliver Propeller Application (binImage) to Propeller
 
     function sendLoader(waittime) {
     // Return a promise that waits for waittime then sends communication package including loader.
@@ -210,10 +212,14 @@ function talkToProp() {
         });
     }
 
-    //!!! Temporarily fix packetId
-    var packetId = 3;
+    //Determine number of required packets for target application image; value becomes first Packet ID
+    var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
+    var packetId = totalPackets;
+    //Calculate target application's full checksum (used for RAM Checksum confirmation)}
+    checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
+    for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx]}  //Add in all Propeller Application Image bytes (retaining full checksum value)
 
-    //Generate communication and loader package
+    //Pre-generate communication and loader package (saves time during during initial communication)
     generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
 
     //Calculate expected max package delivery time
@@ -231,7 +237,6 @@ function talkToProp() {
         .then(function() {return isLoaderReady(packetId, deliveryTime)}  )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
-
 }
 
 function hearFromProp(info) {
@@ -467,13 +472,13 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 
     //Loader patching workspace
     var patchWorkspace = new ArrayBuffer(rawLoaderImage.length);
-    var patchedLoader  = new Uint8Array(patchWorkspace,               0);
-    var bootClkSpeed   = new DataView(patchWorkspace, 0,              4);       //Booter's clock speed
-    var bootClkMode    = new DataView(patchWorkspace, 4,              1);       //Booter's clock mode (1 byte)
-    var bootChecksum   = new DataView(patchWorkspace, 5,              1);       //Booter's checksum (1 byte)
-    var bootClkSel     = new DataView(patchWorkspace, InitOffset,     4);       //Booter's clock selection bits
-    var iBitTime       = new DataView(patchWorkspace, InitOffset + 4, 4);       //Initial Bit Time (baudrate in clock cycles)
-    var fBitTime       = new DataView(patchWorkspace, InitOffset + 8, 4);       //Final Bit Time (baudrate in clock cycles)
+    var patchedLoader  = new Uint8Array(patchWorkspace,                0);
+    var bootClkSpeed   = new DataView(patchWorkspace, 0,               4);      //Booter's clock speed
+    var bootClkMode    = new DataView(patchWorkspace, 4,               1);      //Booter's clock mode (1 byte)
+    var bootChecksum   = new DataView(patchWorkspace, 5,               1);      //Booter's checksum (1 byte)
+    var bootClkSel     = new DataView(patchWorkspace, InitOffset,      4);      //Booter's clock selection bits
+    var iBitTime       = new DataView(patchWorkspace, InitOffset +  4, 4);      //Initial Bit Time (baudrate in clock cycles)
+    var fBitTime       = new DataView(patchWorkspace, InitOffset +  8, 4);      //Final Bit Time (baudrate in clock cycles)
     var bitTime1_5     = new DataView(patchWorkspace, InitOffset + 12, 4);      //1.5x Final Bit Time
     var failsafe       = new DataView(patchWorkspace, InitOffset + 16, 4);      //Failsafe Timeout
     var endOfPacket    = new DataView(patchWorkspace, InitOffset + 20, 4);      //EndOfPacket Timeout
@@ -596,7 +601,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         tv.set(encodedLoader, txLength);
         tv.set(timingPulses, txLength + encodedLoader.byteLength);
     } else {
-        //Prepare loader's special executable packet
+        //Generate special loader's executable packet according to loaderType (> ltCore)
         txData = new ArrayBuffer(2 * 4 + exeSnippet[loaderType].length);                        //Set txData size for header plus executable packet
         tv = new Uint8Array(txData);
         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
