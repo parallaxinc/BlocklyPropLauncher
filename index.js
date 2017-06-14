@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
       console.log('Connected');
-      loadPropeller(null, 'RAM', null, null, 'COM3', null);
+//      loadPropeller(null, 'RAM', null, null, 'COM3', null);
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
