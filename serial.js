@@ -172,15 +172,6 @@ function buffer2ArrayBuffer(buffer) {
 function talkToProp() {
 // Transmit programming stream to Propeller
 
-
-
-    generateLoaderPacket(ltCore, 1, defaultClockSpeed, defaultClockMode); //!!!
-//    generateLoaderPacket(ltVerifyRAM, 1);  //!!!
-
-
-/*!!!
-    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;  //Calculate expected max package delivery time
-                                                                                 //300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] + MBL "ready" bytes [MBL responding]))/baud rate) * 1,000 [to scale ms to integer] + 1 [to round up]
     function sendLoader(waittime) {
     // Return a promise that waits for waittime then sends communication package including loader.
         return new Promise(function(resolve, reject) {
@@ -194,12 +185,11 @@ function talkToProp() {
     }
 
     function isLoaderReady(packetId, waittime) {
-!!!*/
     /* Is Micro Boot Loader delivered and Ready?
      Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
      Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
      Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
-/*!!!
+
         return new Promise(function(resolve, reject) {
             function verifier() {
                 console.log("Verifying package delivery");
@@ -220,6 +210,17 @@ function talkToProp() {
         });
     }
 
+    //!!! Temporarily fix packetId
+    var packetId = 3;
+
+    //Generate communication and loader package
+    generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
+
+    //Calculate expected max package delivery time
+    //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
+    // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+
     isOpen()
         .then(function() {       Object.assign(propComm, propCommStart)} )       //Reset propComm object
         .then(function() {       console.log("Generating reset signal")} )
@@ -227,10 +228,10 @@ function talkToProp() {
         .then(function() {return flush()}                                )       //Flush transmit/receive buffers (during Propeller reset)
         .then(function() {return setControl({dtr: true})}                )       //End Propeller Reset
         .then(function() {return sendLoader(100)}                        )       //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(function() {return isLoaderReady(1, deliveryTime)}         )       //Verify package accepted
+        .then(function() {return isLoaderReady(packetId, deliveryTime)}  )       //Verify package accepted
         .then(function() {return changeBaudrate()}                       )       //Bump up to faster finalBaudrate
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
-!!!*/
+
 }
 
 function hearFromProp(info) {
@@ -578,8 +579,8 @@ Initial call should use loaderType of ltCore and later calls use other loaderTyp
             var bitsIn = Math.min(5, patchedLoader.byteLength * 8 - bCount);                    //  Determine number of bits in current unit to translate; usually 5 bits
             var bValue = ( (patchedLoader[Math.trunc(bCount / 8)] >>> (bCount % 8)) +           //  Extract next translation unit (contiguous bits, LSB first; usually 5 bits)
                 (patchedLoader[Math.trunc(bCount / 8) + 1] << (8 - (bCount % 8))) ) & pwr2m1[bitsIn];
-            encodedLoader[loaderEncodedSize++] = pDSTx[bValue, bitsIn, 0];                      //  Translate unit to encoded byte
-            bCount += pDSTx[bValue, bitsIn, 1];                                                 //  Increment bit index (usually 3, 4, or 5 bits, but can be 1 or 2 at end of stream)
+            encodedLoader[loaderEncodedSize++] = pDSTx[bValue][bitsIn][0];                      //  Translate unit to encoded byte
+            bCount += pDSTx[bValue][bitsIn][1];                                                 //  Increment bit index (usually 3, 4, or 5 bits, but can be 1 or 2 at end of stream)
         }
         //Prepare loader packet
         //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
