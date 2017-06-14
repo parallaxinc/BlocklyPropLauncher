@@ -193,6 +193,7 @@ function loadPropeller(sock, action, payload, debug, portPath, success) {
 
 function talkToProp(binImage) {
 // Deliver Propeller Application (binImage) to Propeller
+// binImage must be an ArrayBuffer
 
     function sendLoader(waittime) {
     // Return a promise that waits for waittime then sends communication package including loader.
@@ -232,14 +233,63 @@ function talkToProp(binImage) {
         });
     }
 
+    //TODO address "transmitPacket" comments
+    //TODO verify TotalPackets used somewhere
+    //TODO determine if txPacketLength and idx can be in bytes instead of longs
     function sendUserApp() {
     // Return a promise that delivers the user application to the Micro Boot Loader.
         return new Promise(function(resolve, reject) {
             function sendUA() {
                 console.log("Delivering user application");
+                //Prep to receive next MBL response
+                propComm.mblResponse = stValidating;
+                propComm.stage = sgMBLResponse;
+
+                var idx = 0;
+//                repeat {Transmit target application packets}                                             {Transmit application image}
+
+                var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
+                    Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
+                txData = new ArrayBuffer(txPacketLength*4);                                                //Set packet length (in longs)}
+                tv = new Uint8Array(txData);
+                (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
+                tv.set(binImage.subarray(idx*4, (txPacketLength-2)*4), 8);                                 //Store section of binary image
+                send(txData);                                                                              //Transmit packet
+
+//                    raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
+
+                idx += txPacketLength-2;                                                                   //Increment image index
+                packetId--;                                                                                //Decrement Packet ID (to next packet)
+
+//                {repeat - Transmit target application packets...}
+//                until PacketID = 0;                                                                      {Loop until done}
+
                 resolve();
             }
-            setTimeout(sendUA);
+//TODO Verify transmission ID
+            function loaderAcknowledged(waittime) {
+                /* Did Micro Boot Loader acknowledge the packet?
+                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                 Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+
+                return new Promise(function(resolve, reject) {
+                    function verifier() {
+                        console.log("Verifying loader acknowledgement");
+                        //Check Micro Boot Loader response
+                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId-1) {reject(Error("Download failed")); return}
+                        console.log("Packet received.");
+                        resolve();
+                    }
+                    console.log("Waiting %d ms for acknowledgement", waittime);
+                    setTimeout(verifier, waittime);
+                });
+            }
+
+            //No delay, but call sendUA promise with setTimeout for asynchronous processing
+            setTimeout(function() {
+                sendUA()
+                    .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1)});
+            });
         });
     }
 
@@ -271,20 +321,6 @@ function talkToProp(binImage) {
         .catch(function(err) {console.log("Error: %s", err.message)}     );      //Catch errors
 
 /* R&D Delphi Code
- {Transmit packetized target application}
- i := 0;
- repeat {Transmit target application packets}                                             {Transmit application image}
-   TxBuffLength := 2 + Min((XBee.MaxDataSize div 4)-2, FBinSize - i);                     {  Determine packet length (in longs); header + packet limit or remaining data length}
-   SetLength(TxBuf, TxBuffLength*4);                                                      {  Set buffer length (Packet Length) (in longs)}
-   Move(PacketID, TxBuf[0], 4);                                                           {  Store Packet ID (skip over Transmission ID field; "TransmitPacket" will fill that)}
-   Move(FBinImage[i*4], TxBuf[8], (TxBuffLength-2)*4);                                    {  Store section of data}
-   UpdateProgress(0, 'Sending packet: ' + (TotalPackets-PacketID+1).ToString + ' of ' + TotalPackets.ToString);
-   if TransmitPacket <> PacketID-1 then                                                   {  Transmit packet (retransmit as necessary)}
-     raise EHardDownload.Create('Error: communication failed!');                          {    Error if unexpected response}
-   inc(i, TxBuffLength-2);                                                                {  Increment image index}
-   dec(PacketID);                                                                         {  Decrement Packet ID (to next packet)}
- {repeat - Transmit target application packets...}
- until PacketID = 0;                                                                      {Loop until done}
 
  SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for RAM checksum', True);
  UpdateProgress(+1, 'Verifying RAM');
