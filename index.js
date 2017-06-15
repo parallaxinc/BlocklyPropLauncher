@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
       console.log('Connected');
-//      loadPropeller(null, 'RAM', null, null, 'COM3', null);
+      //loadPropeller(null, 'RAM', null, null, '/dev/tty.usbserial-DA1FUZU2', null);
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
@@ -274,11 +274,14 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
       sock.send(JSON.stringify(msg_to_send));
     } else {
-      makeConnection(sock, portPath, baudrate, 'debug');
+      openPort(sock, portPath, baudrate, 'debug');
       log('opening ' + portPath);
     }
   } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
-    breakConnection(portPath);
+    var cid = findConnectionId(sock, portPath);
+    if (cid) {
+      closePort(cid);
+    }
   } else if (action === "msg") {
     // must be something to send to the device - find its connection ID and send it.    
     var cn, k = null;
@@ -321,10 +324,12 @@ chrome.serial.onReceive.addListener(function(info) {
             }
           });
         } else {
-          // send to terminal in broswer tab
-          var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
-          if(connectedSockets[connectedUSB[k].wsSocket]) {
-            connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+          if(connectedUSB[k].mode === 'debug') {
+            // send to terminal in broswer tab
+            var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
+            if(connectedSockets[connectedUSB[k].wsSocket]) {
+              connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+            }
           }
         }
       }
@@ -345,51 +350,6 @@ var settings = {
   ctsFlowControl: false
 };
       
-var makeConnection = function(sock, portPath, baudrate, connMode) {
-  settings.bitrate = parseInt(baudrate);
-      chrome.serial.connect(portPath, {
-        'bitrate': settings.bitrate,
-        'dataBits': settings.dataBits,
-        'parityBit': settings.parityBit,
-        'stopBits': settings.stopBits,
-        'ctsFlowControl': settings.ctsFlowControl
-      }, 
-        function(openInfo) {
-        if (openInfo === undefined) {
-          log('Unable to connect to device<br>');
-          //connectedUSB = null;
-          //return true;
-        } else {
-          serialJustOpened = openInfo.connectionId;
-          for (var j = 0; j < connectedSockets.length; j++) {
-            if (connectedSockets[j] === sock) {
-              connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-              break;
-            }
-          }
-          log('Device connected to [' + openInfo.connectionId + '] ' + portPath);
-          
-          //return false;
-        }
-    });
-};
- 
-var breakConnection = function(portPath) {
-  var cn, k = null;
-  for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].path === portPath && portPath.indexOf('dev/tty') !== -1) {
-      k = cn;
-      break;
-    }
-  }
-  if (k !== null && connectedUSB[k] !== undefined && connectedUSB.length > 0) {
-    chrome.serial.disconnect(connectedUSB[k].connId, function() {
-      log('Device [' + connectedUSB[k].connId + '] ' + portPath + ' disconnected');
-      connectedUSB.splice(k, 1);
-    });
-  }
-};
-
 // Convert ArrayBuffer to String
 var ab2str = function(buf) {
   var bufView = new Uint8Array(buf);
