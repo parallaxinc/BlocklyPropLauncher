@@ -281,7 +281,7 @@ function talkToProp(binImage) {
                     function verifier() {
                         console.log("Verifying loader acknowledgement");
                         //Check Micro Boot Loader response (values checked by value only, not value+type)
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] != packetId || propComm.mblTransId[0] != transmissionId) {
+                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] != packetId || (propComm.mblTransId[0] ^ transmissionId) != 0) {
                             reject(Error("Download failed")); return
                         }
                         console.log("Packet delivered.");
