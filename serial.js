@@ -64,6 +64,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
 //TODO Consider returning error object
 //TODO Determine why cids (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
 //TODO Decide what to do with serialJustOpened
+//TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
    sock can be null to open serial port without an associated socket
@@ -270,6 +271,10 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
     ];
 
+    function closeIfNotDebug() {
+        if (!debug) {closePort(cid)}
+    }
+
     // Look for an existing connection
     var cid = findConnectionId(sock, portPath);
     var connect;
@@ -283,11 +288,10 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})
-        .then(function() {return talkToProp(cid, buffer2ArrayBuffer(binImage))})
-        .then(function() {if (!debug) {closePort(cid)}})
-
+        .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage))})
+        .then(function()   {closeIfNotDebug()})
 //        .then(function()return true)
-        .catch(function(e) {console.log(e.message)});
+        .catch(function(e) {console.log(e.message); closeIfNotDebug()});
 }
 
 
@@ -398,7 +402,9 @@ function talkToProp(cid, binImage) {
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
                     sendUA()
-                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);});
+                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {resolve()})
+                        .catch(function(e) {reject(e)});
                 });
             });
         }
@@ -429,8 +435,8 @@ function talkToProp(cid, binImage) {
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
             .then(function() {return sendUserApp();}                                )    //Send user application
-            .then(function() {resolve();}                                           )    //Success!
-            .catch(function(err) {console.log("Error: %s", err.message); reject();} );   //Catch errors
+            .then(function() {return resolve();}                                    )    //Success!
+            .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
     });
 }
 
