@@ -1,7 +1,8 @@
-//TODO Enhance (or integrate with index.js) to support multiple active connections (portIDs); talkToProp and hearFromProp especially
+//TODO Eliminate portBaudrate; instead, store it with the connection id.
+//TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
+//TODO Study .bind for opportunities to save scope context of private functions
 
-var portID = -1;
 var portBaudrate = 0;                               //Current baud rate
 
 // Programming metrics
@@ -61,83 +62,82 @@ chrome.serial.onReceive.addListener(hearFromProp);
  ***********************************************************/
 
 //TODO Consider returning error object
-//TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
+//TODO Determine why cids (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
+//TODO Decide what to do with serialJustOpened
+//TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
 function openPort(sock, portPath, baudrate, connMode) {
-//Open serial port at portPath with baudrate.
-//baudrate is optional; defaults to initialBaudrate
+/* Return a promise to open serial port at portPath with baudrate and connect to sock.
+   sock can be null to open serial port without an associated socket
+   baudrate is optional; defaults to initialBaudrate
+   Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
         console.log("Attempting to open port");
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        if (connectedSockets.length > 0) {
-          chrome.serial.connect(portPath, {
-                  'bitrate': portBaudrate,
-                  'dataBits': 'eight',
-                  'parityBit': 'no',
-                  'stopBits': 'one',
-                  'ctsFlowControl': false
-              },
-              function (openInfo) {
-                  if (openInfo === undefined) {
-                      console.log("Could not open port %s", portPath);
-                  } else {
-                      serialJustOpened = openInfo.connectionId;
-                      var vs = 0;
-                      
-                      // find the socket in the socket connection holder - if not found, just use the first one (this allows null to be passed for the socket).
-                      for (var j = 0; j < connectedSockets.length; j++) {
+        chrome.serial.connect(portPath, {
+                'bitrate': portBaudrate,
+                'dataBits': 'eight',
+                'parityBit': 'no',
+                'stopBits': 'one',
+                'ctsFlowControl': false
+            },
+            function (openInfo) {
+                if (!chrome.runtime.lastError) {
+                    // No error
+                    serialJustOpened = openInfo.connectionId;
+                    var vs = 0;
+                    // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
+                    for (var j = 0; j < connectedSockets.length; j++) {
                         if (connectedSockets[j] === sock) {
-                          vs = j;
-                          break;
+                            vs = j;
+                            break;
                         }
-                      }
-                      connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-                      if(connMode === 'programming') {
-                        portID = openInfo.connectionId;
-                      }
-                      console.log("Port", portPath, "open with ID", portID);
-                      resolve(openInfo.connectionId);
-                  }
-              }
-          );
-        } else {
-          return false; // could not establish a connection because there is no connected websocket to talk to.
-        }
+                    }
+                    connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+                    console.log("Port", portPath, "open with ID", openInfo.connectionId);
+                    resolve(openInfo.connectionId);
+                } else {
+                    // Error
+                    reject(Error("Could not open port " + portPath));
+                }
+            }
+        );
     });
 }
 
+//TODO Shouldn't connection record be removed upon port closing?
 //TODO Promisify closePort()
 //TODO Consider returning error object
-function closePort(connectionId) {
-//    isOpen()
-//        .then(function() {
-            chrome.serial.disconnect(connectionId,
-                function (closeResult) {
-                    if (closeResult === true) {
-                      if (portID === connectionId) { // has the portID been used for programming, if so, set to -1
-                        portID = -1;
-                      }
-                      var cn, k = null;
-                      for (cn = 0; cn < connectedUSB.length; cn++) {
-                        if (connectedUSB[cn].connId === connectionId) {
-                          k = cn;
-                          break;
+function closePort(cid) {
+/* Close the cid port.
+   cid is the open port's connection identifier*/
+    isOpen(cid)
+        .then(function() {
+            chrome.serial.disconnect(cid, function(closeResult) {
+                if (closeResult === true) {
+                    var cn, k = null;
+                    for (cn = 0; cn < connectedUSB.length; cn++) {
+                        if (connectedUSB[cn].connId === cid) {
+                            k = cn;
+                            break;
                         }
-                      }
-                      if (k !== null) {
-                        chrome.serial.disconnect(connectionId, function() {
-                          log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                          connectedUSB.splice(k, 1);
-                        });
-                      } else {
-                        console.log("Closed, but connection not found");
-                      }
-                      console.log("Connection not closed");
                     }
-//                });
-        });
+                    if (k !== null) {
+                        log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
+                        console.log("Closed port id %d", cid);
+                        connectedUSB.splice(k, 1);
+                    } else {
+                        console.log("Closed port id %d, but connection not found", cid);
+                    }
+                } else {
+                    console.log("Connection not closed");
+                }
+            });
+        })
+        .catch(function(e) {console.log(e.message)});
 }
 
 function findConnectionId(sock, portPath) {
+// Return id (cid) of connection associated with sock and portPath
   var cn, k = null;
   for (cn = 0; cn < connectedUSB.length; cn++) {
     if (connectedUSB[cn].path === portPath && sock === connectedSockets[connectedUSB[cn].wsSocket]) {
@@ -152,56 +152,67 @@ function findConnectionId(sock, portPath) {
   }
 }
 
-function isOpen() {
-// Return a promise that is resolved if port is open, rejected otherwise
+function isOpen(cid) {
+/* Return a promise that is resolved if cid port is open, rejected otherwise
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        if (portID >= 0) {
-          resolve();
-        } else {
-          reject();
-        }
+        if (!cid) {reject(Error("Port id: " + cid + " does not exist.")); return;}
+        chrome.serial.getInfo(cid, function () {
+            if (!chrome.runtime.lastError) {
+                resolve(cid);
+            } else {
+                reject(Error("Port id:" + cid + " is not open."));
+            }
+        })
     });
 }
 
 //TODO: Determine of portBaudrate... statement need be inside the Promise
-function changeBaudrate(baudrate) {
-// Return a promise that changes the port's baudrate.
-// baudrate is optional; defaults to finalBaudrate
+//TODO: Make findConnectionPath and use it in place of cid in textual mesasges
+function changeBaudrate(cid, baudrate) {
+/* Return a promise that changes the cid port's baudrate.
+   cid is the open port's connection identifier
+   baudrate is optional; defaults to finalBaudrate
+   Resolves with cid; rejects with Error*/
     portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
-        console.log("Changing baudrate to " + portBaudrate);
-        chrome.serial.update(portID, {'bitrate': portBaudrate}, function(updateResult) {
-          if (updateResult) {
-            resolve();
-          } else {
-            reject(Error("Can not set baudrate: " + baudrate));
-          }
-        });
-        resolve();
+        isOpen(cid)
+            .then(function() {
+                console.log("Changing %d baudrate to %d", cid, portBaudrate);
+                chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
+                    if (updateResult) {
+                        resolve(cid);
+                    } else {
+                        reject(Error("Can not set port " + cid + " to baudrate: " + baudrate));
+                    }
+                });
+            })
     });
 }
 
-function setControl(options) {
-// Return a promise that sets/clears the control option(s).
+function setControl(cid, options) {
+/* Return a promise that sets/clears the control option(s).
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.setControlSignals(portID, options, function(controlResult) {
+        chrome.serial.setControlSignals(cid, options, function(controlResult) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set " + options));
+            reject(Error("Can not set port id " + cid + "'s " + options));
           }
         });
     });
 }
 
-function flush() {
-// Return a promise that empties the transmit and receive buffers
+function flush(cid) {
+/* Return a promise that empties the transmit and receive buffers
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.flush(portID, function(flushResult) {
+        chrome.serial.flush(cid, function(flushResult) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush transmit/receive buffer"));
+              reject(Error("Can not flush port id " + cid + "'s transmit/receive buffer"));
             }
         });
     });
@@ -209,15 +220,18 @@ function flush() {
 
 //TODO Check send callback
 //TODO Consider returning error object
-function send(data) {
-// Transmit data
+//TODO Promisify
+function send(cid, data) {
+/* Transmit data on port cid
+   cid is the open port's connection identifier*/
+
     // Convert data from string or buffer to an ArrayBuffer
     if (typeof data === 'string') {
         data = str2ab(data);
     } else {
         if (data instanceof ArrayBuffer === false) {data = buffer2ArrayBuffer(data);}
     }
-    return chrome.serial.send(portID, data, function (sendResult) {
+    return chrome.serial.send(cid, data, function (sendResult) {
     });
 }
 
@@ -237,166 +251,194 @@ function buffer2ArrayBuffer(buffer) {
  ***********************************************************/
 
 //TODO This is hard-coded.  Adjust to properly handle parameters from real caller
-function loadPropeller(sock, action, payload, debug, portPath, success) {
+//TODO Save existing connection's baud rate and restore it after programming
+//TODO debug and connMode... don't think we need to keep track of the intent of the actual opened port in the connection records; however, if debug=false, we simply need to close to port after downloading
+//TODO Need to notify of success or failure.  This had better be done with a promise as it can not hold up the UI.
+function loadPropeller(sock, portPath, action, payload, debug) {
+/* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
+   sock may be null (for development purposes)
+   portPath is serial port's pathname
+   action is 'RAM' or 'EEPROM'
+   payload is an ArrayBuffer containing the Propeller Application image
+   debug is false to close the port after download; true to keep port open for associated sock*/
 
 //    console.log(parseFile(payload));
 
-    // look for an existing connection
-    var cid = findConnectionId(sock, portPath);
-    if (cid) {
-      closePort(cid);
-    }
-
+    //Temporary hard-coded Propeller Application for development testing
     const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
         0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
     ];
 
-    openPort(sock, portPath, 115200, 'programming')
-    //      openPort('/dev/ttyUSB0', 115200)
-        .then(function(){
-            talkToProp(buffer2ArrayBuffer(binImage));
-        });
+    function closeIfNotDebug() {
+        if (!debug) {closePort(cid)}
+    }
+
+    // Look for an existing connection
+    var cid = findConnectionId(sock, portPath);
+    var connect;
+    if (cid) {
+        // Connection exists, prep to reuse it
+        connect = function() {return changeBaudrate(initialBaudrate)}
+    } else {
+        // No connection yet, prep to create one
+        connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
+    }
+    // Use connection to download application to the Propeller
+    connect()
+        .then(function(id) {cid = id})
+        .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage))})
+        .then(function()   {closeIfNotDebug()})
+//        .then(function()return true)
+        .catch(function(e) {console.log(e.message); closeIfNotDebug()});
 }
 
 
-function talkToProp(binImage) {
-// Deliver Propeller Application (binImage) to Propeller
-// binImage must be an ArrayBuffer
+function talkToProp(cid, binImage) {
+/* Return promise to deliver Propeller Application (binImage) to Propeller
+   cid is the open port's connection identifier
+   binImage must be an ArrayBuffer*/
 
-    function sendLoader(waittime) {
-    // Return a promise that waits for waittime then sends communication package including loader.
-        return new Promise(function(resolve, reject) {
-            console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
-            setTimeout(function() {
-                console.log("Transmitting package");
-                send(txData);
-                resolve();
-            }, waittime);
-        });
-    }
+    return new Promise(function(resolve, reject) {
 
-    function isLoaderReady(packetId, waittime) {
-    /* Is Micro Boot Loader delivered and Ready?
-    Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-    Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
-    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
-
-        return new Promise(function(resolve, reject) {
-            function verifier() {
-                console.log("Verifying package delivery");
-                //Check handshake and version
-                if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
-                //Check for proper version
-                if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
-                //Check RAM checksum
-                if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return;}
-                if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return;}
-                //Check Micro Boot Loader Ready Signal
-                if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return;}
-                console.log("Found Propeller!  Micro Boot Loader ready.");
-                resolve();
-            }
-            console.log("Waiting %d ms for package delivery", waittime);
-            setTimeout(verifier, waittime);
-        });
-    }
-
-    //TODO address "transmitPacket" comments
-    //TODO make sure Transmission ID is placed
-    //TODO verify TotalPackets used somewhere
-    //TODO may have to decrement packetId elsewhere
-    //TODO determine if txPacketLength and idx can be in bytes instead of longs
-    function sendUserApp() {
-    // Return a promise that delivers the user application to the Micro Boot Loader.
-        return new Promise(function(resolve, reject) {
-
-            function sendUA() {
-                return new Promise(function(resolve, reject) {
-                    console.log("Delivering user application");
-                    //Prep to receive next MBL response
-                    propComm.mblResponse = stValidating;
-                    propComm.stage = sgMBLResponse;
-                    propComm.rxCount = 0;
-                    var idx = 0;
-                //repeat {Transmit target application packets}                                             {Transmit application image}
-
-                    var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
-                        Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
-                    binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
-                    txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
-                    txView = new Uint8Array(txData);
-                    transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
-                    (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                    txView.set(binView, 8);                                                                    //Store section of binary image
-                    send(txData);                                                                              //Transmit packet
-                    idx += txPacketLength - 2;                                                                 //Increment image index
-                    packetId--;                                                                                //Decrement Packet ID (to next packet)
-
-                //{repeat - Transmit target application packets...}
-                //until PacketID = 0;                                                                      {Loop until done}
-
+        function sendLoader(waittime) {
+        // Return a promise that waits for waittime then sends communication package including loader.
+            return new Promise(function(resolve, reject) {
+                console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+                setTimeout(function() {
+                    console.log("Transmitting package");
+                    send(cid, txData);
                     resolve();
-                });
-            }
-//TODO Verify transmission ID
-            function loaderAcknowledged(waittime) {
-                /* Did Micro Boot Loader acknowledge the packet?
-                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                 Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
-
-                return new Promise(function(resolve, reject) {
-                    function verifier() {
-                        console.log("Verifying loader acknowledgement");
-                        //Check Micro Boot Loader response (values checked by value only, not value+type)
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] != packetId || (propComm.mblTransId[0] ^ transmissionId) != 0) {
-                            reject(Error("Download failed")); return
-                        }
-                        console.log("Packet delivered.");
-                        resolve();
-                    }
-                    console.log("Waiting %d ms for acknowledgement", waittime);
-                    setTimeout(verifier, waittime);
-                });
-            }
-//TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
-            //No delay, but call sendUA promise with setTimeout for asynchronous processing
-            setTimeout(function() {
-                sendUA()
-                    .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);});
+                }, waittime);
             });
-        });
-    }
+        }
 
-    //Determine number of required packets for target application image; value becomes first Packet ID
-    var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
-    var packetId = totalPackets;
-    var transmissionId = 0;
-    //Calculate target application's full checksum (used for RAM Checksum confirmation)}
-    var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
-    for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
+        function isLoaderReady(packetId, waittime) {
+        /* Is Micro Boot Loader delivered and Ready?
+        Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+        Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
+        Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
-    //Pre-generate communication and loader package (saves time during during initial communication)
-    generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
+            return new Promise(function(resolve, reject) {
+                function verifier() {
+                    console.log("Verifying package delivery");
+                    //Check handshake and version
+                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
+                    //Check for proper version
+                    if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
+                    //Check RAM checksum
+                    if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return;}
+                    //Check Micro Boot Loader Ready Signal
+                    if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return;}
+                    console.log("Found Propeller!  Micro Boot Loader ready.");
+                    resolve();
+                }
+                console.log("Waiting %d ms for package delivery", waittime);
+                setTimeout(verifier, waittime);
+            });
+        }
 
-    //Calculate expected max package delivery time
-    //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
-    // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+        //TODO address "transmitPacket" comments
+        //TODO make sure Transmission ID is placed
+        //TODO verify TotalPackets used somewhere
+        //TODO may have to decrement packetId elsewhere
+        //TODO determine if txPacketLength and idx can be in bytes instead of longs
+        function sendUserApp() {
+        // Return a promise that delivers the user application to the Micro Boot Loader.
+            return new Promise(function(resolve, reject) {
 
-    isOpen()
-        .then(function() {       Object.assign(propComm, propCommStart);} )      //Reset propComm object
-        .then(function() {       console.log("Generating reset signal");} )
-        .then(function() {return setControl({dtr: false});}               )      //Start Propeller Reset Signal
-        .then(function() {return flush();}                                )      //Flush transmit/receive buffers (during Propeller reset)
-        .then(function() {return setControl({dtr: true});}                )      //End Propeller Reset
-        .then(function() {return sendLoader(100);}                        )      //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(function() {return isLoaderReady(packetId, deliveryTime);}  )      //Verify package accepted
-        .then(function() {return changeBaudrate();}                       )      //Bump up to faster finalBaudrate
-        .then(function() {return sendUserApp();}                          )      //Send user application
-        .catch(function(err) {console.log("Error: %s", err.message);}     );     //Catch errors
+                function sendUA() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Delivering user application");
+                        //Prep to receive next MBL response
+                        propComm.mblResponse = stValidating;
+                        propComm.stage = sgMBLResponse;
+                        propComm.rxCount = 0;
+                        var idx = 0;
+                    //repeat {Transmit target application packets}                                             {Transmit application image}
+
+                        var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
+                            Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
+                        binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
+                        txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
+                        txView = new Uint8Array(txData);
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        txView.set(binView, 8);                                                                    //Store section of binary image
+                        send(cid, txData);                                                                         //Transmit packet
+                        idx += txPacketLength - 2;                                                                 //Increment image index
+                        packetId--;                                                                                //Decrement Packet ID (to next packet)
+
+                    //{repeat - Transmit target application packets...}
+                    //until PacketID = 0;                                                                      {Loop until done}
+
+                        resolve();
+                    });
+                }
+                //TODO Verify transmission ID
+                function loaderAcknowledged(waittime) {
+                    /* Did Micro Boot Loader acknowledge the packet?
+                     Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                     Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+
+                    return new Promise(function(resolve, reject) {
+                        function verifier() {
+                            console.log("Verifying loader acknowledgement");
+                            //Check Micro Boot Loader response (values checked by value only, not value+type)
+                            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId || (propComm.mblTransId[0] ^ transmissionId) !== 0) {
+                                reject(Error("Download failed")); return
+                            }
+                            console.log("Packet delivered.");
+                            resolve();
+                        }
+                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        setTimeout(verifier, waittime);
+                    });
+                }
+                //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
+                //No delay, but call sendUA promise with setTimeout for asynchronous processing
+                setTimeout(function() {
+                    sendUA()
+                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {resolve()})
+                        .catch(function(e) {reject(e)});
+                });
+            });
+        }
+
+        //Determine number of required packets for target application image; value becomes first Packet ID
+        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
+        var packetId = totalPackets;
+        var transmissionId = 0;
+        //Calculate target application's full checksum (used for RAM Checksum confirmation)}
+        var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
+        for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
+
+        //Pre-generate communication and loader package (saves time during during initial communication)
+        generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
+
+        //Calculate expected max package delivery time
+        //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
+        // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+        var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+
+        isOpen(cid)
+            .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
+            .then(function() {       console.log("Generating reset signal");}       )
+            .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
+            .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
+            .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
+            .then(function() {return sendLoader(100);}                              )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+            .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
+            .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
+            .then(function() {return sendUserApp();}                                )    //Send user application
+            .then(function() {return resolve();}                                    )    //Success!
+            .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
+    });
+}
 
 /* R&D Delphi Code
 
@@ -440,8 +482,6 @@ function talkToProp(binImage) {
  UpdateProgress(+1, 'Success');
 */
 
-
-}
 
 function hearFromProp(info) {
 // Receive Propeller's responses during programming.  Parse responses for expected stages.

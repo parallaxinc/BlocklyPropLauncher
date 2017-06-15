@@ -62,16 +62,16 @@ document.addEventListener('DOMContentLoaded', function() {
       connect_ws($('bpc-port').value, $('bpc-url').value);
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
-      console.log('Connected');
-      //loadPropeller(null, 'RAM', null, null, '/dev/tty.usbserial-DA1FUZU2', null);
+
+      //Temporary direct development download step
+      loadPropeller(null, 'COM3', 'RAM', null, false);
+
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].close();
       }
-//      closePort();
-      console.log('Disonnected');
     }
   };
 
@@ -138,7 +138,7 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-            loadPropeller(socket, ws_msg.action, ws_msg.payload, ws_msg.debug, ws_msg.portPath, ws_msg.success);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+              ws_msg.success = loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
   
           // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
