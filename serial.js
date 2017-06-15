@@ -103,6 +103,7 @@ function openPort(sock, portPath, baudrate, connMode) {
     });
 }
 
+//TODO Shouldn't connection record be removed upon port closing?
 //TODO Promisify closePort()
 //TODO Consider returning error object
 function closePort(cid) {
@@ -123,6 +124,7 @@ function closePort(cid) {
                     }
                     if (k !== null) {
                         log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
+                        console.log("Closed port id %d", cid);
                         connectedUSB.splice(k, 1);
                     } else {
                         console.log("Closed port id %d, but connection not found", cid);
