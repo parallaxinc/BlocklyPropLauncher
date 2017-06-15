@@ -248,7 +248,7 @@ function talkToProp(binImage) {
                     //Prep to receive next MBL response
                     propComm.mblResponse = stValidating;
                     propComm.stage = sgMBLResponse;
-
+                    propComm.rxCount = 0;
                     var idx = 0;
                 //repeat {Transmit target application packets}                                             {Transmit application image}
 
@@ -280,7 +280,7 @@ function talkToProp(binImage) {
                         console.log("Verifying loader acknowledgement");
                         //Check Micro Boot Loader response
                         if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Download failed")); return}
-                        console.log("Packet received.");
+                        console.log("Packet delivered.");
                         resolve();
                     }
                     console.log("Waiting %d ms for acknowledgement", waittime);
