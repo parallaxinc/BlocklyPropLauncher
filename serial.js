@@ -1,7 +1,7 @@
-//TODO Enhance (or integrate with index.js) to support multiple active connections (portIds); talkToProp and hearFromProp especially
+//TODO Eliminate portBaudrate; instead, store it with the connection id.
+//TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
 
-var portId = -1;
 var portBaudrate = 0;                               //Current baud rate
 
 // Programming metrics
@@ -61,8 +61,7 @@ chrome.serial.onReceive.addListener(hearFromProp);
  ***********************************************************/
 
 //TODO Consider returning error object
-//TODO Determine why portId (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
-//TODO Should portId only be set when connMode = programming?  Or all the time?
+//TODO Determine why cids (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
 //TODO Decide what to do with serialJustOpened
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
@@ -92,9 +91,6 @@ function openPort(sock, portPath, baudrate, connMode) {
                         }
                     }
                     connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-                    if(connMode === 'programming') {
-                        portId = openInfo.connectionId;
-                    }
                     console.log("Port", portPath, "open with ID", openInfo.connectionId);
                     resolve(openInfo.connectionId);
                 } else {
@@ -110,14 +106,12 @@ function openPort(sock, portPath, baudrate, connMode) {
 //TODO Promisify closePort()
 //TODO Consider returning error object
 function closePort(cid) {
-//cid is the open port's connection identifier
+/* Close the cid port.
+   cid is the open port's connection identifier*/
     isOpen(cid)
         .then(function() {
             chrome.serial.disconnect(cid, function(closeResult) {
                 if (closeResult === true) {
-                    if (portId === cid) { // has the portId been used for programming, if so, set to -1
-                        portId = -1;
-                    }
                     var cn, k = null;
                     for (cn = 0; cn < connectedUSB.length; cn++) {
                         if (connectedUSB[cn].connId === cid) {
@@ -158,7 +152,7 @@ function findConnectionId(sock, portPath) {
 
 function isOpen(cid) {
 /* Return a promise that is resolved if cid port is open, rejected otherwise
-   cid must be port's connection identifier*/
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
         if (!cid) {reject(Error("Port id: " + cid + " does not exist.")); return;}
         chrome.serial.getInfo(cid, function () {
@@ -183,7 +177,7 @@ function changeBaudrate(cid, baudrate) {
         isOpen(cid)
             .then(function() {
                 console.log("Changing %d baudrate to %d", cid, portBaudrate);
-                chrome.serial.update(portId, {'bitrate': portBaudrate}, function(updateResult) {
+                chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
                     if (updateResult) {
                         resolve(cid);
                     } else {
@@ -194,27 +188,29 @@ function changeBaudrate(cid, baudrate) {
     });
 }
 
-function setControl(options) {
-// Return a promise that sets/clears the control option(s).
+function setControl(cid, options) {
+/* Return a promise that sets/clears the control option(s).
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.setControlSignals(portId, options, function(controlResult) {
+        chrome.serial.setControlSignals(cid, options, function(controlResult) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set " + options));
+            reject(Error("Can not set port id " + cid + "'s " + options));
           }
         });
     });
 }
 
-function flush() {
-// Return a promise that empties the transmit and receive buffers
+function flush(cid) {
+/* Return a promise that empties the transmit and receive buffers
+   cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.flush(portId, function(flushResult) {
+        chrome.serial.flush(cid, function(flushResult) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush transmit/receive buffer"));
+              reject(Error("Can not flush port id " + cid + "'s transmit/receive buffer"));
             }
         });
     });
@@ -222,15 +218,18 @@ function flush() {
 
 //TODO Check send callback
 //TODO Consider returning error object
-function send(data) {
-// Transmit data
+//TODO Promisify
+function send(cid, data) {
+/* Transmit data on port cid
+   cid is the open port's connection identifier*/
+
     // Convert data from string or buffer to an ArrayBuffer
     if (typeof data === 'string') {
         data = str2ab(data);
     } else {
         if (data instanceof ArrayBuffer === false) {data = buffer2ArrayBuffer(data);}
     }
-    return chrome.serial.send(portId, data, function (sendResult) {
+    return chrome.serial.send(cid, data, function (sendResult) {
     });
 }
 
@@ -272,12 +271,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     // Look for an existing connection
     var cid = findConnectionId(sock, portPath);
+    var connect;
     if (cid) {
         // Connection exists, prep to reuse it
-        var connect = function() {return changeBaudrate(initialBaudrate)}
+        connect = function() {return changeBaudrate(initialBaudrate)}
     } else {
         // No connection yet, prep to create one
-        var connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
+        connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
     }
     // Use connection to download application to the Propeller
     connect()
@@ -301,7 +301,7 @@ function talkToProp(cid, binImage) {
             console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
             setTimeout(function() {
                 console.log("Transmitting package");
-                send(txData);
+                send(cid, txData);
                 resolve();
             }, waittime);
         });
@@ -361,7 +361,7 @@ function talkToProp(cid, binImage) {
                     (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
                     (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                     txView.set(binView, 8);                                                                    //Store section of binary image
-                    send(txData);                                                                              //Transmit packet
+                    send(cid, txData);                                                                         //Transmit packet
                     idx += txPacketLength - 2;                                                                 //Increment image index
                     packetId--;                                                                                //Decrement Packet ID (to next packet)
 
@@ -381,7 +381,7 @@ function talkToProp(cid, binImage) {
                     function verifier() {
                         console.log("Verifying loader acknowledgement");
                         //Check Micro Boot Loader response (values checked by value only, not value+type)
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] != packetId || (propComm.mblTransId[0] ^ transmissionId) != 0) {
+                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId || (propComm.mblTransId[0] ^ transmissionId) !== 0) {
                             reject(Error("Download failed")); return
                         }
                         console.log("Packet delivered.");
@@ -419,9 +419,9 @@ function talkToProp(cid, binImage) {
     isOpen(cid)
         .then(function() {       Object.assign(propComm, propCommStart);} )      //Reset propComm object
         .then(function() {       console.log("Generating reset signal");} )
-        .then(function() {return setControl({dtr: false});}               )      //Start Propeller Reset Signal
-        .then(function() {return flush();}                                )      //Flush transmit/receive buffers (during Propeller reset)
-        .then(function() {return setControl({dtr: true});}                )      //End Propeller Reset
+        .then(function() {return setControl(cid, {dtr: false});}          )      //Start Propeller Reset Signal
+        .then(function() {return flush(cid);}                             )      //Flush transmit/receive buffers (during Propeller reset)
+        .then(function() {return setControl(cid, {dtr: true});}           )      //End Propeller Reset
         .then(function() {return sendLoader(100);}                        )      //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
         .then(function() {return isLoaderReady(packetId, deliveryTime);}  )      //Verify package accepted
         .then(function() {return changeBaudrate();}                       )      //Bump up to faster finalBaudrate
