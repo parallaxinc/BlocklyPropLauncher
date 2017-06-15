@@ -1,6 +1,7 @@
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
+//TODO Study .bind for opportunities to save scope context of private functions
 
 var portBaudrate = 0;                               //Current baud rate
 
@@ -295,112 +296,113 @@ function talkToProp(cid, binImage) {
    cid is the open port's connection identifier
    binImage must be an ArrayBuffer*/
 
-    function sendLoader(waittime) {
-    // Return a promise that waits for waittime then sends communication package including loader.
-        return new Promise(function(resolve, reject) {
-            console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
-            setTimeout(function() {
-                console.log("Transmitting package");
-                send(cid, txData);
-                resolve();
-            }, waittime);
-        });
-    }
-
-    function isLoaderReady(packetId, waittime) {
-    /* Is Micro Boot Loader delivered and Ready?
-    Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-    Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
-    Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
-
-        return new Promise(function(resolve, reject) {
-            function verifier() {
-                console.log("Verifying package delivery");
-                //Check handshake and version
-                if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
-                //Check for proper version
-                if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
-                //Check RAM checksum
-                if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return;}
-                if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return;}
-                //Check Micro Boot Loader Ready Signal
-                if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return;}
-                console.log("Found Propeller!  Micro Boot Loader ready.");
-                resolve();
-            }
-            console.log("Waiting %d ms for package delivery", waittime);
-            setTimeout(verifier, waittime);
-        });
-    }
-
-    //TODO address "transmitPacket" comments
-    //TODO make sure Transmission ID is placed
-    //TODO verify TotalPackets used somewhere
-    //TODO may have to decrement packetId elsewhere
-    //TODO determine if txPacketLength and idx can be in bytes instead of longs
-    function sendUserApp() {
-    // Return a promise that delivers the user application to the Micro Boot Loader.
-        return new Promise(function(resolve, reject) {
-
-            function sendUA() {
-                return new Promise(function(resolve, reject) {
-                    console.log("Delivering user application");
-                    //Prep to receive next MBL response
-                    propComm.mblResponse = stValidating;
-                    propComm.stage = sgMBLResponse;
-                    propComm.rxCount = 0;
-                    var idx = 0;
-                //repeat {Transmit target application packets}                                             {Transmit application image}
-
-                    var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
-                        Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
-                    binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
-                    txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
-                    txView = new Uint8Array(txData);
-                    transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
-                    (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                    txView.set(binView, 8);                                                                    //Store section of binary image
-                    send(cid, txData);                                                                         //Transmit packet
-                    idx += txPacketLength - 2;                                                                 //Increment image index
-                    packetId--;                                                                                //Decrement Packet ID (to next packet)
-
-                //{repeat - Transmit target application packets...}
-                //until PacketID = 0;                                                                      {Loop until done}
-
-                    resolve();
-                });
-            }
-//TODO Verify transmission ID
-            function loaderAcknowledged(waittime) {
-                /* Did Micro Boot Loader acknowledge the packet?
-                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                 Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
-
-                return new Promise(function(resolve, reject) {
-                    function verifier() {
-                        console.log("Verifying loader acknowledgement");
-                        //Check Micro Boot Loader response (values checked by value only, not value+type)
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId || (propComm.mblTransId[0] ^ transmissionId) !== 0) {
-                            reject(Error("Download failed")); return
-                        }
-                        console.log("Packet delivered.");
-                        resolve();
-                    }
-                    console.log("Waiting %d ms for acknowledgement", waittime);
-                    setTimeout(verifier, waittime);
-                });
-            }
-//TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
-            //No delay, but call sendUA promise with setTimeout for asynchronous processing
-            setTimeout(function() {
-                sendUA()
-                    .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);});
-            });
-        });
-    }
-
     return new Promise(function(resolve, reject) {
+
+        function sendLoader(waittime) {
+        // Return a promise that waits for waittime then sends communication package including loader.
+            return new Promise(function(resolve, reject) {
+                console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+                setTimeout(function() {
+                    console.log("Transmitting package");
+                    send(cid, txData);
+                    resolve();
+                }, waittime);
+            });
+        }
+
+        function isLoaderReady(packetId, waittime) {
+        /* Is Micro Boot Loader delivered and Ready?
+        Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
+        Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
+        Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
+
+            return new Promise(function(resolve, reject) {
+                function verifier() {
+                    console.log("Verifying package delivery");
+                    //Check handshake and version
+                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
+                    //Check for proper version
+                    if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
+                    //Check RAM checksum
+                    if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return;}
+                    //Check Micro Boot Loader Ready Signal
+                    if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return;}
+                    console.log("Found Propeller!  Micro Boot Loader ready.");
+                    resolve();
+                }
+                console.log("Waiting %d ms for package delivery", waittime);
+                setTimeout(verifier, waittime);
+            });
+        }
+
+        //TODO address "transmitPacket" comments
+        //TODO make sure Transmission ID is placed
+        //TODO verify TotalPackets used somewhere
+        //TODO may have to decrement packetId elsewhere
+        //TODO determine if txPacketLength and idx can be in bytes instead of longs
+        function sendUserApp() {
+        // Return a promise that delivers the user application to the Micro Boot Loader.
+            return new Promise(function(resolve, reject) {
+
+                function sendUA() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Delivering user application");
+                        //Prep to receive next MBL response
+                        propComm.mblResponse = stValidating;
+                        propComm.stage = sgMBLResponse;
+                        propComm.rxCount = 0;
+                        var idx = 0;
+                    //repeat {Transmit target application packets}                                             {Transmit application image}
+
+                        var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
+                            Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - idx);
+                        binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
+                        txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
+                        txView = new Uint8Array(txData);
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        txView.set(binView, 8);                                                                    //Store section of binary image
+                        send(cid, txData);                                                                         //Transmit packet
+                        idx += txPacketLength - 2;                                                                 //Increment image index
+                        packetId--;                                                                                //Decrement Packet ID (to next packet)
+
+                    //{repeat - Transmit target application packets...}
+                    //until PacketID = 0;                                                                      {Loop until done}
+
+                        resolve();
+                    });
+                }
+                //TODO Verify transmission ID
+                function loaderAcknowledged(waittime) {
+                    /* Did Micro Boot Loader acknowledge the packet?
+                     Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                     Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+
+                    return new Promise(function(resolve, reject) {
+                        function verifier() {
+                            console.log("Verifying loader acknowledgement");
+                            //Check Micro Boot Loader response (values checked by value only, not value+type)
+                            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId || (propComm.mblTransId[0] ^ transmissionId) !== 0) {
+                                reject(Error("Download failed")); return
+                            }
+                            console.log("Packet delivered.");
+                            resolve();
+                        }
+                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        setTimeout(verifier, waittime);
+                    });
+                }
+                //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
+                //No delay, but call sendUA promise with setTimeout for asynchronous processing
+                setTimeout(function() {
+                    sendUA()
+                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);});
+                });
+            });
+        }
+
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
