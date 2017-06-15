@@ -65,9 +65,9 @@ chrome.serial.onReceive.addListener(hearFromProp);
 //TODO Should portId only be set when connMode = programming?  Or all the time?
 //TODO Decide what to do with serialJustOpened
 function openPort(sock, portPath, baudrate, connMode) {
-//Return a promise to open serial port at portPath with baudrate and connect to sock.
-//sock can be null to connect to the first available socket
-//baudrate is optional; defaults to initialBaudrate
+/* Return a promise to open serial port at portPath with baudrate and connect to sock.
+   sock can be null to connect to the first available socket
+   baudrate is optional; defaults to initialBaudrate*/
     return new Promise(function(resolve, reject) {
         console.log("Attempting to open port");
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
@@ -133,7 +133,8 @@ function closePort(cid) {
                     console.log("Connection not closed");
                 }
             });
-        });
+        })
+        .catch(function(e) {console.log(e.message)});
 }
 
 function findConnectionId(sock, portPath) {
@@ -153,9 +154,10 @@ function findConnectionId(sock, portPath) {
 }
 
 function isOpen(cid) {
-// Return a promise that is resolved if cid port is open, rejected otherwise
-// cid must be port's connection identifier
+/* Return a promise that is resolved if cid port is open, rejected otherwise
+   cid must be port's connection identifier*/
     return new Promise(function(resolve, reject) {
+        if (!cid) {reject(Error("Port id: " + cid + " does not exist.")); return;}
         chrome.serial.getInfo(cid, function () {
             if (!chrome.runtime.lastError) {
                 resolve(cid);
@@ -169,10 +171,10 @@ function isOpen(cid) {
 //TODO: Determine of portBaudrate... statement need be inside the Promise
 //TODO: Make findConnectionPath and use it in place of cid in textual mesasges
 function changeBaudrate(cid, baudrate) {
-// Return a promise that changes the cid port's baudrate.
-// cid is the open port's connection identifier
-// baudrate is optional; defaults to finalBaudrate
-// Resolves with cid; rejects with Error
+/* Return a promise that changes the cid port's baudrate.
+   cid is the open port's connection identifier
+   baudrate is optional; defaults to finalBaudrate
+   Resolves with cid; rejects with Error*/
     portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
         isOpen(cid)
@@ -249,12 +251,12 @@ function buffer2ArrayBuffer(buffer) {
 //TODO debug and connMode... don't think we need to keep track of the intent of the actual opened port in the connection records; however, if debug=false, we simply need to close to port after downloading
 //TODO Need to notify of success or failure.  This had better be done with a promise as it can not hold up the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
-//Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
-//sock may be null (for development purposes)
-//portPath is serial port's pathname
-//action is 'RAM' or 'EEPROM'
-//payload is an ArrayBuffer containing the Propeller Application image
-//debug is false to close the port after download; true to keep port open for associated sock
+/* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
+   sock may be null (for development purposes)
+   portPath is serial port's pathname
+   action is 'RAM' or 'EEPROM'
+   payload is an ArrayBuffer containing the Propeller Application image
+   debug is false to close the port after download; true to keep port open for associated sock*/
 
 //    console.log(parseFile(payload));
 
@@ -276,7 +278,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     }
     // Use connection to download application to the Propeller
     connect()
-        .then(function(cid) {/*collect cid*/console.log("cid:", cid); closePort(cid);});
+        .then(function(id) {cid = id})
+        .then(function() {console.log("cid:", cid); closePort(cid);});
 //        .then(function() {return talkToProp(buffer2ArrayBuffer(binImage))})
 //        .then(function() {if (!debug) {closePort(cid)}});
 
@@ -286,9 +289,9 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
 
 function talkToProp(cid, binImage) {
-// Deliver Propeller Application (binImage) to Propeller
-// cid is the open port's connection identifier
-// binImage must be an ArrayBuffer
+/* Deliver Propeller Application (binImage) to Propeller
+   cid is the open port's connection identifier
+   binImage must be an ArrayBuffer*/
 
     function sendLoader(waittime) {
     // Return a promise that waits for waittime then sends communication package including loader.
