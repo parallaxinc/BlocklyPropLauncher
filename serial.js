@@ -66,22 +66,22 @@ chrome.serial.onReceive.addListener(hearFromProp);
 //TODO Decide what to do with serialJustOpened
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
-   sock can be null to connect to the first available socket
-   baudrate is optional; defaults to initialBaudrate*/
+   sock can be null to open serial port without an associated socket
+   baudrate is optional; defaults to initialBaudrate
+   Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
         console.log("Attempting to open port");
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         chrome.serial.connect(portPath, {
-            'bitrate': portBaudrate,
-            'dataBits': 'eight',
-            'parityBit': 'no',
-            'stopBits': 'one',
-            'ctsFlowControl': false
-        },
+                'bitrate': portBaudrate,
+                'dataBits': 'eight',
+                'parityBit': 'no',
+                'stopBits': 'one',
+                'ctsFlowControl': false
+            },
             function (openInfo) {
-                if (openInfo === undefined) {
-                    reject(Error("Could not open port " + portPath));
-                } else {
+                if (!chrome.runtime.lastError) {
+                    // No error
                     serialJustOpened = openInfo.connectionId;
                     var vs = 0;
                     // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
@@ -97,6 +97,9 @@ function openPort(sock, portPath, baudrate, connMode) {
                     }
                     console.log("Port", portPath, "open with ID", openInfo.connectionId);
                     resolve(openInfo.connectionId);
+                } else {
+                    // Error
+                    reject(Error("Could not open port " + portPath));
                 }
             }
         );
@@ -270,21 +273,20 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Look for an existing connection
     var cid = findConnectionId(sock, portPath);
     if (cid) {
-        // Connection exists, reuse it
+        // Connection exists, prep to reuse it
         var connect = function() {return changeBaudrate(initialBaudrate)}
     } else {
-        // No connection yet, create one
+        // No connection yet, prep to create one
         var connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
     }
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})
-        .then(function() {console.log("cid:", cid); closePort(cid);});
-//        .then(function() {return talkToProp(buffer2ArrayBuffer(binImage))})
-//        .then(function() {if (!debug) {closePort(cid)}});
+        .then(function() {return talkToProp(buffer2ArrayBuffer(binImage))})
+        .then(function() {if (!debug) {closePort(cid)}})
 
 //        .then(function()return true)
-//        .catch(function(e) {console.log(e.message); return false});
+        .catch(function(e) {console.log(e.message)});
 }
 
 
