@@ -282,7 +282,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})
-        .then(function() {return talkToProp(buffer2ArrayBuffer(binImage))})
+        .then(function() {return talkToProp(cid, buffer2ArrayBuffer(binImage))})
         .then(function() {if (!debug) {closePort(cid)}})
 
 //        .then(function()return true)
