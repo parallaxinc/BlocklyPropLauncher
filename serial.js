@@ -291,7 +291,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
 
 function talkToProp(cid, binImage) {
-/* Deliver Propeller Application (binImage) to Propeller
+/* Return promise to deliver Propeller Application (binImage) to Propeller
    cid is the open port's connection identifier
    binImage must be an ArrayBuffer*/
 
@@ -400,33 +400,37 @@ function talkToProp(cid, binImage) {
         });
     }
 
-    //Determine number of required packets for target application image; value becomes first Packet ID
-    var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
-    var packetId = totalPackets;
-    var transmissionId = 0;
-    //Calculate target application's full checksum (used for RAM Checksum confirmation)}
-    var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
-    for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
+    return new Promise(function(resolve, reject) {
+        //Determine number of required packets for target application image; value becomes first Packet ID
+        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
+        var packetId = totalPackets;
+        var transmissionId = 0;
+        //Calculate target application's full checksum (used for RAM Checksum confirmation)}
+        var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
+        for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
 
-    //Pre-generate communication and loader package (saves time during during initial communication)
-    generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
+        //Pre-generate communication and loader package (saves time during during initial communication)
+        generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
 
-    //Calculate expected max package delivery time
-    //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
-    // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-    var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+        //Calculate expected max package delivery time
+        //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
+        // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+        var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
 
-    isOpen(cid)
-        .then(function() {       Object.assign(propComm, propCommStart);} )      //Reset propComm object
-        .then(function() {       console.log("Generating reset signal");} )
-        .then(function() {return setControl(cid, {dtr: false});}          )      //Start Propeller Reset Signal
-        .then(function() {return flush(cid);}                             )      //Flush transmit/receive buffers (during Propeller reset)
-        .then(function() {return setControl(cid, {dtr: true});}           )      //End Propeller Reset
-        .then(function() {return sendLoader(100);}                        )      //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-        .then(function() {return isLoaderReady(packetId, deliveryTime);}  )      //Verify package accepted
-        .then(function() {return changeBaudrate();}                       )      //Bump up to faster finalBaudrate
-        .then(function() {return sendUserApp();}                          )      //Send user application
-        .catch(function(err) {console.log("Error: %s", err.message);}     );     //Catch errors
+        isOpen(cid)
+            .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
+            .then(function() {       console.log("Generating reset signal");}       )
+            .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
+            .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
+            .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
+            .then(function() {return sendLoader(100);}                              )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+            .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
+            .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
+            .then(function() {return sendUserApp();}                                )    //Send user application
+            .then(function() {resolve();}                                           )    //Success!
+            .catch(function(err) {console.log("Error: %s", err.message); reject();} );   //Catch errors
+    });
+}
 
 /* R&D Delphi Code
 
@@ -470,8 +474,6 @@ function talkToProp(cid, binImage) {
  UpdateProgress(+1, 'Success');
 */
 
-
-}
 
 function hearFromProp(info) {
 // Receive Propeller's responses during programming.  Parse responses for expected stages.
