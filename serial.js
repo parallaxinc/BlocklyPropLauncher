@@ -318,7 +318,7 @@ function talkToProp(binImage) {
                     //Prep to receive next MBL response
                     propComm.mblResponse = stValidating;
                     propComm.stage = sgMBLResponse;
-
+                    propComm.rxCount = 0;
                     var idx = 0;
                 //repeat {Transmit target application packets}                                             {Transmit application image}
 
@@ -327,7 +327,9 @@ function talkToProp(binImage) {
                     binView = new Uint8Array(binImage, idx * 4, (txPacketLength - 2) * 4);                     //Get view of next section of binary image
                     txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
                     txView = new Uint8Array(txData);
-                    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
+                    transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
+                    (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                     txView.set(binView, 8);                                                                    //Store section of binary image
                     send(txData);                                                                              //Transmit packet
                     idx += txPacketLength - 2;                                                                 //Increment image index
@@ -348,9 +350,11 @@ function talkToProp(binImage) {
                 return new Promise(function(resolve, reject) {
                     function verifier() {
                         console.log("Verifying loader acknowledgement");
-                        //Check Micro Boot Loader response
-                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Download failed")); return;}
-                        console.log("Packet received.");
+                        //Check Micro Boot Loader response (values checked by value only, not value+type)
+                        if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] != packetId || (propComm.mblTransId[0] ^ transmissionId) != 0) {
+                            reject(Error("Download failed")); return
+                        }
+                        console.log("Packet delivered.");
                         resolve();
                     }
                     console.log("Waiting %d ms for acknowledgement", waittime);
@@ -369,6 +373,7 @@ function talkToProp(binImage) {
     //Determine number of required packets for target application image; value becomes first Packet ID
     var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
     var packetId = totalPackets;
+    var transmissionId = 0;
     //Calculate target application's full checksum (used for RAM Checksum confirmation)}
     var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
     for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
