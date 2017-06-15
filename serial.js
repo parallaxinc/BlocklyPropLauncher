@@ -1,7 +1,7 @@
-//TODO Enhance (or integrate with index.js) to support multiple active connections (portIDs); talkToProp and hearFromProp especially
+//TODO Enhance (or integrate with index.js) to support multiple active connections (portIds); talkToProp and hearFromProp especially
 //TODO Revisit promisify and see if it will clean up code significantly
 
-var portID = -1;
+var portId = -1;
 var portBaudrate = 0;                               //Current baud rate
 
 // Programming metrics
@@ -61,83 +61,81 @@ chrome.serial.onReceive.addListener(hearFromProp);
  ***********************************************************/
 
 //TODO Consider returning error object
-//TODO Determine why portID (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
+//TODO Determine why portId (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
+//TODO Should portId only be set when connMode = programming?  Or all the time?
+//TODO Decide what to do with serialJustOpened
 function openPort(sock, portPath, baudrate, connMode) {
-//Open serial port at portPath with baudrate.
+//Return a promise to open serial port at portPath with baudrate and connect to sock.
+//sock can be null to connect to the first available socket
 //baudrate is optional; defaults to initialBaudrate
     return new Promise(function(resolve, reject) {
         console.log("Attempting to open port");
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        if (connectedSockets.length > 0) {
-          chrome.serial.connect(portPath, {
-                  'bitrate': portBaudrate,
-                  'dataBits': 'eight',
-                  'parityBit': 'no',
-                  'stopBits': 'one',
-                  'ctsFlowControl': false
-              },
-              function (openInfo) {
-                  if (openInfo === undefined) {
-                      console.log("Could not open port %s", portPath);
-                  } else {
-                      serialJustOpened = openInfo.connectionId;
-                      var vs = 0;
-                      
-                      // find the socket in the socket connection holder - if not found, just use the first one (this allows null to be passed for the socket).
-                      for (var j = 0; j < connectedSockets.length; j++) {
+        chrome.serial.connect(portPath, {
+            'bitrate': portBaudrate,
+            'dataBits': 'eight',
+            'parityBit': 'no',
+            'stopBits': 'one',
+            'ctsFlowControl': false
+        },
+            function (openInfo) {
+                if (openInfo === undefined) {
+                    reject(Error("Could not open port " + portPath));
+                } else {
+                    serialJustOpened = openInfo.connectionId;
+                    var vs = 0;
+                    // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
+                    for (var j = 0; j < connectedSockets.length; j++) {
                         if (connectedSockets[j] === sock) {
-                          vs = j;
-                          break;
+                            vs = j;
+                            break;
                         }
-                      }
-                      connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-                      if(connMode === 'programming') {
-                        portID = openInfo.connectionId;
-                      }
-                      console.log("Port", portPath, "open with ID", portID);
-                      resolve(openInfo.connectionId);
-                  }
-              }
-          );
-        } else {
-          return false; // could not establish a connection because there is no connected websocket to talk to.
-        }
+                    }
+                    connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+                    if(connMode === 'programming') {
+                        portId = openInfo.connectionId;
+                    }
+                    console.log("Port", portPath, "open with ID", openInfo.connectionId);
+                    resolve(openInfo.connectionId);
+                }
+            }
+        );
     });
 }
 
 //TODO Promisify closePort()
 //TODO Consider returning error object
-function closePort(connectionId) {
-//    isOpen()
-//        .then(function() {
-            chrome.serial.disconnect(connectionId,
-                function (closeResult) {
-                    if (closeResult === true) {
-                      if (portID === connectionId) { // has the portID been used for programming, if so, set to -1
-                        portID = -1;
-                      }
-                      var cn, k = null;
-                      for (cn = 0; cn < connectedUSB.length; cn++) {
-                        if (connectedUSB[cn].connId === connectionId) {
-                          k = cn;
-                          break;
-                        }
-                      }
-                      if (k !== null) {
-                        chrome.serial.disconnect(connectionId, function() {
-                          log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                          connectedUSB.splice(k, 1);
-                        });
-                      } else {
-                        console.log("Closed, but connection not found");
-                      }
-                      console.log("Connection not closed");
+function closePort(cid) {
+//cid is the open port's connection identifier
+    isOpen(cid)
+        .then(function() {
+            chrome.serial.disconnect(cid, function(closeResult) {
+                if (closeResult === true) {
+                    if (portId === cid) { // has the portId been used for programming, if so, set to -1
+                        portId = -1;
                     }
-//                });
+                    var cn, k = null;
+                    for (cn = 0; cn < connectedUSB.length; cn++) {
+                        if (connectedUSB[cn].connId === cid) {
+                            k = cn;
+                            break;
+                        }
+                    }
+                    if (k !== null) {
+                        log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
+                        connectedUSB.splice(k, 1);
+                    } else {
+                        console.log("Closed port id %d, but connection not found", cid);
+                    }
+                } else {
+                    console.log("Connection not closed");
+                }
+            });
         });
 }
 
 function findConnectionId(sock, portPath) {
+// Return id (cid) of connection associated with sock and portPath
   var cn, k = null;
   for (cn = 0; cn < connectedUSB.length; cn++) {
     if (connectedUSB[cn].path === portPath && sock === connectedSockets[connectedUSB[cn].wsSocket]) {
@@ -152,39 +150,47 @@ function findConnectionId(sock, portPath) {
   }
 }
 
-function isOpen() {
-// Return a promise that is resolved if port is open, rejected otherwise
+function isOpen(cid) {
+// Return a promise that is resolved if cid port is open, rejected otherwise
+// cid must be port's connection identifier
     return new Promise(function(resolve, reject) {
-        if (portID >= 0) {
-          resolve();
-        } else {
-          reject();
-        }
+        chrome.serial.getInfo(cid, function () {
+            if (!chrome.runtime.lastError) {
+                resolve(cid);
+            } else {
+                reject(Error("Port id:" + cid + " is not open."));
+            }
+        })
     });
 }
 
 //TODO: Determine of portBaudrate... statement need be inside the Promise
-function changeBaudrate(baudrate) {
-// Return a promise that changes the port's baudrate.
+//TODO: Make findConnectionPath and use it in place of cid in textual mesasges
+function changeBaudrate(cid, baudrate) {
+// Return a promise that changes the cid port's baudrate.
+// cid is the open port's connection identifier
 // baudrate is optional; defaults to finalBaudrate
+// Resolves with cid; rejects with Error
     portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
-        console.log("Changing baudrate to " + portBaudrate);
-        chrome.serial.update(portID, {'bitrate': portBaudrate}, function(updateResult) {
-          if (updateResult) {
-            resolve();
-          } else {
-            reject(Error("Can not set baudrate: " + baudrate));
-          }
-        });
-        resolve();
+        isOpen(cid)
+            .then(function() {
+                console.log("Changing %d baudrate to %d", cid, portBaudrate);
+                chrome.serial.update(portId, {'bitrate': portBaudrate}, function(updateResult) {
+                    if (updateResult) {
+                        resolve(cid);
+                    } else {
+                        reject(Error("Can not set port " + cid + " to baudrate: " + baudrate));
+                    }
+                });
+            })
     });
 }
 
 function setControl(options) {
 // Return a promise that sets/clears the control option(s).
     return new Promise(function(resolve, reject) {
-        chrome.serial.setControlSignals(portID, options, function(controlResult) {
+        chrome.serial.setControlSignals(portId, options, function(controlResult) {
           if (controlResult) {
             resolve();
           } else {
@@ -197,7 +203,7 @@ function setControl(options) {
 function flush() {
 // Return a promise that empties the transmit and receive buffers
     return new Promise(function(resolve, reject) {
-        chrome.serial.flush(portID, function(flushResult) {
+        chrome.serial.flush(portId, function(flushResult) {
             if (flushResult) {
               resolve();
             } else {
@@ -217,7 +223,7 @@ function send(data) {
     } else {
         if (data instanceof ArrayBuffer === false) {data = buffer2ArrayBuffer(data);}
     }
-    return chrome.serial.send(portID, data, function (sendResult) {
+    return chrome.serial.send(portId, data, function (sendResult) {
     });
 }
 
@@ -237,32 +243,49 @@ function buffer2ArrayBuffer(buffer) {
  ***********************************************************/
 
 //TODO This is hard-coded.  Adjust to properly handle parameters from real caller
-function loadPropeller(sock, action, payload, debug, portPath, success) {
+//TODO Save existing connection's baud rate and restore it after programming
+//TODO debug and connMode... don't think we need to keep track of the intent of the actual opened port in the connection records; however, if debug=false, we simply need to close to port after downloading
+//TODO Need to notify of success or failure.  This had better be done with a promise as it can not hold up the UI.
+function loadPropeller(sock, portPath, action, payload, debug) {
+//Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
+//sock may be null (for development purposes)
+//portPath is serial port's pathname
+//action is 'RAM' or 'EEPROM'
+//payload is an ArrayBuffer containing the Propeller Application image
+//debug is false to close the port after download; true to keep port open for associated sock
 
 //    console.log(parseFile(payload));
 
-    // look for an existing connection
-    var cid = findConnectionId(sock, portPath);
-    if (cid) {
-      closePort(cid);
-    }
-
+    //Temporary hard-coded Propeller Application for development testing
     const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
         0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
     ];
 
-    openPort(sock, portPath, 115200, 'programming')
-    //      openPort('/dev/ttyUSB0', 115200)
-        .then(function(){
-            talkToProp(buffer2ArrayBuffer(binImage));
-        });
+    // Look for an existing connection
+    var cid = findConnectionId(sock, portPath);
+    if (cid) {
+        // Connection exists, reuse it
+        var connect = function() {return changeBaudrate(initialBaudrate)}
+    } else {
+        // No connection yet, create one
+        var connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
+    }
+    // Use connection to download application to the Propeller
+    connect()
+        .then(function(cid) {/*collect cid*/console.log("cid:", cid); closePort(cid);});
+//        .then(function() {return talkToProp(buffer2ArrayBuffer(binImage))})
+//        .then(function() {if (!debug) {closePort(cid)}});
+
+//        .then(function()return true)
+//        .catch(function(e) {console.log(e.message); return false});
 }
 
 
-function talkToProp(binImage) {
+function talkToProp(cid, binImage) {
 // Deliver Propeller Application (binImage) to Propeller
+// cid is the open port's connection identifier
 // binImage must be an ArrayBuffer
 
     function sendLoader(waittime) {
@@ -386,7 +409,7 @@ function talkToProp(binImage) {
     // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
     var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
 
-    isOpen()
+    isOpen(cid)
         .then(function() {       Object.assign(propComm, propCommStart);} )      //Reset propComm object
         .then(function() {       console.log("Generating reset signal");} )
         .then(function() {return setControl({dtr: false});}               )      //Start Propeller Reset Signal
