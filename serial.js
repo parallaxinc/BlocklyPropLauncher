@@ -348,6 +348,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             propComm.rxCount = 0;
         }
 
+        //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO verify TotalPackets used somewhere
         //TODO may have to decrement packetId elsewhere
@@ -383,9 +384,9 @@ function talkToProp(cid, binImage, toEEPROM) {
                     });
                 }
                 function loaderAcknowledged(waittime) {
-                    /* Did Micro Boot Loader acknowledge the packet?
-                     Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                     Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+                /* Did Micro Boot Loader acknowledge the packet?
+                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
                             console.log("Verifying loader acknowledgement");
@@ -411,8 +412,8 @@ function talkToProp(cid, binImage, toEEPROM) {
             });
         }
 
-        function finalizeUserAppDelivery() {
-            // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
+        function finalizeDelivery() {
+        // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
             return new Promise(function(resolve, reject) {
 
                 function sendRAMVerify() {
@@ -428,9 +429,9 @@ function talkToProp(cid, binImage, toEEPROM) {
                     });
                 }
                 function loaderAcknowledged(waittime) {
-                    /* Did Micro Boot Loader acknowledge the packet?
-                     Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                     Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+                /* Did Micro Boot Loader acknowledge the packet?
+                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
                             console.log("Verifying loader acknowledgement");
@@ -449,7 +450,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
                     sendRAMVerify()
-                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {return loaderAcknowledged(300+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
 //                        .then(function() {return sendEEPROMProgram()})
                         .then(function() {resolve()})
                         .catch(function(e) {reject(e)});
@@ -458,12 +459,13 @@ function talkToProp(cid, binImage, toEEPROM) {
         }
 
         //Determine number of required packets for target application image; value becomes first Packet ID
-        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
+        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
         var transmissionId = 0;
         //Calculate target application's full checksum (used for RAM Checksum confirmation)}
-        var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
-        for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
+        binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
+        var checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
+        for (idx = 0; idx < binView.byteLength; idx++) {checksum += binView[idx];}       //Add in all Propeller Application Image bytes (retaining full checksum value)
 
         //Pre-generate communication and loader package (saves time during during initial communication)
         generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
@@ -483,6 +485,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
             .then(function() {return sendUserApp();}                                )    //Send user application
+            .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
             .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
     });
