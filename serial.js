@@ -93,6 +93,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                         }
                     }
                     connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+                    log('Device [' + parseInt(openInfo.connectionId) + '] ' + portPath + ' connected');
                     console.log("Port", portPath, "open with ID", openInfo.connectionId);
                     resolve(openInfo.connectionId);
                 } else {
@@ -288,17 +289,18 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})
-        .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage))})
+        .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})
         .then(function()   {closeIfNotDebug()})
 //        .then(function()return true)
         .catch(function(e) {console.log(e.message); closeIfNotDebug()});
 }
 
 
-function talkToProp(cid, binImage) {
+function talkToProp(cid, binImage, toEEPROM) {
 /* Return promise to deliver Propeller Application (binImage) to Propeller
    cid is the open port's connection identifier
-   binImage must be an ArrayBuffer*/
+   binImage must be an ArrayBuffer
+   toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
     return new Promise(function(resolve, reject) {
 
@@ -328,11 +330,11 @@ function talkToProp(cid, binImage) {
                     //Check for proper version
                     if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
                     //Check RAM checksum
-                    if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost waiting for RAM Checksum.")); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error("RAM checksum failure.")); return;}
+                    if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost while delivering loader.")); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
                     //Check Micro Boot Loader Ready Signal
-                    if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Micro Boot Loader failed.")); return;}
-                    console.log("Found Propeller!  Micro Boot Loader ready.");
+                    if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId) {reject(Error("Loader failed.")); return;}
+                    console.log("Found Propeller!.");
                     resolve();
                 }
                 console.log("Waiting %d ms for package delivery", waittime);
@@ -340,11 +342,19 @@ function talkToProp(cid, binImage) {
             });
         }
 
-        //TODO address "transmitPacket" comments
-        //TODO make sure Transmission ID is placed
+        function prepForMBLResponse() {
+            // Set propComm to prep for another Micro Boot Loader response.
+            propComm.mblResponse = stValidating;
+            propComm.stage = sgMBLResponse;
+            propComm.rxCount = 0;
+        }
+
+        //TODO lower waittime
+        //TODO catch send() errors
+        //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO verify TotalPackets used somewhere
         //TODO may have to decrement packetId elsewhere
-        //TODO determine if txPacketLength and idx can be in bytes instead of longs
+        //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
         function sendUserApp() {
         // Return a promise that delivers the user application to the Micro Boot Loader.
             return new Promise(function(resolve, reject) {
@@ -352,10 +362,7 @@ function talkToProp(cid, binImage) {
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
                         console.log("Delivering user application");
-                        //Prep to receive next MBL response
-                        propComm.mblResponse = stValidating;
-                        propComm.stage = sgMBLResponse;
-                        propComm.rxCount = 0;
+                        prepForMBLResponse();
                         var idx = 0;
                     //repeat {Transmit target application packets}                                             {Transmit application image}
 
@@ -378,17 +385,15 @@ function talkToProp(cid, binImage) {
                         resolve();
                     });
                 }
-                //TODO Verify transmission ID
                 function loaderAcknowledged(waittime) {
-                    /* Did Micro Boot Loader acknowledge the packet?
-                     Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                     Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
-
+                /* Did Micro Boot Loader acknowledge the packet?
+                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
                             console.log("Verifying loader acknowledgement");
-                            //Check Micro Boot Loader response (values checked by value only, not value+type)
-                            if (propComm.mblResponse !== stValid || propComm.mblPacketId[0] !== packetId || (propComm.mblTransId[0] ^ transmissionId) !== 0) {
+                            //Check Micro Boot Loader response
+                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error("Download failed")); return
                             }
                             console.log("Packet delivered.");
@@ -402,20 +407,109 @@ function talkToProp(cid, binImage) {
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
                     sendUA()
-                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-                        .then(function() {resolve()})
-                        .catch(function(e) {reject(e)});
+                        .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {return resolve()})
+                        .catch(function(e) {return reject(e)});
+                });
+            });
+        }
+
+        //TODO lower waittime
+        function finalizeDelivery() {
+        // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
+            return new Promise(function(resolve, reject) {
+
+                function sendRAMVerify() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Requesting RAM Verify");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltVerifyRAM, packetId);                                               //Generate VerifyRAM executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        packetId = -checksum;                                                                      //Ready next packet; ID's by -checksum now
+                        resolve();
+                    });
+                }
+                function sendEEPROMProgram() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Requesting EEPROM Program/Verify");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltProgramEEPROM, packetId);                                           //Generate Program/VerifyEEPROM executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        packetId = -checksum*2;                                                                    //Ready next packet; ID's by -checksum*2 now
+                        resolve();
+                    });
+                }
+                function sendReadyToLaunch() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Requesting Launch");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltReadyToLaunch, packetId);                                           //Generate ReadyToLaunch executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        packetId -= 1;                                                                             //Ready next packet; ID's by prev checksum-1 now
+                        resolve();
+                    });
+                }
+                function sendLaunchNow() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Commanding Launch");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltLaunchNow, packetId);                                               //Generate LaunchNow executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        resolve();
+                    });
+                }
+                function loaderAcknowledged(waittime) {
+                /* Did Micro Boot Loader acknowledge the packet?
+                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
+                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+                    return new Promise(function(resolve, reject) {
+                        function verifier() {
+                            console.log("Verifying loader acknowledgement");
+                            //Check Micro Boot Loader response (values checked by value only, not value+type)
+                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
+                                reject(Error("RAM checksum failure!")); return;
+//!!!                                reject(Error("EEPROM Programming Failure!")); return;
+//!!!                                reject(Error("Communication failed!")); return;
+                            }
+                            console.log("Packet delivered.");
+                            resolve();
+                        }
+                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        setTimeout(verifier, waittime);
+                    });
+                }
+                //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
+                //No delay, but call sendUA promise with setTimeout for asynchronous processing
+                setTimeout(function() {
+                    sendRAMVerify()
+                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
+                        .then(function() {if (toEEPROM) {return loaderAcknowledged(4500+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function() {return sendReadyToLaunch();})
+                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {return sendLaunchNow();})
+                        .then(function() {return resolve()})
+                        .catch(function(e) {return reject(e)});
                 });
             });
         }
 
         //Determine number of required packets for target application image; value becomes first Packet ID
-        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));       //binary image size (in bytes) / (max packet size - packet header)
+        var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
         var transmissionId = 0;
         //Calculate target application's full checksum (used for RAM Checksum confirmation)}
-        var checksum = 0x7EC;                                                        //Start with full checksum of initial call frame
-        for (idx = 0; idx < binImage.byteLength; idx++) {checksum += binImage[idx];}  //Add in all Propeller Application Image bytes (retaining full checksum value)
+        binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
+        var checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
+        for (idx = 0; idx < binView.byteLength; idx++) {checksum += binView[idx];}       //Add in all Propeller Application Image bytes (retaining full checksum value)
 
         //Pre-generate communication and loader package (saves time during during initial communication)
         generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
@@ -435,52 +529,11 @@ function talkToProp(cid, binImage) {
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
             .then(function() {return sendUserApp();}                                )    //Send user application
+            .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
             .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
     });
 }
-
-/* R&D Delphi Code
-
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for RAM checksum', True);
- UpdateProgress(+1, 'Verifying RAM');
-
- {Send verify RAM command}                                                                {Verify RAM Checksum}
- GenerateLoaderPacket(ltVerifyRAM, PacketID);                                             {Generate VerifyRAM executable packet}
- if TransmitPacket <> -Checksum then                                                      {Transmit packet (retransmit as necessary)}
-   raise EHardDownload.Create('Error: RAM Checksum Failure!');                            {  Error if RAM Checksum differs}
- PacketID := -Checksum;                                                                   {Ready next packet; ID's by -checksum now }
-
- {Program EEPROM too?}
- if ToEEPROM then
-   begin
-   SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for EEPROM programming', True);
-   UpdateProgress(+1, 'Programming EEPROM');
-
-   {Send Program/Verify EEPROM command}                                                   {Program and Verify EEPROM}
-   GenerateLoaderPacket(ltProgramEEPROM, PacketID);                                       {Generate ProgramEEPROM executable packet}
-   if TransmitPacket(False, 8000) <> -Checksum*2 then                                     {Transmit packet (retransmit as necessary)}
-     raise EHardDownload.Create('Error: EEPROM Programming Failure!');                    {  Error if EEPROM Checksum differs}
-   PacketID := -Checksum*2;                                                               {Ready next packet; ID's by -checksum*2 now }
- end;
-
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Requesting Application Launch', True);
- UpdateProgress(+1, 'Requesting Application Launch');
-
- {Send verified/launch command}                                                           {Verified/Launch}
- GenerateLoaderPacket(ltReadyToLaunch, PacketID);                                         {Generate ReadyToLaunch executable packet}
- if TransmitPacket <> PacketID-1 then                                                     {Transmit packet (Launch step 1); retransmit as necessary}
-   raise EHardDownload.Create('Error: communication failed!');                            {  Error if unexpected response}
- dec(PacketID);                                                                           {Ready next packet}
-
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Application Launching', True);
- UpdateProgress(+1, 'Application Launching');
-
- {Send launch command}                                                                    {Verified}
- GenerateLoaderPacket(ltLaunchNow, PacketID);                                             {Generate LaunchNow executable packet}
- TransmitPacket(True);                                                                    {Transmit last packet (Launch step 2) only once (no retransmission); ignoring any response}
- UpdateProgress(+1, 'Success');
-*/
 
 
 function hearFromProp(info) {
