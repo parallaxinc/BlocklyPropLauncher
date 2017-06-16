@@ -438,7 +438,30 @@ function talkToProp(cid, binImage, toEEPROM) {
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                         send(cid, txData);                                                                         //Transmit packet
-                        packetId = -checksum*2;                                                                    //Ready next packet; ID's by -checksum now
+                        packetId = -checksum*2;                                                                    //Ready next packet; ID's by -checksum*2 now
+                        resolve();
+                    });
+                }
+                function sendReadyToLaunch() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Requesting Launch");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltReadyToLaunch, packetId);                                           //Generate ReadyToLaunch executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        packetId -= 1;                                                                             //Ready next packet; ID's by -checksum*2-1 now
+                        resolve();
+                    });
+                }
+                function sendLaunchNow() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Commanding Launch");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltLaunchNow, packetId);                                               //Generate LaunchNow executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
                         resolve();
                     });
                 }
@@ -453,6 +476,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error("RAM checksum failure!")); return;
 //!!!                                reject(Error("EEPROM Programming Failure!")); return;
+//!!!                                reject(Error("Communication failed!")); return;
                             }
                             console.log("Packet delivered.");
                             resolve();
@@ -468,6 +492,9 @@ function talkToProp(cid, binImage, toEEPROM) {
                         .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
                         .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
                         .then(function() {if (toEEPROM) {return loaderAcknowledged(8000+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function() {return sendReadyToLaunch();})
+                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {return sendLaunchNow();})
                         .then(function() {return resolve()})
                         .catch(function(e) {return reject(e)});
                 });
@@ -506,28 +533,6 @@ function talkToProp(cid, binImage, toEEPROM) {
             .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
     });
 }
-
-/* R&D Delphi Code
-
-
-
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Requesting Application Launch', True);
- UpdateProgress(+1, 'Requesting Application Launch');
-
- {Send verified/launch command}                                                           {Verified/Launch}
- GenerateLoaderPacket(ltReadyToLaunch, PacketID);                                         {Generate ReadyToLaunch executable packet}
- if TransmitPacket <> PacketID-1 then                                                     {Transmit packet (Launch step 1); retransmit as necessary}
-   raise EHardDownload.Create('Error: communication failed!');                            {  Error if unexpected response}
- dec(PacketID);                                                                           {Ready next packet}
-
- SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Application Launching', True);
- UpdateProgress(+1, 'Application Launching');
-
- {Send launch command}                                                                    {Verified}
- GenerateLoaderPacket(ltLaunchNow, PacketID);                                             {Generate LaunchNow executable packet}
- TransmitPacket(True);                                                                    {Transmit last packet (Launch step 2) only once (no retransmission); ignoring any response}
- UpdateProgress(+1, 'Success');
-*/
 
 
 function hearFromProp(info) {

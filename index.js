@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
 
       //Temporary direct development download step
-      loadPropeller(null, 'COM3', 'RAM', null, false);
+      loadPropeller(null, 'COM3', 'RAM', null, true);
 
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
