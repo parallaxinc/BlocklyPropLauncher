@@ -348,6 +348,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             propComm.rxCount = 0;
         }
 
+        //TODO lower waittime
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO verify TotalPackets used somewhere
@@ -405,13 +406,14 @@ function talkToProp(cid, binImage, toEEPROM) {
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
                     sendUA()
-                        .then(function() {return loaderAcknowledged(100+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-                        .then(function() {resolve()})
-                        .catch(function(e) {reject(e)});
+                        .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {return resolve()})
+                        .catch(function(e) {return reject(e)});
                 });
             });
         }
 
+        //TODO lower waittime
         function finalizeDelivery() {
         // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
             return new Promise(function(resolve, reject) {
@@ -428,6 +430,18 @@ function talkToProp(cid, binImage, toEEPROM) {
                         resolve();
                     });
                 }
+                function sendEEPROMProgram() {
+                    return new Promise(function(resolve, reject) {
+                        console.log("Requesting EEPROM Program/Verify");
+                        prepForMBLResponse();
+                        generateLoaderPacket(ltProgramEEPROM, packetId);                                           //Generate Program/VerifyEEPROM executable packet
+                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
+                        send(cid, txData);                                                                         //Transmit packet
+                        packetId = -checksum*2;                                                                    //Ready next packet; ID's by -checksum now
+                        resolve();
+                    });
+                }
                 function loaderAcknowledged(waittime) {
                 /* Did Micro Boot Loader acknowledge the packet?
                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
@@ -437,7 +451,8 @@ function talkToProp(cid, binImage, toEEPROM) {
                             console.log("Verifying loader acknowledgement");
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error("RAM checksum failure!")); return
+                                reject(Error("RAM checksum failure!")); return;
+//!!!                                reject(Error("EEPROM Programming Failure!")); return;
                             }
                             console.log("Packet delivered.");
                             resolve();
@@ -450,10 +465,11 @@ function talkToProp(cid, binImage, toEEPROM) {
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
                     sendRAMVerify()
-                        .then(function() {return loaderAcknowledged(300+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-//                        .then(function() {return sendEEPROMProgram()})
-                        .then(function() {resolve()})
-                        .catch(function(e) {reject(e)});
+                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                        .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
+                        .then(function() {if (toEEPROM) {return loaderAcknowledged(8000+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function() {return resolve()})
+                        .catch(function(e) {return reject(e)});
                 });
             });
         }
@@ -494,18 +510,6 @@ function talkToProp(cid, binImage, toEEPROM) {
 /* R&D Delphi Code
 
 
- {Program EEPROM too?}
- if ToEEPROM then
-   begin
-   SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Waiting for EEPROM programming', True);
-   UpdateProgress(+1, 'Programming EEPROM');
-
-   {Send Program/Verify EEPROM command}                                                   {Program and Verify EEPROM}
-   GenerateLoaderPacket(ltProgramEEPROM, PacketID);                                       {Generate ProgramEEPROM executable packet}
-   if TransmitPacket(False, 8000) <> -Checksum*2 then                                     {Transmit packet (retransmit as necessary)}
-     raise EHardDownload.Create('Error: EEPROM Programming Failure!');                    {  Error if EEPROM Checksum differs}
-   PacketID := -Checksum*2;                                                               {Ready next packet; ID's by -checksum*2 now }
- end;
 
  SendDebugMessage('+' + GetTickDiff(STime, Ticks).ToString + ' - Requesting Application Launch', True);
  UpdateProgress(+1, 'Requesting Application Launch');
