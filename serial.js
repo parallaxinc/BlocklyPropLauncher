@@ -93,6 +93,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                         }
                     }
                     connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+                    log('Device [' + parseInt(openInfo.connectionId) + '] ' + portPath + ' connected');
                     console.log("Port", portPath, "open with ID", openInfo.connectionId);
                     resolve(openInfo.connectionId);
                 } else {
@@ -450,7 +451,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                         send(cid, txData);                                                                         //Transmit packet
-                        packetId -= 1;                                                                             //Ready next packet; ID's by -checksum*2-1 now
+                        packetId -= 1;                                                                             //Ready next packet; ID's by prev checksum-1 now
                         resolve();
                     });
                 }
@@ -491,7 +492,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                     sendRAMVerify()
                         .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
                         .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
-                        .then(function() {if (toEEPROM) {return loaderAcknowledged(8000+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function() {if (toEEPROM) {return loaderAcknowledged(4500+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
                         .then(function() {return sendReadyToLaunch();})
                         .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
                         .then(function() {return sendLaunchNow();})

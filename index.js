@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       //Temporary direct development download step
       loadPropeller(null, 'COM3', 'RAM', null, true);
+//        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
 
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
