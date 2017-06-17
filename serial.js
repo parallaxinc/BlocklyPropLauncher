@@ -62,8 +62,6 @@ chrome.serial.onReceive.addListener(hearFromProp);
  ***********************************************************/
 
 //TODO Consider returning error object
-//TODO Determine why cids (openInfo.connectionId) always increases per OS session and not just per app session.  Is that a problem?  Are we not cleaning up something that should be addressed?
-//TODO Decide what to do with serialJustOpened
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
@@ -105,7 +103,6 @@ function openPort(sock, portPath, baudrate, connMode) {
     });
 }
 
-//TODO Shouldn't connection record be removed upon port closing?
 //TODO Promisify closePort()
 //TODO Consider returning error object
 function closePort(cid) {
@@ -124,10 +121,10 @@ function closePort(cid) {
                     }
                     if (k !== null) {
                         log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                        console.log("Closed port id %d", cid);
+                        console.log("Closed port %s (id %d)", findConnectionPath(cid), cid);
                         connectedUSB.splice(k, 1);
                     } else {
-                        console.log("Closed port id %d, but connection not found", cid);
+                        console.log("Closed port %s (id %d), but connection not found", findConnectionPath(cid), cid);
                     }
                 } else {
                     console.log("Connection not closed");
@@ -153,11 +150,26 @@ function findConnectionId(portPath) {
   }
 }
 
+function findConnectionPath(cid) {
+// Return portPath associated cid connection
+    var cn, k = null;
+    for (cn = 0; cn < connectedUSB.length; cn++) {
+        if (connectedUSB[cn].connId === cid) {
+            k = cn;
+            break;
+        }
+    }
+    if(k !== null) {
+        return connectedUSB[cn].path;
+    } else {
+        return null;
+    }
+}
+
 function isOpen(cid) {
 /* Return a promise that is resolved if cid port is open, rejected otherwise
    cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        if (!cid) {reject(Error("Port id: " + cid + " does not exist.")); return;}
         chrome.serial.getInfo(cid, function () {
             if (!chrome.runtime.lastError) {
                 resolve(cid);
@@ -168,8 +180,7 @@ function isOpen(cid) {
     });
 }
 
-//TODO: Determine of portBaudrate... statement need be inside the Promise
-//TODO: Make findConnectionPath and use it in place of cid in textual mesasges
+//TODO: Determine if portBaudrate... statement need be inside the Promise
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
@@ -179,12 +190,12 @@ function changeBaudrate(cid, baudrate) {
     return new Promise(function(resolve, reject) {
         isOpen(cid)
             .then(function() {
-                console.log("Changing %d baudrate to %d", cid, portBaudrate);
+                console.log("Changing %s baudrate to %d", findConnectionPath(cid), portBaudrate);
                 chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
                     if (updateResult) {
                         resolve(cid);
                     } else {
-                        reject(Error("Can not set port " + cid + " to baudrate: " + baudrate));
+                        reject(Error("Can not set port " + findConnectionPath(cid) + " to baudrate " + baudrate));
                     }
                 });
             })
@@ -199,7 +210,7 @@ function setControl(cid, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set port id " + cid + "'s " + options));
+            reject(Error("Can not set port " + findConnectionPath(cid) + "'s options: " + options));
           }
         });
     });
@@ -213,7 +224,7 @@ function flush(cid) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush port id " + cid + "'s transmit/receive buffer"));
+              reject(Error("Can not flush port " + findConnectionPath(cid) + "'s transmit/receive buffer"));
             }
         });
     });
