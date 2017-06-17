@@ -84,7 +84,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 if (!chrome.runtime.lastError) {
                     // No error
                     serialJustOpened = openInfo.connectionId;
-                    var vs = 0;
+                    var vs = null;
                     // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
                     for (var j = 0; j < connectedSockets.length; j++) {
                         if (connectedSockets[j] === sock) {
