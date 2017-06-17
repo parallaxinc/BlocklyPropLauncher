@@ -137,11 +137,11 @@ function closePort(cid) {
         .catch(function(e) {console.log(e.message)});
 }
 
-function findConnectionId(sock, portPath) {
-// Return id (cid) of connection associated with sock and portPath
+function findConnectionId(portPath) {
+// Return id (cid) of connection associated with portPath
   var cn, k = null;
   for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].path === portPath && sock === connectedSockets[connectedUSB[cn].wsSocket]) {
+    if (connectedUSB[cn].path === portPath) {
       k = cn;
       break;
     }
@@ -272,16 +272,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
     ];
 
-    function closeIfNotDebug() {
-        if (!debug) {closePort(cid)}
-    }
-
     // Look for an existing connection
-    var cid = findConnectionId(sock, portPath);
+    var cid = findConnectionId(portPath);
     var connect;
     if (cid) {
         // Connection exists, prep to reuse it
-        connect = function() {return changeBaudrate(initialBaudrate)}
+        connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
         connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
@@ -290,9 +286,9 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})
         .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})
-        .then(function()   {closeIfNotDebug()})
+        .then(function()   {if (!debug) {closePort(cid)}})
 //        .then(function()return true)
-        .catch(function(e) {console.log(e.message); closeIfNotDebug()});
+        .catch(function(e) {console.log(e.message); if (!debug) {closePort(cid)}});
 }
 
 
@@ -303,6 +299,7 @@ function talkToProp(cid, binImage, toEEPROM) {
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
     return new Promise(function(resolve, reject) {
+
 
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
@@ -319,7 +316,7 @@ function talkToProp(cid, binImage, toEEPROM) {
         function isLoaderReady(packetId, waittime) {
         /* Is Micro Boot Loader delivered and Ready?
         Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-        Rejects if any error occurs.  Micro Boot Loader must respond with packetId (plus transmissionId) for success (resolve).
+        Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
         Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
 
             return new Promise(function(resolve, reject) {
@@ -388,7 +385,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 function loaderAcknowledged(waittime) {
                 /* Did Micro Boot Loader acknowledge the packet?
                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+                Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
                             console.log("Verifying loader acknowledgement");
@@ -469,7 +466,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 function loaderAcknowledged(waittime) {
                 /* Did Micro Boot Loader acknowledge the packet?
                 Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                Rejects if error occurs.  Micro Boot Loader must respond with next packetId (plus transmissionId) for success (resolve).*/
+                Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
                             console.log("Verifying loader acknowledgement");
@@ -901,8 +898,8 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         //Generate special loader's executable packet according to loaderType (> ltCore)
         txData = new ArrayBuffer(2 * 4 + exeSnippet[loaderType].length);                        //Set txData size for header plus executable packet
         txView = new Uint8Array(txData);
-        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; "transmitPacket" will fill that)
-        txView.set(exeSnippet[loaderType], 8);                                                      //Copy the executable packet code into it
+        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; it will be filled at time of transmission)
+        txView.set(exeSnippet[loaderType], 8);                                                  //Copy the executable packet code into it
     }
 
 }

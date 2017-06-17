@@ -279,7 +279,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       log('opening ' + portPath);
     }
   } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
-    var cid = findConnectionId(sock, portPath);
+    var cid = findConnectionId(portPath);
     if (cid) {
       closePort(cid);
     }
@@ -325,7 +325,7 @@ chrome.serial.onReceive.addListener(function(info) {
             }
           });
         } else {
-          if(connectedUSB[k].mode === 'debug') {
+          if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
             var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
             if(connectedSockets[connectedUSB[k].wsSocket]) {
