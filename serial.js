@@ -57,6 +57,16 @@ const ltLaunchNow = 3;
 //Add programming protocol serial receive handler
 chrome.serial.onReceive.addListener(hearFromProp);
 
+
+//Add experimental event
+//chrome.app.window.onClosed.addListener(function() {
+//chrome.runtime.onSuspend.addListener(function() {
+//  console.log('Whoa!');
+//    while (connectedUSB.length > 0) {
+//        closePort(connectedUSB[0].connId);
+//    }
+//});
+
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
