@@ -161,30 +161,17 @@ function findConnection(cidOrPath) {
 // Return connection record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
 // cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
 // Returns null record if not found
-
-    var cn;
-
+    let cn = 0;
+    // Find connection record based on scan function
+    function findConn(scan) {
+        while (cn < connectedUSB.length && !scan()) {cn++}
+        return cn < connectedUSB.length ? connectedUSB[cn] : null;
+    }
     // Scan for connID or path
     if (isNumber(cidOrPath)) {
         return findConn(function() {return connectedUSB[cn].connId === cidOrPath})
     } else {
         return findConn(function() {return connectedUSB[cn].path === cidOrPath})
-    }
-
-    // Find record based on scan function
-    function findConn(scan) {
-        var k = null;
-        for (cn = 0; cn < connectedUSB.length; cn++) {
-            if (scan()) {
-                k = cn;
-                break;
-            }
-        }
-        if(k !== null) {
-            return connectedUSB[cn];
-        } else {
-            return null;
-        }
     }
 }
 
