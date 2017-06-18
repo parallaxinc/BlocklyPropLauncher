@@ -307,9 +307,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})
         .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})
-        .then(function()   {if (!debug) {closePort(cid)}})
 //        .then(function()return true)
-        .catch(function(e) {console.log(e.message); if (!debug) {closePort(cid)}});
+        .catch(function(e) {console.log(e.message)});
 }
 
 
