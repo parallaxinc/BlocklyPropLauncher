@@ -132,10 +132,10 @@ function closePort(cid) {
                     }
                     if (k !== null) {
                         log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                        console.log("Closed port %s (id %d)", findConnectionPath(cid), cid);
+                        console.log("Closed port %s (id %d)", findConnection(cid).path, cid);
                         connectedUSB.splice(k, 1);
                     } else {
-                        console.log("Closed port %s (id %d), but connection not found", findConnectionPath(cid), cid);
+                        console.log("Closed port %s (id %d), but connection not found", findConnection(cid).path, cid);
                     }
                 } else {
                     console.log("Connection not closed");
@@ -147,33 +147,44 @@ function closePort(cid) {
 
 function findConnectionId(portPath) {
 // Return id (cid) of connection associated with portPath
-  var cn, k = null;
-  for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].path === portPath) {
-      k = cn;
-      break;
-    }
-  }
-  if(k !== null) {
-    return connectedUSB[cn].connId;
-  } else {
-    return null;
-  }
+  const record = findConnection(portPath);
+  return record ? record.connId : null;
 }
 
-function findConnectionPath(cid) {
-// Return portPath associated cid connection
-    var cn, k = null;
-    for (cn = 0; cn < connectedUSB.length; cn++) {
-        if (connectedUSB[cn].connId === cid) {
-            k = cn;
-            break;
-        }
-    }
-    if(k !== null) {
-        return connectedUSB[cn].path;
+function findConnectionPath(id) {
+// Return port path of connection associated with id
+    const record = findConnection(id);
+    return record ? record.path : null;
+}
+
+function findConnection(cidOrPath) {
+// Return connection record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
+// cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
+// Returns null record if not found
+
+    var cn;
+
+    // Scan for connID or path
+    if (isNumber(cidOrPath)) {
+        return findConn(function() {return connectedUSB[cn].connId === cidOrPath})
     } else {
-        return null;
+        return findConn(function() {return connectedUSB[cn].path === cidOrPath})
+    }
+
+    // Find record based on scan function
+    function findConn(scan) {
+        var k = null;
+        for (cn = 0; cn < connectedUSB.length; cn++) {
+            if (scan()) {
+                k = cn;
+                break;
+            }
+        }
+        if(k !== null) {
+            return connectedUSB[cn];
+        } else {
+            return null;
+        }
     }
 }
 
@@ -201,12 +212,12 @@ function changeBaudrate(cid, baudrate) {
     return new Promise(function(resolve, reject) {
         isOpen(cid)
             .then(function() {
-                console.log("Changing %s baudrate to %d", findConnectionPath(cid), portBaudrate);
+                console.log("Changing %s baudrate to %d", findConnection(cid).path, portBaudrate);
                 chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
                     if (updateResult) {
                         resolve(cid);
                     } else {
-                        reject(Error("Can not set port " + findConnectionPath(cid) + " to baudrate " + baudrate));
+                        reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
                     }
                 });
             })
@@ -221,7 +232,7 @@ function setControl(cid, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set port " + findConnectionPath(cid) + "'s options: " + options));
+            reject(Error("Can not set port " + findConnection(cid).path + "'s options: " + options));
           }
         });
     });
@@ -235,7 +246,7 @@ function flush(cid) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush port " + findConnectionPath(cid) + "'s transmit/receive buffer"));
+              reject(Error("Can not flush port " + findConnection(cid).path + "'s transmit/receive buffer"));
             }
         });
     });
@@ -274,6 +285,7 @@ function buffer2ArrayBuffer(buffer) {
  ***********************************************************/
 
 //TODO This is hard-coded.  Adjust to properly handle parameters from real caller
+//TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
 //TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?
 //TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
@@ -286,11 +298,11 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     //Temporary hard-coded Propeller Application for development testing
     //Blink P26
-/*    const binImage = [
+    const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
         0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
-    ];*/
+    ];
     //Clock Demo PABWX (adjusted for P20 through P27)
 /*    const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x01, 0x10, 0x00, 0x1C, 0x02, 0x50, 0x02, 0x3E, 0x00, 0x54, 0x02,
@@ -742,7 +754,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         0x09, 0xE2, 0xEA, 0x33, 0x32, 0x00, 0x00, 0x00
     ];*/
     //LargeSpinCodeFlip.spin
-    const binImage = [
+/*    const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x86, 0x10, 0x00, 0xC0, 0x7E, 0xA8, 0x7F, 0xD0, 0x79, 0xB0, 0x7F,
         0x70, 0x7A, 0x03, 0x01, 0xC0, 0x79, 0x04, 0x00, 0x15, 0x7A, 0x04, 0x00, 0x70, 0x7A, 0x04, 0x00,
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -2771,14 +2783,16 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         0x38, 0xDF, 0xE8, 0xEC, 0x38, 0x27, 0x6C, 0x38, 0x38, 0xFA, 0xF4, 0xEC, 0x6D, 0x6C, 0x34, 0xFA,
         0x6C, 0x68, 0xF9, 0xF0, 0x0A, 0x06, 0x60, 0x68, 0xF4, 0x6C, 0xEC, 0x61, 0x04, 0x53, 0x68, 0x38,
         0x0A, 0xFC, 0x64, 0x80, 0x38, 0x2D, 0xFC, 0xF0, 0x0A, 0x03, 0x60, 0xE6, 0x61, 0x32, 0x00, 0x00
-    ];
+    ];*/
 
     // Look for an existing connection
-    var cid = findConnectionId(portPath);
+    var port = findConnection(portPath);
+    var cid = port ? port.connId : null;
     var connect;
+    var originalBaudrate;
     if (cid) {
         // Connection exists, prep to reuse it
-        originalBaudrate = connectedUSB[cid].baud;
+        originalBaudrate = port.baud;
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
@@ -2789,7 +2803,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})           //Download user application to RAM or EEPROM
-        .then(changeBaudrate(cid, originalBaudrate))                                                            //Restore original baudrate
+        .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
 //        .then(function()return true)
         .catch(function(e) {console.log(e.message); changeBaudrate(cid, originalBaudrate)});
 }
