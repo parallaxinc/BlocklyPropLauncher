@@ -417,7 +417,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
-                        console.log("Delivering user application");
+                        console.log("Delivering user application packet %d of %d", totalPackets-packetId+1, totalPackets);
                         prepForMBLResponse();
                     //repeat {Transmit target application packets}                                             {Transmit application image}
 
@@ -446,7 +446,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            console.log("Verifying loader acknowledgement");
+                            console.log("Verifying loader acknowledgement to packet %d of %d", totalPackets-packetId+0, totalPackets);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error("Download failed")); return
