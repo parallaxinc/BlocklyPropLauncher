@@ -1,14 +1,15 @@
+
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
 //TODO Study .bind for opportunities to save scope context of private functions
 
-var portBaudrate = 0;                               //Current baud rate
+let portBaudrate = 0;                               //Current baud rate
 
 // Programming metrics
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
-var txData;                                         //Data to transmit to the Propeller (size/contents created later)
+let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
@@ -30,8 +31,8 @@ const sgMBLResponse = 3;
 //const sgEEChecksum = 4;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
-var propComm = {};                                  //Holds current status
-var mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Loader responses
+let propComm = {};                                  //Holds current status
+let mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Loader responses
 
 const propCommStart = {                             //propCommStart is used to initialize propComm
     stage       : sgHandshake,                      //Propeller Protocol Stage
@@ -273,6 +274,7 @@ function buffer2ArrayBuffer(buffer) {
  ***********************************************************/
 
 //TODO This is hard-coded.  Adjust to properly handle parameters from real caller
+//TODO Make download finish with port in original (or initial) baudrate
 //TODO Save existing connection's baud rate and restore it after programming
 //TODO debug and connMode... don't think we need to keep track of the intent of the actual opened port in the connection records; however, if debug=false, we simply need to close to port after downloading
 //TODO Need to notify of success or failure.  This had better be done with a promise as it can not hold up the UI.
