@@ -101,7 +101,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                             break;
                         }
                     }
-                    connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
+                    connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath, baud: portBaudrate});
                     log('Device [' + parseInt(openInfo.connectionId) + '] ' + portPath + ' connected');
                     console.log("Port", portPath, "open with ID", openInfo.connectionId);
                     resolve(openInfo.connectionId);
@@ -274,10 +274,8 @@ function buffer2ArrayBuffer(buffer) {
  ***********************************************************/
 
 //TODO This is hard-coded.  Adjust to properly handle parameters from real caller
-//TODO Make download finish with port in original (or initial) baudrate
-//TODO Save existing connection's baud rate and restore it after programming
-//TODO debug and connMode... don't think we need to keep track of the intent of the actual opened port in the connection records; however, if debug=false, we simply need to close to port after downloading
-//TODO Need to notify of success or failure.  This had better be done with a promise as it can not hold up the UI.
+//TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?
+//TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
 /* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
    sock may be null (for development purposes)
@@ -285,8 +283,6 @@ function loadPropeller(sock, portPath, action, payload, debug) {
    action is 'RAM' or 'EEPROM'
    payload is an ArrayBuffer containing the Propeller Application image
    debug is false to close the port after download; true to keep port open for associated sock*/
-
-//    console.log(parseFile(payload));
 
     //Temporary hard-coded Propeller Application for development testing
     //Blink P26
@@ -2782,17 +2778,20 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     var connect;
     if (cid) {
         // Connection exists, prep to reuse it
+        originalBaudrate = connectedUSB[cid].baud;
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
+        originalBaudrate = initialBaudrate;
         connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
     }
     // Use connection to download application to the Propeller
     connect()
-        .then(function(id) {cid = id})
-        .then(function()   {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})
+        .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
+        .then(function() {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})           //Download user application to RAM or EEPROM
+        .then(changeBaudrate(cid, originalBaudrate))                                                            //Restore original baudrate
 //        .then(function()return true)
-        .catch(function(e) {console.log(e.message)});
+        .catch(function(e) {console.log(e.message); changeBaudrate(cid, originalBaudrate)});
 }
 
 
