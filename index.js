@@ -248,7 +248,7 @@ function sendPortList() {
     function(ports) {
       var pt = [];
       ports.forEach(function(pl) {
-        if(pl.path.indexOf('dev/tty') > -1 && pl.path.indexOf('luetoo') === -1) {
+        if ((pl.path.indexOf('dev/tty') > -1 || pl.path.indexOf('COM') > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
           pt.push(pl.path);
         }
       });
