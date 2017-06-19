@@ -1,4 +1,6 @@
 
+//TODO Enhance to log brief messages (to either local log feature or console) and optionally also log verbose messages (for deeper debugging)
+//TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
@@ -80,7 +82,6 @@ function openPort(sock, portPath, baudrate, connMode) {
    baudrate is optional; defaults to initialBaudrate
    Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
-        console.log("Attempting to open port");
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         chrome.serial.connect(portPath, {
                 'bitrate': portBaudrate,
@@ -189,14 +190,13 @@ function isOpen(cid) {
     });
 }
 
-//TODO: Determine if portBaudrate... statement need be inside the Promise
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
    baudrate is optional; defaults to finalBaudrate
    Resolves with cid; rejects with Error*/
-    portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
     return new Promise(function(resolve, reject) {
+        portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
         isOpen(cid)
             .then(function() {
                 console.log("Changing %s baudrate to %d", findConnection(cid).path, portBaudrate);
@@ -2798,7 +2798,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {return talkToProp(cid, binImage, action === 'EEPROM')})                               //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {console.log("Download successful.")})
-        .catch(function(e) {console.log(e.message); changeBaudrate(cid, originalBaudrate)});
+        .catch(function(e) {console.log(e.message); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 
