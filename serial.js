@@ -2776,8 +2776,10 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (!postResetDelay) {
         postResetDelay = 100; /*Ideal Post-Reset Delay*/
         chrome.runtime.getPlatformInfo(function(platformInfo) {
-            //If Windows, use minimum Post-Reset Delay since Windows often adds more delay
-            postResetDelay = platformInfo.os === "win" ? 60 : postResetDelay;
+            if (!chrome.runtime.lastError) {
+                //If Windows, use minimum Post-Reset Delay since Windows often adds more delay
+                postResetDelay = platformInfo.os === "win" ? 60 : postResetDelay;
+            }
         });
     }
 
