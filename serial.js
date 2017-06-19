@@ -2853,7 +2853,6 @@ function talkToProp(cid, binImage, toEEPROM) {
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO verify TotalPackets used somewhere
-        //TODO may have to decrement packetId elsewhere
         //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
         function sendUserApp() {
         // Return a promise that delivers the user application to the Micro Boot Loader.
@@ -2863,8 +2862,6 @@ function talkToProp(cid, binImage, toEEPROM) {
                     return new Promise(function(resolve, reject) {
                         console.log("Delivering user application packet %d of %d", totalPackets-packetId+1, totalPackets);
                         prepForMBLResponse();
-                    //repeat {Transmit target application packets}                                             {Transmit application image}
-
                         var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         binView = new Uint8Array(binImage, pIdx * 4, (txPacketLength - 2) * 4);                    //Get view of next section of binary image
@@ -2877,10 +2874,6 @@ function talkToProp(cid, binImage, toEEPROM) {
                         send(cid, txData);                                                                         //Transmit packet
                         pIdx += txPacketLength - 2;                                                                //Increment image index
                         packetId--;                                                                                //Decrement Packet ID (to next packet)
-
-                    //{repeat - Transmit target application packets...}
-                    //until PacketID = 0;                                                                      {Loop until done}
-
                         resolve();
                     });
                 }
@@ -2939,7 +2932,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                         send(cid, txData);                                                                         //Transmit packet
                         packetId = next.value.nextId;                                                              //Ready next Packet ID
-                        resolve();
+                        resolve(next.value.type !== ltLaunchNow);                                                  //Resolve and indicate if there's more to come
                     });
                 }
                 function loaderAcknowledged(waittime) {
@@ -2953,8 +2946,9 @@ function talkToProp(cid, binImage, toEEPROM) {
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error(next.value.recvErr)); return;
                             }
-                            console.log("Packet delivered.");
-                            resolve();
+                            //Resolve and indicate there's more to come
+                            console.log("Packet accepted.");
+                            resolve(true);
                         }
                         console.log("Waiting %d ms for acknowledgement", waittime);
                         setTimeout(verifier, waittime);
@@ -2964,15 +2958,9 @@ function talkToProp(cid, binImage, toEEPROM) {
                 //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
-
                     sendInstructionPacket()
-                        .then(function() {if (!next.done) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
-                        .then(function() {if (!next.done) {return finalizeDelivery()}})
-//                        .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
-//                        .then(function() {if (toEEPROM) {return loaderAcknowledged(4500+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
-//                        .then(function() {return sendReadyToLaunch();})
-//                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-//                        .then(function() {return sendLaunchNow();})
+                        .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function(ack) {if (ack) {return finalizeDelivery()}})
                         .then(function() {return resolve()})
                         .catch(function(e) {return reject(e)});
                 });
