@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
 
       //Temporary direct development download step
-//      loadPropeller(null, 'COM3', 'RAM', null, false);
+      loadPropeller(null, 'COM3', 'RAM', null, false);
 //        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
 
     } else {
@@ -139,9 +139,11 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-              ws_msg.success = loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-  
-          // open or close the serial port for terminal/debug
+              loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+              //TODO Replace this - temporary hard-coded success response
+              ws_msg.success = true;
+
+              // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open" or "close"
             log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud');
