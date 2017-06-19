@@ -240,8 +240,7 @@ function flush(cid) {
 }
 
 //TODO Check send callback
-//TODO Consider returning error object
-//TODO Promisify
+//TODO Promisify and return error object
 function send(cid, data) {
 /* Transmit data on port cid
    cid is the open port's connection identifier*/
@@ -2915,55 +2914,31 @@ function talkToProp(cid, binImage, toEEPROM) {
             });
         }
 
+        function* packetGenerator() {
+        //Packet specification generator; generates details for the next packet
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Requesting RAM Verify", recvTime: 800, recvErr: "RAM checksum failure!"};
+            if (toEEPROM) {
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Requesting EEPROM Program/Verify", recvTime: 4500, recvErr: "EEPROM Programming Failure!"};
+            }
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Requesting Launch", recvTime: 800, recvErr: "Communication failed!"};
+            yield {type: ltLaunchNow, nextId: -1, sendLog: "Commanding Launch", recvTime: 0, recvErr: ""};
+        }
+
         //TODO lower waittime
         function finalizeDelivery() {
         // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
             return new Promise(function(resolve, reject) {
 
-                function sendRAMVerify() {
+                function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
-                        console.log("Requesting RAM Verify");
+                        next = instPacket.next();
+                        console.log(next.value.sendLog);
                         prepForMBLResponse();
-                        generateLoaderPacket(ltVerifyRAM, packetId);                                               //Generate VerifyRAM executable packet
+                        generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
                         send(cid, txData);                                                                         //Transmit packet
-                        packetId = -checksum;                                                                      //Ready next packet; ID's by -checksum now
-                        resolve();
-                    });
-                }
-                function sendEEPROMProgram() {
-                    return new Promise(function(resolve, reject) {
-                        console.log("Requesting EEPROM Program/Verify");
-                        prepForMBLResponse();
-                        generateLoaderPacket(ltProgramEEPROM, packetId);                                           //Generate Program/VerifyEEPROM executable packet
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        send(cid, txData);                                                                         //Transmit packet
-                        packetId = -checksum*2;                                                                    //Ready next packet; ID's by -checksum*2 now
-                        resolve();
-                    });
-                }
-                function sendReadyToLaunch() {
-                    return new Promise(function(resolve, reject) {
-                        console.log("Requesting Launch");
-                        prepForMBLResponse();
-                        generateLoaderPacket(ltReadyToLaunch, packetId);                                           //Generate ReadyToLaunch executable packet
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        send(cid, txData);                                                                         //Transmit packet
-                        packetId -= 1;                                                                             //Ready next packet; ID's by prev checksum-1 now
-                        resolve();
-                    });
-                }
-                function sendLaunchNow() {
-                    return new Promise(function(resolve, reject) {
-                        console.log("Commanding Launch");
-                        prepForMBLResponse();
-                        generateLoaderPacket(ltLaunchNow, packetId);                                               //Generate LaunchNow executable packet
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        send(cid, txData);                                                                         //Transmit packet
+                        packetId = next.value.nextId;                                                              //Ready next Packet ID
                         resolve();
                     });
                 }
@@ -2976,9 +2951,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                             console.log("Verifying loader acknowledgement");
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error("RAM checksum failure!")); return;
-//!!!                                reject(Error("EEPROM Programming Failure!")); return;
-//!!!                                reject(Error("Communication failed!")); return;
+                                reject(Error(next.value.recvErr)); return;
                             }
                             console.log("Packet delivered.");
                             resolve();
@@ -2987,16 +2960,19 @@ function talkToProp(cid, binImage, toEEPROM) {
                         setTimeout(verifier, waittime);
                     });
                 }
+
                 //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
                 //No delay, but call sendUA promise with setTimeout for asynchronous processing
                 setTimeout(function() {
-                    sendRAMVerify()
-                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-                        .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
-                        .then(function() {if (toEEPROM) {return loaderAcknowledged(4500+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
-                        .then(function() {return sendReadyToLaunch();})
-                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-                        .then(function() {return sendLaunchNow();})
+
+                    sendInstructionPacket()
+                        .then(function() {if (!next.done) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                        .then(function() {if (!next.done) {return finalizeDelivery()}})
+//                        .then(function() {if (toEEPROM) {return sendEEPROMProgram();}})
+//                        .then(function() {if (toEEPROM) {return loaderAcknowledged(4500+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+//                        .then(function() {return sendReadyToLaunch();})
+//                        .then(function() {return loaderAcknowledged(800+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+//                        .then(function() {return sendLaunchNow();})
                         .then(function() {return resolve()})
                         .catch(function(e) {return reject(e)});
                 });
@@ -3020,6 +2996,10 @@ function talkToProp(cid, binImage, toEEPROM) {
         //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
         // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
         var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+
+        //Prep packetGenerator iterator and next object
+        var instPacket = packetGenerator();
+        var next;
 
         isOpen(cid)
             .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
