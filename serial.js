@@ -326,7 +326,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         0x39, 0x03, 0xE8, 0xF6, 0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x35, 0xC0,
         0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x00, 0x00
     ];*/
-
+    //FloatMathDemoPABWX.spin
 /*    const binImage = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0xE7, 0x10, 0x00, 0x98, 0x19, 0x8C, 0x50, 0x4C, 0x00, 0x94, 0x50,
         0xC8, 0x00, 0x02, 0x03, 0x3C, 0x00, 0x04, 0x00, 0xC8, 0x00, 0x00, 0x00, 0x98, 0x17, 0xAC, 0x36,
@@ -2790,7 +2790,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {return talkToProp(cid, buffer2ArrayBuffer(binImage), action === 'EEPROM')})           //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-//        .then(function()return true)
+        .then(function() {console.log("Download successful.")})
         .catch(function(e) {console.log(e.message); changeBaudrate(cid, originalBaudrate)});
 }
 
@@ -2895,15 +2895,11 @@ function talkToProp(cid, binImage, toEEPROM) {
                         setTimeout(verifier, waittime);
                     });
                 }
-                //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
-                //No delay, but call sendUA promise with setTimeout for asynchronous processing
-                setTimeout(function() {
-                    sendUA()
-                        .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
-                        .then(function() {if (packetId > 0) {return sendUserApp()}})
-                        .then(function() {return resolve()})
-                        .catch(function(e) {return reject(e)});
-                });
+                sendUA()
+                    .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                    .then(function() {if (packetId > 0) {return sendUserApp()}})
+                    .then(function() {return resolve()})
+                    .catch(function(e) {return reject(e)});
             });
         }
 
@@ -2955,15 +2951,11 @@ function talkToProp(cid, binImage, toEEPROM) {
                     });
                 }
 
-                //TODO setTimeout may not be needed here?  Probably not... a return of the sendUA promise chain may work?
-                //No delay, but call sendUA promise with setTimeout for asynchronous processing
-                setTimeout(function() {
-                    sendInstructionPacket()
-                        .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
-                        .then(function(ack) {if (ack) {return finalizeDelivery()}})
-                        .then(function() {return resolve()})
-                        .catch(function(e) {return reject(e)});
-                });
+                sendInstructionPacket()
+                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
+                    .then(function() {return resolve()})
+                    .catch(function(e) {return reject(e)});
             });
         }
 
