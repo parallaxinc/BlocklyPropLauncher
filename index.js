@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
 
       //Temporary direct development download step
-      loadPropeller(null, 'COM3', 'RAM', null, true);
+      loadPropeller(null, 'COM3', 'RAM', null, false);
 //        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
 
     } else {
@@ -279,7 +279,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       log('opening ' + portPath);
     }
   } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
-    var cid = findConnectionId(sock, portPath);
+    var cid = findConnectionId(portPath);
     if (cid) {
       closePort(cid);
     }
@@ -325,7 +325,7 @@ chrome.serial.onReceive.addListener(function(info) {
             }
           });
         } else {
-          if(connectedUSB[k].mode === 'debug') {
+          if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
             var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
             if(connectedSockets[connectedUSB[k].wsSocket]) {
@@ -337,8 +337,8 @@ chrome.serial.onReceive.addListener(function(info) {
     }
   } else {
     // NOT 100% SURE ABOUT THIS!!!!
-//!!! Commented out the closing of "rouge serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
-//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
+//!!! Commented out the closing of "rogue serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
+//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rogue serial connection');});
   }
 });
 
