@@ -9,6 +9,17 @@ function $(id) {
   return document.getElementById(id);
 }
 
+//Messaging types
+//destinations
+const mdLog = 1;
+const mdDisplay = 2;
+const mdConsole = 4;
+//categories
+const mcStatus = 8;
+const mcVerbose = 16;
+
+
+
 // TODO: provide mechanism for this to be a downloadable date-stamped file.
 function msg(text = "", type = []) {
 /* Messaging and logging conduit.  Delivers text to one, or possibly many, destination(s) according to steering and filter type(s).
