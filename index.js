@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
 
       //Temporary direct development download step
-      loadPropeller(null, 'COM3', 'RAM', null, false);
+//      loadPropeller(null, 'COM3', 'RAM', null, false);
 //        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
 
     } else {
@@ -139,9 +139,7 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-              loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-              //TODO Replace this - temporary hard-coded success response
-              ws_msg.success = true;
+              setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
 
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {

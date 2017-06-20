@@ -191,6 +191,7 @@ function isOpen(cid) {
     });
 }
 
+//TODO May have to remove connection record with cid once there's a serial error
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
