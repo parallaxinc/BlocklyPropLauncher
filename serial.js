@@ -272,6 +272,7 @@ function buffer2ArrayBuffer(buffer) {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
+//TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port cid
 //TODO Remove hard-coded example applications
 //TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
 //TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?

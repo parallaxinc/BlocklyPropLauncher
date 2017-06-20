@@ -10,7 +10,10 @@ function $(id) {
 }
 
 // TODO: provide mechanism for this to be a downloadable date-stamped file.
-function log(text) {
+function msg(text = "", type = []) {
+/* Messaging and logging conduit.  Delivers text to one, or possibly many, destination(s) according to steering and filter type(s).
+   text is message to convey
+   type is zero or more categories the message applies too.*/
   $('log').innerHTML += text + '<br>';
 }
 
@@ -139,7 +142,10 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-              setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
+            socket.send(JSON.stringify(msg_to_send));
+
 
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
