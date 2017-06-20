@@ -6,7 +6,7 @@ function parseFile(payload) {
   var progSize = 0;
   var fb = atob(payload);
   var fo = new ArrayBuffer(fb.length);
-  var fs = new UInt8Array(fo);
+  var fs = new Uint8Array(fo);
   
   fs = str2buf(fb);
 
@@ -40,7 +40,7 @@ function parseFile(payload) {
     //progSize = getValueAt(fb, 0x9C, fe, 2);
     
     imageFile = new ArrayBuffer(progSize);
-    output = new Array(imageFile);
+    output = new Uint8Array(imageFile);
 
     // assemble each program section.
     for (var t = 0; t < sh.length; t++) {

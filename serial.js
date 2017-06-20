@@ -11,6 +11,7 @@ let portBaudrate = 0;                               //Current baud rate
 // Programming metrics
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
+let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
@@ -190,6 +191,7 @@ function isOpen(cid) {
     });
 }
 
+//TODO May have to remove connection record with cid once there's a serial error
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
@@ -2771,6 +2773,17 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x0A, 0xFC, 0x64, 0x80, 0x38, 0x2D, 0xFC, 0xF0, 0x0A, 0x03, 0x60, 0xE6, 0x61, 0x32, 0x00, 0x00
      ];*/
 
+    //Set and/or adjust postResetDelay based on platform
+    if (!postResetDelay) {
+        postResetDelay = 100; /*Ideal Post-Reset Delay*/
+        chrome.runtime.getPlatformInfo(function(platformInfo) {
+            if (!chrome.runtime.lastError) {
+                //If Windows, use minimum Post-Reset Delay since Windows often adds more delay
+                postResetDelay = platformInfo.os === "win" ? 60 : postResetDelay;
+            }
+        });
+    }
+
     if (payload) {
         //Extract Propeller Application from payload
         var binImage = parseFile(payload);
@@ -2994,7 +3007,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
-            .then(function() {return sendLoader(100);}                              )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
+            .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
             .then(function() {return sendUserApp();}                                )    //Send user application
