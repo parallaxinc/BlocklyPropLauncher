@@ -191,7 +191,7 @@ function changeBaudrate(cid, baudrate) {
         portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
         isOpen(cid)
             .then(function() {
-                log("Changing " + findConnection(cid).path + " baudrate to " + portBaudrate, mDbug);
+                log("Setting " + findConnection(cid).path + " baudrate to " + portBaudrate, mDbug);
                 chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
                     if (updateResult) {
                         resolve(cid);
@@ -2799,15 +2799,16 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
-        .then(function() {return talkToProp(cid, binImage, action === 'EEPROM')})                               //Download user application to RAM or EEPROM
+        .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-        .then(function() {log("Download successful.", mUser)})
-        .catch(function(e) {log(e.message, mUser); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .then(function() {log("Download successful.", mUser, sock)})
+        .catch(function(e) {log("Error: " + e.message, mUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 
-function talkToProp(cid, binImage, toEEPROM) {
+function talkToProp(sock, cid, binImage, toEEPROM) {
 /* Return promise to deliver Propeller Application (binImage) to Propeller
+   sock is the websocket to direct mUser messages at
    cid is the open port's connection identifier
    binImage must be an ArrayBuffer
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
@@ -2818,9 +2819,9 @@ function talkToProp(cid, binImage, toEEPROM) {
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
             return new Promise(function(resolve, reject) {
-                log("Waiting " + waittime + " ms to deliver Micro Boot Loader package", mDbug);
+                log("Waiting " + Math.trunc(waittime) + " ms to deliver Micro Boot Loader package", mDeep);
                 setTimeout(function() {
-                    log("Transmitting package", mDbug);
+                    log("Transmitting package", mDeep);
                     send(cid, txData);
                     resolve();
                 }, waittime);
@@ -2835,7 +2836,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
             return new Promise(function(resolve, reject) {
                 function verifier() {
-                    log("Verifying package delivery", mDbug);
+                    log("Verifying package delivery", mDeep);
                     //Check handshake and version
                     if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
                     //Check for proper version
@@ -2845,10 +2846,10 @@ function talkToProp(cid, binImage, toEEPROM) {
                     if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error("Loader failed.")); return;}
-                    log("Found Propeller!", mDbug);
+                    log("Found Propeller!", mUser, sock);
                     resolve();
                 }
-                log("Waiting " + waittime + " ms for package delivery", mDbug);
+                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
                 setTimeout(verifier, waittime);
             });
         }
@@ -2871,7 +2872,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
-                        log("Delivering user application packet " + totalPackets-packetId+1 + " of " + totalPackets, mDbug);
+                        log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         prepForMBLResponse();
                         var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
@@ -2894,15 +2895,15 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            log("Verifying loader acknowledgement " + totalPackets-packetId+0 + " of " + totalPackets, mDbug);
+                            log("Verifying loader acknowledgement " + (totalPackets-packetId+0) + " of " + totalPackets, mDeep);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error("Download failed.")); return
                             }
-                            log("Packet delivered.", mDbug);
+                            log("Packet delivered.", mDeep);
                             resolve();
                         }
-                        log("Waiting " + waittime + " ms for acknowledgement", mDbug);
+                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -2916,12 +2917,12 @@ function talkToProp(cid, binImage, toEEPROM) {
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Requesting RAM Verify", recvTime: 800, recvErr: "RAM checksum failure!"};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Verifying RAM", recvTime: 800, recvErr: "RAM checksum failure!"};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Requesting EEPROM Program/Verify", recvTime: 4500, recvErr: "EEPROM Programming Failure!"};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Programming and verifying EEPROM", recvTime: 4500, recvErr: "EEPROM verify failure!"};
             }
-            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Requesting Launch", recvTime: 800, recvErr: "Communication failed!"};
-            yield {type: ltLaunchNow, nextId: -1, sendLog: "Commanding Launch", recvTime: 0, recvErr: ""};
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Ready for Launch", recvTime: 800, recvErr: "Communication failed!"};
+            yield {type: ltLaunchNow, nextId: -1, sendLog: "Launching", recvTime: 0, recvErr: ""};
         }
 
         //TODO lower waittime
@@ -2948,16 +2949,16 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            log("Verifying loader acknowledgement", mDbug);
+                            log("Verifying loader acknowledgement", mDeep);
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error(next.value.recvErr)); return;
                             }
                             //Resolve and indicate there's more to come
-                            log("Packet accepted.", mDbug);
+                            log("Packet accepted.", mDeep);
                             resolve(true);
                         }
-                        log("Waiting " + waittime + " ms for acknowledgement", mDbug);
+                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -2994,7 +2995,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
         isOpen(cid)
             .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
-            .then(function() {       log("Generating reset signal", mDbug);}        )
+            .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
@@ -3004,7 +3005,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {log("Error: " + e.message, mDbug); reject(e);}      );   //Catch errors
+            .catch(function(e) {log(e.message, mDeep); reject(e);}                  );   //Catch errors, pass them on
     });
 }
 
