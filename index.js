@@ -10,14 +10,22 @@ function $(id) {
 }
 
 //Messaging types
-//destinations
-const mdLog = 1;
-const mdDisplay = 2;
-const mdConsole = 4;
-//categories
-const mcStatus = 8;
-const mcVerbose = 16;
 
+// [Message Destinations]
+const mdDisplay = 1;      // BP browser display
+const mdLog     = 2;      // BP local log
+const mdConsole = 4;      // BP local console
+
+// [Message Categories]
+const mcUser    = 8;      // User message
+const mcStatus  = 16;     // Developer status message
+const mcVerbose = 32;     // Deep developer status message
+
+// [Messages]     ------- Destination(s) ------   --- Category(ies) ---
+const mUser     = mdDisplay + mdLog             + mcUser;
+const mStnd     =             mdLog             + mcStatus;
+const mDbug     =             mdLog + mdConsole + mcStatus;
+const mDeep     =                     mdConsole + mcStatus + mcVerbose;
 
 
 // TODO: provide mechanism for this to be a downloadable date-stamped file.
