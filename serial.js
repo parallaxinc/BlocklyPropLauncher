@@ -167,21 +167,26 @@ function findConnection(cidOrPath) {
     }
 }
 
+//TODO re-explore execution of isOpen with different states of the serial port- when disconnected, the reject() is properly handled in log, but appears again (with null path) in console
 function isOpen(cid) {
 /* Return a promise that is resolved if cid port is open, rejected otherwise
    cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.getInfo(cid, function () {
-            if (!chrome.runtime.lastError) {
+        chrome.serial.getInfo(cid, function (connectionInfo) {
+            if (connectionInfo.dataBits !== undefined) {
+                // Port exists and is open
                 resolve(cid);
             } else {
-                reject(Error("Port id:" + cid + " is not open."));
+                reject(Error("Port " + findConnectionPath(cid) + " is disconnected."));
+                deleteConnection(cid);
             }
-        })
+        });
+        if (chrome.runtime.lastError) {
+            reject(Error("Port id:" + cid + " is not open."));
+        }
     });
 }
 
-//TODO May have to remove connection record with cid once there's a serial error
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
@@ -189,17 +194,45 @@ function changeBaudrate(cid, baudrate) {
    Resolves with cid; rejects with Error*/
     return new Promise(function(resolve, reject) {
         portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
+        getBaudrate(cid)
+            .then(function(br) {
+                if (br !== portBaudrate) {
+                    // Need to change current baudrate
+                    log("Changing " + findConnection(cid).path + " to " + portBaudrate + " baud", mDbug);
+                    chrome.serial.update(cid, {'bitrate': portBaudrate}, function (updateResult) {
+                        if (!chrome.runtime.lastError) {
+                            resolve(cid);
+                        } else {
+                            reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
+                        }
+                    });
+                } else {
+                    // Port is already set to baudrate
+                    resolve(cid);
+                }
+            })
+            .catch(function(e) {reject(e)});
+    });
+}
+
+//TODO .bitrate may be omitted if non-standard baudrate used - determine how to check for missing field
+function getBaudrate(cid) {
+    /* Return a promise that retrieves the cid port's baudrate.
+     cid is the open port's connection identifier
+     Resolves with baudrate; rejects with Error*/
+    return new Promise(function(resolve, reject) {
         isOpen(cid)
             .then(function() {
-                log("Setting " + findConnection(cid).path + " baudrate to " + portBaudrate, mDbug);
-                chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
-                    if (updateResult) {
-                        resolve(cid);
+                log("Checking " + findConnectionPath(cid) + "'s baudrate", mDeep);
+                chrome.serial.getInfo(cid, function(connectionInfo) {
+                    if (!chrome.runtime.lastError) {
+                        resolve(connectionInfo.bitrate);
                     } else {
-                        reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
+                        reject(Error("Could not retrieve baudrate of port " + findConnectionPath(cid)));
                     }
                 });
             })
+            .catch(function(e) {reject(e)});
     });
 }
 
@@ -2802,7 +2835,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {log("Download successful.", mUser, sock)})
-        .catch(function(e) {log("Error: " + e.message, mUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .catch(function(e) {log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 
