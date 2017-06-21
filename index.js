@@ -23,17 +23,21 @@ const mcVerbose = 32;     // Deep developer status message
 
 // [Messages]     ------- Destination(s) ------   --- Category(ies) ---
 const mUser     = mdDisplay + mdLog             + mcUser;
-const mStnd     =             mdLog             + mcStatus;
+const mStat     =             mdLog             + mcStatus;
 const mDbug     =             mdLog + mdConsole + mcStatus;
 const mDeep     =                     mdConsole + mcStatus + mcVerbose;
 
 
+//TODO make sure "socket" is available and makes sense.  May have to pass it in as third param.
 // TODO: provide mechanism for this to be a downloadable date-stamped file.
 function msg(text = "", type = []) {
 /* Messaging and logging conduit.  Delivers text to one, or possibly many, destination(s) according to steering and filter type(s).
    text is message to convey
    type is zero or more categories the message applies too.*/
-  $('log').innerHTML += text + '<br>';
+
+  if (type & mdDisplay) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+  if (type & mdLog) {$('log').innerHTML += text + '<br>'}
+  if (type & mdConsole) {console.log(text)}
 }
 
 function isJson(str) {
