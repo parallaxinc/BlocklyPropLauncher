@@ -62,15 +62,6 @@ const ltLaunchNow = 3;
 chrome.serial.onReceive.addListener(hearFromProp);
 
 
-//Add experimental event
-//chrome.app.window.onClosed.addListener(function() {
-//chrome.runtime.onSuspend.addListener(function() {
-//  console.log('Whoa!');
-//    while (connectedUSB.length > 0) {
-//        closePort(connectedUSB[0].connId);
-//    }
-//});
-
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
@@ -104,8 +95,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                         }
                     }
                     connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath, baud: portBaudrate});
-                    log('Device [' + parseInt(openInfo.connectionId) + '] ' + portPath + ' connected');
-                    console.log("Port", portPath, "open with ID", openInfo.connectionId);
+                    log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                     resolve(openInfo.connectionId);
                 } else {
                     // Error
@@ -125,26 +115,19 @@ function closePort(cid) {
         .then(function() {
             chrome.serial.disconnect(cid, function(closeResult) {
                 if (closeResult === true) {
-                    var cn, k = null;
-                    for (cn = 0; cn < connectedUSB.length; cn++) {
-                        if (connectedUSB[cn].connId === cid) {
-                            k = cn;
-                            break;
-                        }
-                    }
-                    if (k !== null) {
-                        log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                        console.log("Closed port %s (id %d)", findConnection(cid).path, cid);
-                        connectedUSB.splice(k, 1);
+                    var conn = findConnection(cid);
+                    if (conn !== null) {
+                        log("Closed port " + conn.path + " (id " + cid + ")", mStat);
+                        deleteConnection(cid);
                     } else {
-                        console.log("Closed port %s (id %d), but connection not found", findConnection(cid).path, cid);
+                        log("Closed port id " + cid + " but connection not found", mStat);
                     }
                 } else {
-                    console.log("Connection not closed");
+                    log("Connection not closed", mStat  );
                 }
             });
         })
-        .catch(function(e) {console.log(e.message)});
+        .catch(function(e) {log(e.message, mStat)});
 }
 
 function findConnectionId(portPath) {
@@ -157,6 +140,13 @@ function findConnectionPath(id) {
 // Return port path of connection associated with id
     const record = findConnection(id);
     return record ? record.path : null;
+}
+
+function deleteConnection(id) {
+// Delete connection associated with id
+    let cn = 0;
+    while (cn < connectedUSB.length && connectedUSB[cn].connId !== id) {cn++}
+    if (cn < connectedUSB.length) {connectedUSB.splice(cn, 1)}
 }
 
 function findConnection(cidOrPath) {
@@ -201,7 +191,7 @@ function changeBaudrate(cid, baudrate) {
         portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
         isOpen(cid)
             .then(function() {
-                console.log("Changing %s baudrate to %d", findConnection(cid).path, portBaudrate);
+                log("Changing " + findConnection(cid).path + " baudrate to " + portBaudrate, mDbug);
                 chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
                     if (updateResult) {
                         resolve(cid);
@@ -2811,8 +2801,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {return talkToProp(cid, binImage, action === 'EEPROM')})                               //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-        .then(function() {console.log("Download successful.")})
-        .catch(function(e) {console.log(e.message); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .then(function() {log("Download successful.", mUser)})
+        .catch(function(e) {log(e.message, mUser); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 
@@ -2828,9 +2818,9 @@ function talkToProp(cid, binImage, toEEPROM) {
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
             return new Promise(function(resolve, reject) {
-                console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+                log("Waiting " + waittime + " ms to deliver Micro Boot Loader package", mDbug);
                 setTimeout(function() {
-                    console.log("Transmitting package");
+                    log("Transmitting package", mDbug);
                     send(cid, txData);
                     resolve();
                 }, waittime);
@@ -2845,7 +2835,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
             return new Promise(function(resolve, reject) {
                 function verifier() {
-                    console.log("Verifying package delivery");
+                    log("Verifying package delivery", mDbug);
                     //Check handshake and version
                     if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
                     //Check for proper version
@@ -2855,10 +2845,10 @@ function talkToProp(cid, binImage, toEEPROM) {
                     if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error("Loader failed.")); return;}
-                    console.log("Found Propeller!");
+                    log("Found Propeller!", mDbug);
                     resolve();
                 }
-                console.log("Waiting %d ms for package delivery", waittime);
+                log("Waiting " + waittime + " ms for package delivery", mDbug);
                 setTimeout(verifier, waittime);
             });
         }
@@ -2881,7 +2871,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
-                        console.log("Delivering user application packet %d of %d", totalPackets-packetId+1, totalPackets);
+                        log("Delivering user application packet " + totalPackets-packetId+1 + " of " + totalPackets, mDbug);
                         prepForMBLResponse();
                         var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
@@ -2904,15 +2894,15 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            console.log("Verifying loader acknowledgement to packet %d of %d", totalPackets-packetId+0, totalPackets);
+                            log("Verifying loader acknowledgement " + totalPackets-packetId+0 + " of " + totalPackets, mDbug);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error("Download failed")); return
+                                reject(Error("Download failed.")); return
                             }
-                            console.log("Packet delivered.");
+                            log("Packet delivered.", mDbug);
                             resolve();
                         }
-                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        log("Waiting " + waittime + " ms for acknowledgement", mDbug);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -2942,7 +2932,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
-                        console.log(next.value.sendLog);
+                        log(next.value.sendLog, mDbug);
                         prepForMBLResponse();
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
@@ -2958,16 +2948,16 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            console.log("Verifying loader acknowledgement");
+                            log("Verifying loader acknowledgement", mDbug);
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error(next.value.recvErr)); return;
                             }
                             //Resolve and indicate there's more to come
-                            console.log("Packet accepted.");
+                            log("Packet accepted.", mDbug);
                             resolve(true);
                         }
-                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        log("Waiting " + waittime + " ms for acknowledgement", mDbug);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -3004,7 +2994,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
         isOpen(cid)
             .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
-            .then(function() {       console.log("Generating reset signal");}       )
+            .then(function() {       log("Generating reset signal", mDbug);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
@@ -3014,7 +3004,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
+            .catch(function(e) {log("Error: " + e.message, mDbug); reject(e);}      );   //Catch errors
     });
 }
 
@@ -3032,10 +3022,10 @@ function hearFromProp(info) {
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
 
-    console.log("Received", info.data.byteLength, "bytes =", ab2num(info.data));
+    log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
     // Exit immediately if we're not programming
     if (propComm.stage === sgIdle) {
-        console.log("...ignoring");
+        log("...ignoring", mDeep);
         return;
     }
 
@@ -3115,7 +3105,7 @@ function timedPromise(promise, timeout){
     var expired = function() {
         return new Promise(function (resolve, reject) {
             var id = setTimeout(function() {
-                console.log("Timed out!");
+                log("Timed out!", mDbug);
                 clearTimeout(id);
                 reject(Error('Timed out in ' + timeout + ' ms.'));
             }, timeout);

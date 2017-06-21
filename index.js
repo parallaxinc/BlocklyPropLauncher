@@ -9,35 +9,40 @@ function $(id) {
   return document.getElementById(id);
 }
 
-//Messaging types
-
-// [Message Destinations]
-const mdDisplay = 1;      // BP browser display
-const mdLog     = 2;      // BP local log
-const mdConsole = 4;      // BP local console
+// Messaging types
+// These classify messages sent to log() to be routed to one or more destinations (browser dialog, app log, or app/browser console).
+// The intention is that such messages can be later filtered via options set in the app itself to make debugging easier.
 
 // [Message Categories]
-const mcUser    = 8;      // User message
-const mcStatus  = 16;     // Developer status message
-const mcVerbose = 32;     // Deep developer status message
+const mcUser    = 1;       // User message
+const mcStatus  = 2;       // Developer status message
+const mcVerbose = 4;       // Deep developer status message
 
-// [Messages]     ------- Destination(s) ------   --- Category(ies) ---
-const mUser     = mdDisplay + mdLog             + mcUser;
-const mStat     =             mdLog             + mcStatus;
-const mDbug     =             mdLog + mdConsole + mcStatus;
-const mDeep     =                     mdConsole + mcStatus + mcVerbose;
+// [Message Destinations]
+const mdDisplay = 8;       // BP browser display
+const mdLog     = 16;      // BP local log
+const mdConsole = 32;      // BP local console
 
+// [Messages]     --- Category(ies) ---   ------- Destination(s) ------
+const mUser     = mcUser                +  mdDisplay + mdLog;
+const mStat     = mcStatus              +              mdLog;
+const mDbug     = mcStatus              +              mdLog + mdConsole;
+const mDeep     = mcVerbose             +                      mdConsole;
 
-//TODO make sure "socket" is available and makes sense.  May have to pass it in as third param.
-// TODO: provide mechanism for this to be a downloadable date-stamped file.
-function msg(text = "", type = []) {
-/* Messaging and logging conduit.  Delivers text to one, or possibly many, destination(s) according to steering and filter type(s).
-   text is message to convey
-   type is zero or more categories the message applies too.*/
-
-  if (type & mdDisplay) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
-  if (type & mdLog) {$('log').innerHTML += text + '<br>'}
-  if (type & mdConsole) {console.log(text)}
+//TODO allow this to be further filtered with includes/excludes set by app options at runtime
+//TODO provide mechanism for this to be a downloadable date-stamped file.
+//TODO should filters apply to downloadable file?  Not sure yet.
+function log(text = "", type = mStat, socket = null) {
+/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to destination and filter type(s).
+   text is the message to convey.
+   type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
+   socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
+  if (type & (mcUser | mcStatus | mcVerbose)) {
+  // Deliver categorized message to proper destination
+      if (type & mdDisplay && socket) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+      if (type & mdLog) {$('log').innerHTML += text + '<br>'}
+      if (type & mdConsole) {console.log(text)}
+  }
 }
 
 function isJson(str) {
@@ -90,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('connect-disconnect').className = 'button button-green';
 
       //Temporary direct development download step
-//      loadPropeller(null, 'COM3', 'RAM', null, false);
+      loadPropeller(null, 'COM3', 'RAM', null, false);
 //        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
 
     } else {
@@ -166,8 +171,8 @@ function connect_ws(ws_port, url_path) {
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
             setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
-            socket.send(JSON.stringify(msg_to_send));
+//            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
+//            socket.send(JSON.stringify(msg_to_send));
 
 
               // open or close the serial port for terminal/debug
