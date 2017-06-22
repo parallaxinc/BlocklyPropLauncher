@@ -9,9 +9,40 @@ function $(id) {
   return document.getElementById(id);
 }
 
-// TODO: provide mechanism for this to be a downloadable date-stamped file.
-function log(text) {
-  $('log').innerHTML += text + '<br>';
+// Messaging types
+// These classify messages sent to log() to be routed to one or more destinations (browser dialog, app log, or app/browser console).
+// The intention is that such messages can be later filtered via options set in the app itself to make debugging easier.
+
+// [Message Categories]
+const mcUser    = 1;       // User message
+const mcStatus  = 2;       // Developer status message
+const mcVerbose = 4;       // Deep developer status message
+
+// [Message Destinations]
+const mdDisplay = 8;       // BP browser display
+const mdLog     = 16;      // BP local log
+const mdConsole = 32;      // BP local console
+
+// [Messages]     --- Category(ies) ---   ------- Destination(s) ------
+const mUser     = mcUser                +  mdDisplay + mdLog;
+const mStat     = mcStatus              +              mdLog;
+const mDbug     = mcStatus              +              mdLog + mdConsole;
+const mDeep     = mcVerbose             +                      mdConsole;
+
+//TODO allow this to be further filtered with includes/excludes set by app options at runtime
+//TODO provide mechanism for this to be a downloadable date-stamped file.
+//TODO should filters apply to downloadable file?  Not sure yet.
+function log(text = "", type = mStat, socket = null) {
+/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to destination and filter type(s).
+   text is the message to convey.
+   type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
+   socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
+  if (type & (mcUser | mcStatus | mcVerbose)) {
+  // Deliver categorized message to proper destination
+      if ((type & mdDisplay) && socket !== null) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+      if (type & mdLog) {$('log').innerHTML += text + '<br>'}
+      if (type & mdConsole) {console.log(text)}
+  }
 }
 
 function isJson(str) {
@@ -139,7 +170,10 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-              setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+//            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
+//            socket.send(JSON.stringify(msg_to_send));
+
 
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {

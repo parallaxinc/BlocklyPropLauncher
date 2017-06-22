@@ -1,4 +1,5 @@
 
+//TODO Handle "disconnected" and "device_lost" events (and possibly "system_error")
 //TODO Enhance to log brief messages (to either local log feature or console) and optionally also log verbose messages (for deeper debugging)
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
@@ -62,15 +63,6 @@ const ltLaunchNow = 3;
 chrome.serial.onReceive.addListener(hearFromProp);
 
 
-//Add experimental event
-//chrome.app.window.onClosed.addListener(function() {
-//chrome.runtime.onSuspend.addListener(function() {
-//  console.log('Whoa!');
-//    while (connectedUSB.length > 0) {
-//        closePort(connectedUSB[0].connId);
-//    }
-//});
-
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
@@ -104,8 +96,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                         }
                     }
                     connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath, baud: portBaudrate});
-                    log('Device [' + parseInt(openInfo.connectionId) + '] ' + portPath + ' connected');
-                    console.log("Port", portPath, "open with ID", openInfo.connectionId);
+                    log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                     resolve(openInfo.connectionId);
                 } else {
                     // Error
@@ -125,26 +116,19 @@ function closePort(cid) {
         .then(function() {
             chrome.serial.disconnect(cid, function(closeResult) {
                 if (closeResult === true) {
-                    var cn, k = null;
-                    for (cn = 0; cn < connectedUSB.length; cn++) {
-                        if (connectedUSB[cn].connId === cid) {
-                            k = cn;
-                            break;
-                        }
-                    }
-                    if (k !== null) {
-                        log('Device [' + connectedUSB[k].connId + '] ' + connectedUSB[k].path + ' disconnected');
-                        console.log("Closed port %s (id %d)", findConnection(cid).path, cid);
-                        connectedUSB.splice(k, 1);
+                    var conn = findConnection(cid);
+                    if (conn !== null) {
+                        log("Closed port " + conn.path + " (id " + cid + ")", mStat);
+                        deleteConnection(cid);
                     } else {
-                        console.log("Closed port %s (id %d), but connection not found", findConnection(cid).path, cid);
+                        log("Closed port id " + cid + " but connection not found", mStat);
                     }
                 } else {
-                    console.log("Connection not closed");
+                    log("Connection not closed", mStat  );
                 }
             });
         })
-        .catch(function(e) {console.log(e.message)});
+        .catch(function(e) {log(e.message, mStat)});
 }
 
 function findConnectionId(portPath) {
@@ -157,6 +141,13 @@ function findConnectionPath(id) {
 // Return port path of connection associated with id
     const record = findConnection(id);
     return record ? record.path : null;
+}
+
+function deleteConnection(id) {
+// Delete connection associated with id
+    let cn = 0;
+    while (cn < connectedUSB.length && connectedUSB[cn].connId !== id) {cn++}
+    if (cn < connectedUSB.length) {connectedUSB.splice(cn, 1)}
 }
 
 function findConnection(cidOrPath) {
@@ -177,21 +168,26 @@ function findConnection(cidOrPath) {
     }
 }
 
+//TODO re-explore execution of isOpen with different states of the serial port- when disconnected, the reject() is properly handled in log, but appears again (with null path) in console
 function isOpen(cid) {
 /* Return a promise that is resolved if cid port is open, rejected otherwise
    cid is the open port's connection identifier*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.getInfo(cid, function () {
-            if (!chrome.runtime.lastError) {
+        chrome.serial.getInfo(cid, function (connectionInfo) {
+            if (connectionInfo.dataBits !== undefined) {
+                // Port exists and is open
                 resolve(cid);
             } else {
-                reject(Error("Port id:" + cid + " is not open."));
+                reject(Error("Port " + findConnectionPath(cid) + " is disconnected."));
+                deleteConnection(cid);
             }
-        })
+        });
+        if (chrome.runtime.lastError) {
+            reject(Error("Port id:" + cid + " is not open."));
+        }
     });
 }
 
-//TODO May have to remove connection record with cid once there's a serial error
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
@@ -199,17 +195,45 @@ function changeBaudrate(cid, baudrate) {
    Resolves with cid; rejects with Error*/
     return new Promise(function(resolve, reject) {
         portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
+        getBaudrate(cid)
+            .then(function(br) {
+                if (br !== portBaudrate) {
+                    // Need to change current baudrate
+                    log("Changing " + findConnection(cid).path + " to " + portBaudrate + " baud", mDbug);
+                    chrome.serial.update(cid, {'bitrate': portBaudrate}, function (updateResult) {
+                        if (!chrome.runtime.lastError) {
+                            resolve(cid);
+                        } else {
+                            reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
+                        }
+                    });
+                } else {
+                    // Port is already set to baudrate
+                    resolve(cid);
+                }
+            })
+            .catch(function(e) {reject(e)});
+    });
+}
+
+//TODO .bitrate may be omitted if non-standard baudrate used - determine how to check for missing field
+function getBaudrate(cid) {
+    /* Return a promise that retrieves the cid port's baudrate.
+     cid is the open port's connection identifier
+     Resolves with baudrate; rejects with Error*/
+    return new Promise(function(resolve, reject) {
         isOpen(cid)
             .then(function() {
-                console.log("Changing %s baudrate to %d", findConnection(cid).path, portBaudrate);
-                chrome.serial.update(cid, {'bitrate': portBaudrate}, function(updateResult) {
-                    if (updateResult) {
-                        resolve(cid);
+                log("Checking " + findConnectionPath(cid) + "'s baudrate", mDeep);
+                chrome.serial.getInfo(cid, function(connectionInfo) {
+                    if (!chrome.runtime.lastError) {
+                        resolve(connectionInfo.bitrate);
                     } else {
-                        reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
+                        reject(Error("Could not retrieve baudrate of port " + findConnectionPath(cid)));
                     }
                 });
             })
+            .catch(function(e) {reject(e)});
     });
 }
 
@@ -272,6 +296,7 @@ function buffer2ArrayBuffer(buffer) {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
+//TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port cid
 //TODO Remove hard-coded example applications
 //TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
 //TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?
@@ -2808,15 +2833,23 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
-        .then(function() {return talkToProp(cid, binImage, action === 'EEPROM')})                               //Download user application to RAM or EEPROM
+        .then(function() {log("Scanning port " + findConnectionPath(cid), mUser)})                              //Notify what port we're using
+        .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-        .then(function() {console.log("Download successful.")})
-        .catch(function(e) {console.log(e.message); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
+            log("Download successful.", mUser, sock);
+            if (sock && debug) {
+                sock.send(JSON.stringify({type:'ui-command', action:'open-terminal'}));
+                sock.send(JSON.stringify({type:'ui-command', action:'close-compile'}));
+            }
+        })
+        .catch(function(e) {log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 
-function talkToProp(cid, binImage, toEEPROM) {
+function talkToProp(sock, cid, binImage, toEEPROM) {
 /* Return promise to deliver Propeller Application (binImage) to Propeller
+   sock is the websocket to direct mUser messages at
    cid is the open port's connection identifier
    binImage must be an ArrayBuffer
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
@@ -2827,9 +2860,9 @@ function talkToProp(cid, binImage, toEEPROM) {
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
             return new Promise(function(resolve, reject) {
-                console.log("Waiting %d ms to deliver Micro Boot Loader package", waittime);
+                log("Waiting " + Math.trunc(waittime) + " ms to deliver Micro Boot Loader package", mDeep);
                 setTimeout(function() {
-                    console.log("Transmitting package");
+                    log("Transmitting package", mDeep);
                     send(cid, txData);
                     resolve();
                 }, waittime);
@@ -2844,7 +2877,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
             return new Promise(function(resolve, reject) {
                 function verifier() {
-                    console.log("Verifying package delivery");
+                    log("Verifying package delivery", mDeep);
                     //Check handshake and version
                     if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
                     //Check for proper version
@@ -2854,10 +2887,10 @@ function talkToProp(cid, binImage, toEEPROM) {
                     if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error("Loader failed.")); return;}
-                    console.log("Found Propeller!");
+                    log("Found Propeller!", mUser, sock);
                     resolve();
                 }
-                console.log("Waiting %d ms for package delivery", waittime);
+                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
                 setTimeout(verifier, waittime);
             });
         }
@@ -2880,7 +2913,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
-                        console.log("Delivering user application packet %d of %d", totalPackets-packetId+1, totalPackets);
+                        log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         prepForMBLResponse();
                         var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
@@ -2903,15 +2936,15 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            console.log("Verifying loader acknowledgement to packet %d of %d", totalPackets-packetId+0, totalPackets);
+                            log("Verifying loader acknowledgement " + (totalPackets-packetId+0) + " of " + totalPackets, mDeep);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error("Download failed")); return
+                                reject(Error("Download failed.")); return
                             }
-                            console.log("Packet delivered.");
+                            log("Packet delivered.", mDeep);
                             resolve();
                         }
-                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -2925,12 +2958,12 @@ function talkToProp(cid, binImage, toEEPROM) {
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Requesting RAM Verify", recvTime: 800, recvErr: "RAM checksum failure!"};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Verifying RAM", recvTime: 800, recvErr: "RAM checksum failure!"};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Requesting EEPROM Program/Verify", recvTime: 4500, recvErr: "EEPROM Programming Failure!"};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Programming and verifying EEPROM", recvTime: 4500, recvErr: "EEPROM verify failure!"};
             }
-            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Requesting Launch", recvTime: 800, recvErr: "Communication failed!"};
-            yield {type: ltLaunchNow, nextId: -1, sendLog: "Commanding Launch", recvTime: 0, recvErr: ""};
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Ready for Launch", recvTime: 800, recvErr: "Communication failed!"};
+            yield {type: ltLaunchNow, nextId: -1, sendLog: "Launching", recvTime: 0, recvErr: ""};
         }
 
         //TODO lower waittime
@@ -2941,7 +2974,7 @@ function talkToProp(cid, binImage, toEEPROM) {
                 function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
-                        console.log(next.value.sendLog);
+                        log(next.value.sendLog, mDbug);
                         prepForMBLResponse();
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
@@ -2957,16 +2990,16 @@ function talkToProp(cid, binImage, toEEPROM) {
                 Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
                     return new Promise(function(resolve, reject) {
                         function verifier() {
-                            console.log("Verifying loader acknowledgement");
+                            log("Verifying loader acknowledgement", mDeep);
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error(next.value.recvErr)); return;
                             }
                             //Resolve and indicate there's more to come
-                            console.log("Packet accepted.");
+                            log("Packet accepted.", mDeep);
                             resolve(true);
                         }
-                        console.log("Waiting %d ms for acknowledgement", waittime);
+                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
                         setTimeout(verifier, waittime);
                     });
                 }
@@ -3003,7 +3036,7 @@ function talkToProp(cid, binImage, toEEPROM) {
 
         isOpen(cid)
             .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
-            .then(function() {       console.log("Generating reset signal");}       )
+            .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
@@ -3013,7 +3046,7 @@ function talkToProp(cid, binImage, toEEPROM) {
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {console.log("Error: %s", e.message); reject(e);}    );   //Catch errors
+            .catch(function(e) {log(e.message, mDeep); reject(e);}                  );   //Catch errors, pass them on
     });
 }
 
@@ -3031,10 +3064,10 @@ function hearFromProp(info) {
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
 
-    console.log("Received", info.data.byteLength, "bytes =", ab2num(info.data));
+    log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
     // Exit immediately if we're not programming
     if (propComm.stage === sgIdle) {
-        console.log("...ignoring");
+        log("...ignoring", mDeep);
         return;
     }
 
@@ -3114,7 +3147,7 @@ function timedPromise(promise, timeout){
     var expired = function() {
         return new Promise(function (resolve, reject) {
             var id = setTimeout(function() {
-                console.log("Timed out!");
+                log("Timed out!", mDbug);
                 clearTimeout(id);
                 reject(Error('Timed out in ' + timeout + ' ms.'));
             }, timeout);
