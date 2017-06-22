@@ -170,7 +170,7 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 1500);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
 //            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
 //            socket.send(JSON.stringify(msg_to_send));
 
@@ -300,37 +300,25 @@ function helloClient(sock, baudrate) {
   sock.send(JSON.stringify(msg_to_send));
 }
 
-
+//TODO Check send results and act accordingly?
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  // TODO: disconnect USB is already active first?
+  var cid = findConnectionId(portPath);
   if (action === "open") {
-    if (portPath.indexOf('dev/tty') === -1) {
-      log('Not opening: ' + portPath);
+    if (!cid) {
+      log('Unable to connect terminal to ' + portPath);
       var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
       sock.send(JSON.stringify(msg_to_send));
     } else {
+      log('Connecting terminal to ' + portPath);
       openPort(sock, portPath, baudrate, 'debug');
-      log('opening ' + portPath);
     }
-  } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
-    var cid = findConnectionId(portPath);
+  } else if (action === "close") {
     if (cid) {
       closePort(cid);
     }
   } else if (action === "msg") {
-    // must be something to send to the device - find its connection ID and send it.    
-    var cn, k = null;
-    for (cn = 0; cn < connectedUSB.length; cn++) {
-      if (connectedUSB[cn].path === portPath) {
-        k = cn;
-        break;
-      }
-    }
-    if (k !== null) {
-      chrome.serial.send(connectedUSB[k].connId, str2ab(msg), function() {
-          //log('sent: ' + msg);
-      });
-    }
+    // must be something to send to the device - find its connection ID and send it.
+    send(cid, msg);
   }
 }
 

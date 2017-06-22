@@ -76,34 +76,60 @@ function openPort(sock, portPath, baudrate, connMode) {
    Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        chrome.serial.connect(portPath, {
-                'bitrate': portBaudrate,
-                'dataBits': 'eight',
-                'parityBit': 'no',
-                'stopBits': 'one',
-                'ctsFlowControl': false
-            },
-            function (openInfo) {
-                if (!chrome.runtime.lastError) {
-                    // No error
-                    serialJustOpened = openInfo.connectionId;
-                    var vs = null;
-                    // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
-                    for (var j = 0; j < connectedSockets.length; j++) {
-                        if (connectedSockets[j] === sock) {
-                            vs = j;
-                            break;
+        var cid = findConnectionId(portPath);
+        if (cid) {
+            log("Checking if port is open", mDbug);
+            isOpen()
+                //Already open?  Ensure correct baudrate and resolve immediately.  Else; try to open it
+                .then(function() {return applyBaud()}, function() {return open()});
+        } else {
+            open();
+        }
+
+        function applyBaud() {
+            log("Port already open", mDbug);
+            changeBaudrate(cid, portBaudrate)
+                .then(function () {resolve(openInfo.connectionId)})
+                .catch(function (e) {reject(e)});
+        }
+
+        function open() {
+            log("Opening port", mDbug);
+            chrome.serial.connect(portPath, {
+                    'bitrate': portBaudrate,
+                    'dataBits': 'eight',
+                    'parityBit': 'no',
+                    'stopBits': 'one',
+                    'ctsFlowControl': false
+                },
+                function (openInfo) {
+                    if (!chrome.runtime.lastError) {
+                        // No error
+                        serialJustOpened = openInfo.connectionId;
+                        var vs = null;
+                        // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
+                        for (var j = 0; j < connectedSockets.length; j++) {
+                            if (connectedSockets[j] === sock) {
+                                vs = j;
+                                break;
+                            }
                         }
+                        connectedUSB.push({
+                            wsSocket: vs,
+                            connId: parseInt(openInfo.connectionId),
+                            mode: connMode,
+                            path: portPath,
+                            baud: portBaudrate
+                        });
+                        log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
+                        resolve(openInfo.connectionId);
+                    } else {
+                        // Error
+                        reject(Error("Could not open port " + portPath));
                     }
-                    connectedUSB.push({wsSocket:vs, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath, baud: portBaudrate});
-                    log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
-                    resolve(openInfo.connectionId);
-                } else {
-                    // Error
-                    reject(Error("Could not open port " + portPath));
                 }
-            }
-        );
+            );
+        }
     });
 }
 
@@ -132,13 +158,15 @@ function closePort(cid) {
 }
 
 function findConnectionId(portPath) {
-// Return id (cid) of connection associated with portPath
+/* Return id (cid) of connection associated with portPath
+   Returns null if not found. */
   const record = findConnection(portPath);
   return record ? record.connId : null;
 }
 
 function findConnectionPath(id) {
-// Return port path of connection associated with id
+/* Return port path of connection associated with id
+   Returns null if not found. */
     const record = findConnection(id);
     return record ? record.path : null;
 }
@@ -151,9 +179,9 @@ function deleteConnection(id) {
 }
 
 function findConnection(cidOrPath) {
-// Return connection record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
-// cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
-// Returns null record if not found
+/* Return connection record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
+   cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
+   Returns null record if not found*/
     let cn = 0;
     // Find connection record based on scan function
     function findConn(scan) {
@@ -2838,9 +2866,9 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             log("Download successful.", mUser, sock);
-            if (sock && debug) {
-                sock.send(JSON.stringify({type:'ui-command', action:'open-terminal'}));
-                sock.send(JSON.stringify({type:'ui-command', action:'close-compile'}));
+            if (sock && debug !== "none") {
+                sock.send(JSON.stringify({type:"ui-command", action:(debug === "terminal") ? "open-terminal" : "open-graph"}));
+                sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })
         .catch(function(e) {log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
