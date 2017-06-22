@@ -1,4 +1,5 @@
 
+//TODO Handle "disconnected" and "device_lost" events (and possibly "system_error")
 //TODO Enhance to log brief messages (to either local log feature or console) and optionally also log verbose messages (for deeper debugging)
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
@@ -2832,9 +2833,16 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
+        .then(function() {log("Scanning port " + findConnectionPath(cid), mUser)})                              //Notify what port we're using
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-        .then(function() {log("Download successful.", mUser, sock)})
+        .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
+            log("Download successful.", mUser, sock);
+            if (sock && debug) {
+                sock.send(JSON.stringify({type:'ui-command', action:'open-terminal'}));
+                sock.send(JSON.stringify({type:'ui-command', action:'close-compile'}));
+            }
+        })
         .catch(function(e) {log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 

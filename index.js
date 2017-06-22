@@ -39,7 +39,7 @@ function log(text = "", type = mStat, socket = null) {
    socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
   if (type & (mcUser | mcStatus | mcVerbose)) {
   // Deliver categorized message to proper destination
-      if (type & mdDisplay && socket) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+      if ((type & mdDisplay) && socket !== null) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
       if (type & mdConsole) {console.log(text)}
   }
