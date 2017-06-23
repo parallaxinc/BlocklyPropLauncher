@@ -56,7 +56,7 @@ function parseFile(payload) {
         }
       }
     }
-    output[5] = checksumArray(output);
+    output[5] = checksumArray(output, output.byteLength);
     
     // OUTPUT AS A BASE-64 ENCODED STRING:
     /*
@@ -70,7 +70,39 @@ function parseFile(payload) {
       return null;
     }
     */
-    
+/*   //Below is a failed attempt to write the data as a binary file
+      for (var y = 0; y < output.byteLength; y++) {
+          outBuf += String.fromCharCode(output[y]) || 0;
+      }
+
+
+    chrome.fileSystem.chooseEntry({type: "openDirectory"},
+      function(entry, fileEntries) {
+//        console.log(entry.fullPath);
+        entry.getFile('log.txt', {create: true, exclusive: true}, function(fileEntry) {
+          fileEntry.createWriter(function(fileWriter) {
+
+            fileWriter.onwriteend = function(e) {
+              console.log('Write completed.');
+            };
+
+            fileWriter.onerror = function(e) {
+              console.log('Write failed: ' + e.toString());
+            };
+
+            // Create a new Blob and write it to log.txt.
+            var blob = new Blob(outBuf, {type: 'text/plain'});
+
+            fileWriter.write(blob);
+
+          }, function() {console.log("createWriter error")});
+
+        }, function() {console.log("getFile error")});
+      });
+*/
+
+    log("imageFile: " + imageFile.byteLength);
+
     // OUTPUT AS ARRAYBUFFER:
     return imageFile;
 

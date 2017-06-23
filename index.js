@@ -430,10 +430,9 @@ function checksumArray(arr, l) {
   if (!l) l = arr.length;
   var chksm = 236;
   for (var a = 0; a < l; a++) {
-    if (isNumber(arr[a])) {
-      chksm = arr[a] + chksm;
-    }
+    chksm = arr[a] + chksm;
   }
+  log("Checksum " + chksm + ":" + ((256 - chksm) & 255));     //!!!
   chksm = (256 - chksm) & 255;
   return chksm;
 }
