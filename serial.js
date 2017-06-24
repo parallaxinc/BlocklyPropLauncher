@@ -2840,6 +2840,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (payload) {
         //Extract Propeller Application from payload
         var binImage = parseFile(payload);
+        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
     } else {
         var binImage = buffer2ArrayBuffer(bin);
     }
@@ -2852,11 +2853,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
+        port.mode = (debug !== "none") ? "debug" : "programming";
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
         originalBaudrate = initialBaudrate;
-        connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
+        connect = function() {return openPort(sock, portPath, initialBaudrate, (debug !== "none") ? "debug" : "programming")}
     }
     // Use connection to download application to the Propeller
     connect()
@@ -2867,7 +2869,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             log("Download successful.", mUser, sock);
             if (sock && debug !== "none") {
-                sock.send(JSON.stringify({type:"ui-command", action:(debug === "terminal") ? "open-terminal" : "open-graph"}));
+                sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })
@@ -3049,7 +3051,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
         var checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
         for (idx = 0; idx < binView.byteLength; idx++) {checksum += binView[idx];}       //Add in all Propeller Application Image bytes (retaining full checksum value)
-
         //Pre-generate communication and loader package (saves time during during initial communication)
         generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
 

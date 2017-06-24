@@ -394,16 +394,21 @@ var ab2num = function(buf) {
 };
 
 // Converts String to ArrayBuffer.
-var str2ab = function(str) {
-  var buf = new ArrayBuffer(str.length);
+var str2ab = function(str, len = null) {
+// Convert str to array buffer, optionally of size len
+  if (!len) {
+    len = str.length;
+  }
+  var buf = new ArrayBuffer(len);
   var bufView = new Uint8Array(buf);
-  for (var i = 0; i < str.length; i++) {
+  for (var i = 0; i < Math.min(len, str.length); i++) {
     bufView[i] = str.charCodeAt(i);
   }
   return buf;
 };
 
 var str2buf = function(str) {
+// Convert str to buffer
   var buf = new ArrayBuffer(str.length);
   var bufView = new Uint8Array(buf);
   for (var i = 0; i < str.length; i++) {
@@ -430,9 +435,7 @@ function checksumArray(arr, l) {
   if (!l) l = arr.length;
   var chksm = 236;
   for (var a = 0; a < l; a++) {
-    if (isNumber(arr[a])) {
-      chksm = arr[a] + chksm;
-    }
+    chksm = arr[a] + chksm;
   }
   chksm = (256 - chksm) & 255;
   return chksm;
