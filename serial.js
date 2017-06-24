@@ -2840,6 +2840,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (payload) {
         //Extract Propeller Application from payload
         var binImage = parseFile(payload);
+        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
     } else {
         var binImage = buffer2ArrayBuffer(bin);
     }
@@ -2852,11 +2853,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
+        port.mode = (debug !== "none") ? "debug" : "programming";
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
         originalBaudrate = initialBaudrate;
-        connect = function() {return openPort(sock, portPath, initialBaudrate, 'programming')}
+        connect = function() {return openPort(sock, portPath, initialBaudrate, (debug !== "none") ? "debug" : "programming")}
     }
     // Use connection to download application to the Propeller
     connect()
@@ -2867,7 +2869,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             log("Download successful.", mUser, sock);
             if (sock && debug !== "none") {
-                sock.send(JSON.stringify({type:"ui-command", action:(debug === "terminal") ? "open-terminal" : "open-graph"}));
+                sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })
@@ -2948,7 +2950,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         binView = new Uint8Array(binImage, pIdx * 4, (txPacketLength - 2) * 4);                    //Get view of next section of binary image
                         txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
-                        log("binView: " + binView.byteLength + "  txView:" + txView.byteLength);  //!!!
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
@@ -3021,7 +3022,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         function verifier() {
                             log("Verifying loader acknowledgement", mDeep);
                             //Check Micro Boot Loader response (values checked by value only, not value+type)
-                            log("Packet ID: " + propComm.mblPacketId[0]);   //!!!
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
                                 reject(Error(next.value.recvErr)); return;
                             }
@@ -3051,7 +3051,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
         var checksum = 0x7EC;                                                            //Start with full checksum of initial call frame
         for (idx = 0; idx < binView.byteLength; idx++) {checksum += binView[idx];}       //Add in all Propeller Application Image bytes (retaining full checksum value)
-        log("Checksum " + checksum + ":" + ((256 - checksum) & 255));   //!!!
         //Pre-generate communication and loader package (saves time during during initial communication)
         generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
 
