@@ -59,9 +59,6 @@ const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
-//Add programming protocol serial receive handler
-chrome.serial.onReceive.addListener(hearFromProp);
-
 
 /***********************************************************
  *                 Serial Support Functions                *
@@ -2863,19 +2860,32 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     // Use connection to download application to the Propeller
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
+        .then(function() {listen(true)})                                                                        //Enable listener
         .then(function() {log("Scanning port " + findConnectionPath(cid), mUser)})                              //Notify what port we're using
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
+            listen(false);                                                                                      //Disable listener
             log("Download successful.", mUser, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
-        })
-        .catch(function(e) {log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        })                                                                                                      //Error? Disable listener and display error
+        .catch(function(e) {listen(false); log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
+function listen(engage) {
+/* Engage or disengage serial programming receive listener.
+   engage = true to add listener; false to remove listener.*/
+    if (engage) {
+        //Add programming protocol serial receive handler
+        chrome.serial.onReceive.addListener(hearFromProp);
+    } else {
+        //Remove programming protocol serial receive handler
+        chrome.serial.onReceive.removeListener(hearFromProp);
+    }
+}
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
 /* Return promise to deliver Propeller Application (binImage) to Propeller
