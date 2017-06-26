@@ -2966,18 +2966,17 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     return new Promise(function(resolve, reject) {
                         log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         prepForMBLResponse();
-                        var txPacketLength = 2 +                                                                   //Determine packet length (in longs); header + packet limit or remaining data length
+                        var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
-                        binView = new Uint8Array(binImage, pIdx * 4, (txPacketLength - 2) * 4);                    //Get view of next section of binary image
-                        txData = new ArrayBuffer(txPacketLength * 4);                                              //Set packet length (in longs)}
+                        txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                 //Store Packet ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        txView.set(binView, 8);                                                                    //Store section of binary image
-                        send(cid, txData);                                                                         //Transmit packet
-                        pIdx += txPacketLength - 2;                                                                //Increment image index
-                        packetId--;                                                                                //Decrement Packet ID (to next packet)
+                        transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
+                        (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
+                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
+                        txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
+                        send(cid, txData);                                                                               //Transmit packet
+                        pIdx += txPacketLength - 2;                                                                      //Increment image index
+                        packetId--;                                                                                      //Decrement Packet ID (to next packet)
                         resolve();
                     });
                 }
