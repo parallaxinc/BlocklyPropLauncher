@@ -1,17 +1,63 @@
+/* Parallax Inc. ("PARALLAX") CONFIDENTIAL
+ Unpublished Copyright (c) 2017 Parallax Inc., All Rights Reserved.
+
+ NOTICE:  All information contained herein is, and remains the property of PARALLAX.  The intellectual and technical concepts contained
+ herein are proprietary to PARALLAX and may be covered by U.S. and Foreign Patents, patents in process, and are protected by trade
+ secret or copyright law.  Dissemination of this information or reproduction of this material is strictly forbidden unless prior written
+ permission is obtained from PARALLAX.  Access to the source code contained herein is hereby forbidden to anyone except current PARALLAX
+ employees, managers or contractors who have executed Confidentiality and Non-disclosure agreements explicitly covering such access.
+
+ The copyright notice above does not evidence any actual or intended publication or disclosure of this source code, which includes
+ information that is confidential and/or proprietary, and is a trade secret, of PARALLAX.  ANY REPRODUCTION, MODIFICATION, DISTRIBUTION,
+ PUBLIC PERFORMANCE, OR PUBLIC DISPLAY OF OR THROUGH USE OF THIS SOURCE CODE WITHOUT THE EXPRESS WRITTEN CONSENT OF PARALLAX IS STRICTLY
+ PROHIBITED, AND IN VIOLATION OF APPLICABLE LAWS AND INTERNATIONAL TREATIES.  THE RECEIPT OR POSSESSION OF THIS SOURCE CODE AND/OR
+ RELATED INFORMATION DOES NOT CONVEY OR IMPLY ANY RIGHTS TO REPRODUCE, DISCLOSE OR DISTRIBUTE ITS CONTENTS, OR TO MANUFACTURE, USE, OR
+ SELL ANYTHING THAT IT MAY DESCRIBE, IN WHOLE OR IN PART.                                                                                */
+
+
 // TODO: allow user to change port and server IP/addr.  Feilds and button are there, but no supporting code.
 // TODO: update bkg img to include S3 robot.
 // TODO: Add all linking messages/data for the BlocklyProp site via the websocket connection.
-
-
 
 // jQuery-like convience ;)
 function $(id) {
   return document.getElementById(id);
 }
 
-// TODO: provide mechanism for this to be a downloadable date-stamped file.
-function log(text) {
-  $('log').innerHTML += text + '<br>';
+// Messaging types
+// These classify messages sent to log() to be routed to one or more destinations (browser dialog, app log, or app/browser console).
+// The intention is that such messages can be later filtered via options set in the app itself to make debugging easier.
+
+// [Message Categories]
+const mcUser    = 1;       // User message
+const mcStatus  = 2;       // Developer status message
+const mcVerbose = 4;       // Deep developer status message
+
+// [Message Destinations]
+const mdDisplay = 8;       // BP browser display
+const mdLog     = 16;      // BP local log
+const mdConsole = 32;      // BP local console
+
+// [Messages]     --- Category(ies) ---   ------- Destination(s) ------
+const mUser     = mcUser                +  mdDisplay + mdLog;
+const mStat     = mcStatus              +              mdLog;
+const mDbug     = mcStatus              +              mdLog + mdConsole;
+const mDeep     = mcVerbose             +                      mdConsole;
+
+//TODO allow this to be further filtered with includes/excludes set by app options at runtime
+//TODO provide mechanism for this to be a downloadable date-stamped file.
+//TODO should filters apply to downloadable file?  Not sure yet.
+function log(text = "", type = mStat, socket = null) {
+/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to destination and filter type(s).
+   text is the message to convey.
+   type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
+   socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
+  if (type & (mcUser | mcStatus | mcVerbose)) {
+  // Deliver categorized message to proper destination
+      if ((type & mdDisplay) && socket !== null) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+      if (type & mdLog) {$('log').innerHTML += text + '<br>'}
+      if (type & mdConsole) {console.log(text)}
+  }
 }
 
 function isJson(str) {
@@ -62,16 +108,17 @@ document.addEventListener('DOMContentLoaded', function() {
       connect_ws($('bpc-port').value, $('bpc-url').value);
       $('connect-disconnect').innerHTML = 'Connected &#10003';
       $('connect-disconnect').className = 'button button-green';
-      console.log('Connected');
-//      loadPropeller(null, 'RAM', null, null, 'COM3', null);
+
+      //Temporary direct development download step
+//      loadPropeller(null, 'COM3', 'RAM', null, false);
+//        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
+
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].close();
       }
-//      closePort();
-      console.log('Disonnected');
     }
   };
 
@@ -138,9 +185,12 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Loading Propeller ' + ws_msg.action);
-            loadPropeller(socket, ws_msg.action, ws_msg.payload, ws_msg.debug, ws_msg.portPath, ws_msg.success);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-  
-          // open or close the serial port for terminal/debug
+            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+//            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
+//            socket.send(JSON.stringify(msg_to_send));
+
+
+              // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open" or "close"
             log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud');
@@ -247,7 +297,7 @@ function sendPortList() {
     function(ports) {
       var pt = [];
       ports.forEach(function(pl) {
-        if(pl.path.indexOf('dev/tty') > -1 && pl.path.indexOf('luetoo') === -1) {
+        if ((pl.path.indexOf('dev/tty') > -1 || pl.path.indexOf('COM') > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
           pt.push(pl.path);
         }
       });
@@ -265,34 +315,25 @@ function helloClient(sock, baudrate) {
   sock.send(JSON.stringify(msg_to_send));
 }
 
-
+//TODO Check send results and act accordingly?
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  // TODO: disconnect USB is already active first?
+  var cid = findConnectionId(portPath);
   if (action === "open") {
-    if (portPath.indexOf('dev/tty') === -1) {
-      log('Not opening: ' + portPath);
+    if (!cid) {
+      log('Unable to connect terminal to ' + portPath);
       var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
       sock.send(JSON.stringify(msg_to_send));
     } else {
-      makeConnection(sock, portPath, baudrate, 'debug');
-      log('opening ' + portPath);
+      log('Connecting terminal to ' + portPath);
+      openPort(sock, portPath, baudrate, 'debug');
     }
-  } else if (action === "close" && portPath.indexOf('dev/tty') !== -1) {
-    breakConnection(portPath);
+  } else if (action === "close") {
+    if (cid) {
+      closePort(cid);
+    }
   } else if (action === "msg") {
-    // must be something to send to the device - find its connection ID and send it.    
-    var cn, k = null;
-    for (cn = 0; cn < connectedUSB.length; cn++) {
-      if (connectedUSB[cn].path === portPath) {
-        k = cn;
-        break;
-      }
-    }
-    if (k !== null) {
-      chrome.serial.send(connectedUSB[k].connId, str2ab(msg), function() {
-          //log('sent: ' + msg);
-      });
-    }
+    // must be something to send to the device - find its connection ID and send it.
+    send(cid, msg);
   }
 }
 
@@ -321,18 +362,20 @@ chrome.serial.onReceive.addListener(function(info) {
             }
           });
         } else {
-          // send to terminal in broswer tab
-          var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
-          if(connectedSockets[connectedUSB[k].wsSocket]) {
-            connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+          if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
+            // send to terminal in broswer tab
+            var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
+            if(connectedSockets[connectedUSB[k].wsSocket]) {
+              connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+            }
           }
         }
       }
     }
   } else {
     // NOT 100% SURE ABOUT THIS!!!!
-//!!! Commented out the closing of "rouge serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
-//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rouge serial connection');});
+//!!! Commented out the closing of "rogue serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
+//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rogue serial connection');});
   }
 });
 
@@ -345,51 +388,6 @@ var settings = {
   ctsFlowControl: false
 };
       
-var makeConnection = function(sock, portPath, baudrate, connMode) {
-  settings.bitrate = parseInt(baudrate);
-      chrome.serial.connect(portPath, {
-        'bitrate': settings.bitrate,
-        'dataBits': settings.dataBits,
-        'parityBit': settings.parityBit,
-        'stopBits': settings.stopBits,
-        'ctsFlowControl': settings.ctsFlowControl
-      }, 
-        function(openInfo) {
-        if (openInfo === undefined) {
-          log('Unable to connect to device<br>');
-          //connectedUSB = null;
-          //return true;
-        } else {
-          serialJustOpened = openInfo.connectionId;
-          for (var j = 0; j < connectedSockets.length; j++) {
-            if (connectedSockets[j] === sock) {
-              connectedUSB.push({wsSocket:j, connId:parseInt(openInfo.connectionId), mode:connMode, path:portPath});
-              break;
-            }
-          }
-          log('Device connected to [' + openInfo.connectionId + '] ' + portPath);
-          
-          //return false;
-        }
-    });
-};
- 
-var breakConnection = function(portPath) {
-  var cn, k = null;
-  for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].path === portPath && portPath.indexOf('dev/tty') !== -1) {
-      k = cn;
-      break;
-    }
-  }
-  if (k !== null && connectedUSB[k] !== undefined && connectedUSB.length > 0) {
-    chrome.serial.disconnect(connectedUSB[k].connId, function() {
-      log('Device [' + connectedUSB[k].connId + '] ' + portPath + ' disconnected');
-      connectedUSB.splice(k, 1);
-    });
-  }
-};
-
 // Convert ArrayBuffer to String
 var ab2str = function(buf) {
   var bufView = new Uint8Array(buf);
@@ -411,16 +409,21 @@ var ab2num = function(buf) {
 };
 
 // Converts String to ArrayBuffer.
-var str2ab = function(str) {
-  var buf = new ArrayBuffer(str.length);
+var str2ab = function(str, len = null) {
+// Convert str to array buffer, optionally of size len
+  if (!len) {
+    len = str.length;
+  }
+  var buf = new ArrayBuffer(len);
   var bufView = new Uint8Array(buf);
-  for (var i = 0; i < str.length; i++) {
+  for (var i = 0; i < Math.min(len, str.length); i++) {
     bufView[i] = str.charCodeAt(i);
   }
   return buf;
 };
 
 var str2buf = function(str) {
+// Convert str to buffer
   var buf = new ArrayBuffer(str.length);
   var bufView = new Uint8Array(buf);
   for (var i = 0; i < str.length; i++) {
@@ -447,9 +450,7 @@ function checksumArray(arr, l) {
   if (!l) l = arr.length;
   var chksm = 236;
   for (var a = 0; a < l; a++) {
-    if (isNumber(arr[a])) {
-      chksm = arr[a] + chksm;
-    }
+    chksm = arr[a] + chksm;
   }
   chksm = (256 - chksm) & 255;
   return chksm;
