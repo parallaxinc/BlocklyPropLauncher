@@ -2841,14 +2841,9 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     //Set and/or adjust postResetDelay based on platform
     if (!postResetDelay) {
-        postResetDelay = 100; /*Ideal Post-Reset Delay*/
-        chrome.runtime.getPlatformInfo(function(platformInfo) {
-            if (!chrome.runtime.lastError) {
-                //If Windows, use minimum Post-Reset Delay since Windows often adds more delay
-                postResetDelay = platformInfo.os === "win" ? 60 : postResetDelay;
-            }
-        });
-    }
+        //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
+        postResetDelay = platform === pfWin ? 60 : 100;
+        }
 
     if (payload) {
         //Extract Propeller Application from payload
