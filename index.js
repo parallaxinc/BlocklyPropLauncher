@@ -72,6 +72,18 @@ function isJson(str) {
 // the version of this BPclient/app
 var clientVersion = '0.7.0';
 
+// Platform metrics (var in DOMContentLoaded listener)
+const pfUnk = 0;
+const pfChr = 1;
+const pfLin = 2;
+const pfMac = 3;
+const pfWin = 4;
+var platform = pfUnk;
+
+/* Serial port ID pattern (index into with platform value)
+             Unknown    ChromeOS        Linux             macOS          Windows */
+portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
+
 // A list of connected websockets.
 var connectedSockets = [];
 
@@ -90,6 +102,13 @@ var serialJustOpened = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
+  chrome.runtime.getPlatformInfo(function(platformInfo) {
+    if (!chrome.runtime.lastError) {
+      let os = platformInfo.os;
+      platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
+    }
+  });
+
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {
       $('bpc-port').value = result.s_port || '6009';
@@ -293,11 +312,12 @@ function connect_ws(ws_port, url_path) {
 
 
 function sendPortList() {
+// find and send list of serial devices (filtered according to platform and type)
   chrome.serial.getDevices(
     function(ports) {
       var pt = [];
       ports.forEach(function(pl) {
-        if ((pl.path.indexOf('dev/tty') > -1 || pl.path.indexOf('COM') > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
+        if ((pl.path.indexOf(portPattern[platform]) > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
           pt.push(pl.path);
         }
       });
