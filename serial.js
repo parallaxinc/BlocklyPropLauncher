@@ -2872,7 +2872,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {listen(true)})                                                                        //Enable listener
-        .then(function() {log("Scanning port " + findConnectionPath(cid), mUser)})                              //Notify what port we're using
+        .then(function() {log("Scanning port " + findConnectionPath(cid), mUser, sock)})                        //Notify what port we're using
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
@@ -2883,7 +2883,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })                                                                                                      //Error? Disable listener and display error
-        .catch(function(e) {listen(false); log("Error: " + e.message, mDbug+mcUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .catch(function(e) {listen(false); log("Error: " + e.message, mDbug+mUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 function listen(engage) {
@@ -3095,7 +3095,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {log(e.message, mDeep); reject(e);}                  );   //Catch errors, pass them on
+            .catch(function(e) {reject(e)}                                          );   //Catch errors, pass them on
     });
 }
 
