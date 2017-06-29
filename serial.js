@@ -3092,6 +3092,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
+            .then(function() {       log("Downloading", mUser, sock);}              )
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
