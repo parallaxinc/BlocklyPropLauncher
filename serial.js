@@ -2965,6 +2965,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
                         log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
+                        log(".", mUser, sock);
                         prepForMBLResponse();
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
