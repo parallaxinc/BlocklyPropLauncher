@@ -54,7 +54,10 @@ function log(text = "", type = mStat, socket = null) {
    socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
   if (type & (mcUser | mcStatus | mcVerbose)) {
   // Deliver categorized message to proper destination
-      if ((type & mdDisplay) && socket !== null) {socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:text}))}
+      if ((type & mdDisplay) && socket !== null) {
+        let dispText = text !== "." ? '\r' + text : text;
+        socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
+      }
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
       if (type & mdConsole) {console.log(text)}
   }
@@ -99,6 +102,9 @@ var portListener = null;
 
 // tag a new serial port for buffer flushing
 var serialJustOpened = null;
+
+// Serial packet ID (for transmissions to browser's terminal)
+var serPacketID = 0;
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -384,7 +390,7 @@ chrome.serial.onReceive.addListener(function(info) {
         } else {
           if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
-            var msg_to_send = JSON.stringify({type:'serial-terminal', msg:output});
+            var msg_to_send = JSON.stringify({type:'serial-terminal', ws_msg:serPacketID++, msg:output});
             if(connectedSockets[connectedUSB[k].wsSocket]) {
               connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
             }
