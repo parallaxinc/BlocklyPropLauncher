@@ -231,6 +231,9 @@ function connect_ws(ws_port, url_path) {
             $('connect-disconnect').className = 'button button-green';
             log('BlocklyProp site connected');
 
+          // Handle clear-to-send
+          } else if (ws_msg.type === "debug-cts") {
+          //TODO Add clear-to-send handling code
           // Handle unknown messages
           } else {
             log('Unknown JSON message: ' + e.data);
