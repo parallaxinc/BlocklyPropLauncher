@@ -390,7 +390,9 @@ chrome.serial.onReceive.addListener(function(info) {
         } else {
           if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
-            var msg_to_send = JSON.stringify({type:'serial-terminal', ws_msg:serPacketID++, msg:output});
+            serPacketID++;
+            var encOutput = btoa(output);
+            var msg_to_send = JSON.stringify({type:'serial-terminal', ws_msg:serPacketID, msg:encOutput});
             if(connectedSockets[connectedUSB[k].wsSocket]) {
               connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
             }
