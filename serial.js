@@ -78,6 +78,14 @@ const ltLaunchNow = 3;
 // Container for attributes of connected USB serial ports
 var connectedUSB = [];
 
+// Serial packet handling (for transmissions to browser's terminal)
+const serPacket = {
+    id = 0,
+    buf = new ArrayBuffer(4096),
+    bufView = new Uint8Array(buf),
+    len = 0,
+    timer = null,
+};
 
 /***********************************************************
  *                 Serial Support Functions                *
@@ -130,16 +138,8 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error
-                        var vs = null;
-                        // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
-                        for (var j = 0; j < connectedSockets.length; j++) {
-                            if (connectedSockets[j] === sock) {
-                                vs = j;
-                                break;
-                            }
-                        }
                         connectedUSB.push({
-                            wsSocket: vs,
+                            wsSocket: sock,
                             connId: parseInt(openInfo.connectionId),
                             mode: connMode,
                             path: portPath,
@@ -343,6 +343,7 @@ function buffer2ArrayBuffer(buffer) {
     return buf;
 }
 
+//TODO Protect against buffer overflows
 //TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
@@ -356,30 +357,24 @@ chrome.serial.onReceive.addListener(function(info) {
     if(k !== null) {
         if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
-            serPacketView.set(new Uint8Array(info.data), serPacketLen);
-            serPacketLen += info.data.byteLength;
-            if (serPacketLen > 100) {
-                sendDebugPacket();
-            } else if (serPacketTimer === null) {
-                serPacketTimer = setTimeout(sendDebugPacket, 10)
+            serPacket.bufView.set(new Uint8Array(info.data), serPacket.len);
+            serPacket.len += info.data.byteLength;
+            if (serPacket.len > 100) {
+                sendDebugPacket(connectedUSB[k].wsSocket);
+            } else if (serPacket.timer === null) {
+                serPacket.timer = setTimeout(sendDebugPacket, 10, connectedUSB[k].wsSocket)
             }
         }
     }
 
-    function sendDebugPacket() {
-        if (serPacketTimer !== null) {
-            clearTimeout(serPacketTimer);
-            serPacketTimer = null;
+    function sendDebugPacket(socket) {
+        if (serPacket.timer !== null) {
+            clearTimeout(serPacket.timer);
+            serPacket.timer = null;
         }
-        serPacketID++;
-        var encOutput = btoa(ab2str(serPacketView.slice(0, serPacketLen)));
-        serPacketLen = 0;
-//    console.log(serPacketID, encOutput, output);
-        var msg_to_send = JSON.stringify({type: 'serial-terminal', packetID: serPacketID, msg: encOutput});
-        if (connectedSockets[connectedUSB[k].wsSocket]) {
-            connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+        socket.send(JSON.stringify({type: 'serial-terminal', packetID: serPacket.id++, msg: btoa(ab2str(serPacketView.slice(0, serPacket.len)))}));
+        serPacket.len = 0;
         }
-    }
 });
 
 /***********************************************************
