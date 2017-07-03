@@ -370,7 +370,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   }
 }
 
-
+//TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
 chrome.serial.onReceive.addListener(function(info) {
   var cn, k = null;
   for (cn = 0; cn < connectedUSB.length; cn++) {
