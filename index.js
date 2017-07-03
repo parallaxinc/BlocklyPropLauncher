@@ -103,8 +103,10 @@ var portListener = null;
 // tag a new serial port for buffer flushing
 var serialJustOpened = null;
 
-// Serial packet ID (for transmissions to browser's terminal)
+// Serial packet handling (for transmissions to browser's terminal)
 var serPacketID = 0;
+var serPacket = new ArrayBuffer(4096);
+var serPacketView = new Uint8Array(serPacket);
 
 
 document.addEventListener('DOMContentLoaded', function() {
