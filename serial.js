@@ -80,11 +80,10 @@ var connectedUSB = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
 const serPacket = {
-    id = 0,
-    buf = new ArrayBuffer(4096),
-    bufView = new Uint8Array(buf),
-    len = 0,
-    timer = null,
+    id      : 0,
+    bufView : new Uint8Array(new ArrayBuffer(4096)),
+    len     : 0,
+    timer   : null,
 };
 
 /***********************************************************
@@ -372,7 +371,7 @@ chrome.serial.onReceive.addListener(function(info) {
             clearTimeout(serPacket.timer);
             serPacket.timer = null;
         }
-        socket.send(JSON.stringify({type: 'serial-terminal', packetID: serPacket.id++, msg: btoa(ab2str(serPacketView.slice(0, serPacket.len)))}));
+        socket.send(JSON.stringify({type: 'serial-terminal', packetID: serPacket.id++, msg: btoa(ab2str(serPacket.bufView.slice(0, serPacket.len)))}));
         serPacket.len = 0;
         }
 });
@@ -2952,7 +2951,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
     return new Promise(function(resolve, reject) {
-
 
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
