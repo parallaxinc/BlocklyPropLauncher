@@ -90,9 +90,6 @@ portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"]
 // A list of connected websockets.
 var connectedSockets = [];
 
-// container for IDs of connected USB serial ports and what is being done with those ports.
-var connectedUSB = [];
-
 // Containers for the http and ws servers
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);

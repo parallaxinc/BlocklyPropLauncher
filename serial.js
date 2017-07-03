@@ -75,6 +75,9 @@ const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
+// Container for attributes of connected USB serial ports
+var connectedUSB = [];
+
 
 /***********************************************************
  *                 Serial Support Functions                *
