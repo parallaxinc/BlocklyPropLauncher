@@ -2861,12 +2861,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
-        port.mode = (debug !== "none") ? "debug" : "programming";
+//        port.mode = (debug !== "none") ? "debug" : "programming";
+        port.mode = "programming";
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {
         // No connection yet, prep to create one
         originalBaudrate = initialBaudrate;
-        connect = function() {return openPort(sock, portPath, initialBaudrate, (debug !== "none") ? "debug" : "programming")}
+        connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
     }
     // Use connection to download application to the Propeller
     connect()
@@ -2877,6 +2878,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
+            findConnection(cid).mode = (debug !== "none") ? "debug" : "programming";
             log("Download successful.", mUser, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
