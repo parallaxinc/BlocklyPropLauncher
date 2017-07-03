@@ -100,9 +100,6 @@ var wsServer = new http.WebSocketServer(server);
 // Keep track of the interval that sends the port list so it can be turned off
 var portListener = null;
 
-// tag a new serial port for buffer flushing
-var serialJustOpened = null;
-
 // Serial packet handling (for transmissions to browser's terminal)
 var serPacketID = 0;
 var serPacket = new ArrayBuffer(4096);

@@ -80,7 +80,7 @@ const ltLaunchNow = 3;
  *                 Serial Support Functions                *
  ***********************************************************/
 
-//TODO Determine if there's a need to flush port upon opening from a browser terminal command
+//TODO Determine if there's a need to flush port upon opening from a browser terminal command (Note serialJustOpened removed)
 //        if(serialJustOpened === info.connectionId) {
 //          chrome.serial.flush(serialJustOpened, function(result) {
 //            if(result === true) {
@@ -127,7 +127,6 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error
-                        serialJustOpened = openInfo.connectionId;
                         var vs = null;
                         // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
                         for (var j = 0; j < connectedSockets.length; j++) {
