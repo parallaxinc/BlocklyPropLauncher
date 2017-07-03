@@ -370,64 +370,6 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   }
 }
 
-//TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
-chrome.serial.onReceive.addListener(function(info) {
-  var cn, k = null;
-  for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].connId === info.connectionId) {
-      k = cn;
-      break;
-    }
-  }
-  if(k !== null) {
-    var output = null;
-//    output = ab2str(info.data);
-//      output = info.data;
-//TODO Flush port upon opening from a browser terminal command
-//        if(serialJustOpened === info.connectionId) {
-//          chrome.serial.flush(serialJustOpened, function(result) {
-//            if(result === true) {
-//              serialJustOpened = null;
-//            }
-//          });
-//        } else {
-    if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
-      // send to terminal in broswer tab
-      serPacketView.set(new Uint8Array(info.data), serPacketLen);
-      serPacketLen += info.data.byteLength;
-      if (serPacketLen > 100) {
-        sendDebugPacket();
-      } else if (serPacketTimer === null) {
-        serPacketTimer = setTimeout(sendDebugPacket, 10)
-      }
-    }
-  }
-
-  function sendDebugPacket() {
-    if (serPacketTimer !== null) {
-      clearTimeout(serPacketTimer);
-      serPacketTimer = null;
-    }
-    serPacketID++;
-    var encOutput = btoa(ab2str(serPacketView.slice(0, serPacketLen)));
-    serPacketLen = 0;
-//    console.log(serPacketID, encOutput, output);
-    var msg_to_send = JSON.stringify({type: 'serial-terminal', packetID: serPacketID, msg: encOutput});
-    if (connectedSockets[connectedUSB[k].wsSocket]) {
-      connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
-    }
-  }
-});
-
-
-var settings = {
-  bitrate: 115200,
-  dataBits: 'eight',
-  parityBit: 'no',
-  stopBits: 'one',
-  ctsFlowControl: false
-};
-      
 // Convert ArrayBuffer to String
 var ab2str = function(buf) {
   var bufView = new Uint8Array(buf);

@@ -80,6 +80,15 @@ const ltLaunchNow = 3;
  *                 Serial Support Functions                *
  ***********************************************************/
 
+//TODO Determine if there's a need to flush port upon opening from a browser terminal command
+//        if(serialJustOpened === info.connectionId) {
+//          chrome.serial.flush(serialJustOpened, function(result) {
+//            if(result === true) {
+//              serialJustOpened = null;
+//            }
+//          });
+//        } else {
+
 //TODO Consider returning error object
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
 function openPort(sock, portPath, baudrate, connMode) {
@@ -332,6 +341,44 @@ function buffer2ArrayBuffer(buffer) {
     return buf;
 }
 
+//TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
+chrome.serial.onReceive.addListener(function(info) {
+// Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
+    var cn, k = null;
+    for (cn = 0; cn < connectedUSB.length; cn++) {
+        if (connectedUSB[cn].connId === info.connectionId) {
+            k = cn;
+            break;
+        }
+    }
+    if(k !== null) {
+        if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
+            // send to terminal in broswer tab
+            serPacketView.set(new Uint8Array(info.data), serPacketLen);
+            serPacketLen += info.data.byteLength;
+            if (serPacketLen > 100) {
+                sendDebugPacket();
+            } else if (serPacketTimer === null) {
+                serPacketTimer = setTimeout(sendDebugPacket, 10)
+            }
+        }
+    }
+
+    function sendDebugPacket() {
+        if (serPacketTimer !== null) {
+            clearTimeout(serPacketTimer);
+            serPacketTimer = null;
+        }
+        serPacketID++;
+        var encOutput = btoa(ab2str(serPacketView.slice(0, serPacketLen)));
+        serPacketLen = 0;
+//    console.log(serPacketID, encOutput, output);
+        var msg_to_send = JSON.stringify({type: 'serial-terminal', packetID: serPacketID, msg: encOutput});
+        if (connectedSockets[connectedUSB[k].wsSocket]) {
+            connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+        }
+    }
+});
 
 /***********************************************************
  *             Propeller Programming Functions             *
