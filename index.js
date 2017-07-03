@@ -103,8 +103,12 @@ var portListener = null;
 // tag a new serial port for buffer flushing
 var serialJustOpened = null;
 
-// Serial packet ID (for transmissions to browser's terminal)
+// Serial packet handling (for transmissions to browser's terminal)
 var serPacketID = 0;
+var serPacket = new ArrayBuffer(4096);
+var serPacketView = new Uint8Array(serPacket);
+var serPacketLen = 0;
+var serPacketTimer = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -377,36 +381,41 @@ chrome.serial.onReceive.addListener(function(info) {
   }
   if(k !== null) {
     var output = null;
-    if(connectedUSB[k].mode === 'progNum') {
-      output = ab2num(info.data);
-    } else {
-      output = ab2str(info.data);
-      if(connectedUSB[k].mode === 'progStr') {
-        
-      } else {
-        if(serialJustOpened === info.connectionId) {
-          chrome.serial.flush(serialJustOpened, function(result) {
-            if(result === true) {
-              serialJustOpened = null;
-            }
-          });
-        } else {
-          if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
-            // send to terminal in broswer tab
-            serPacketID++;
-            var encOutput = btoa(output);
-            var msg_to_send = JSON.stringify({type:'serial-terminal', packetID:serPacketID, msg:encOutput});
-            if(connectedSockets[connectedUSB[k].wsSocket]) {
-              connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
-            }
-          }
-        }
+//    output = ab2str(info.data);
+//      output = info.data;
+//TODO Flush port upon opening from a browser terminal command
+//        if(serialJustOpened === info.connectionId) {
+//          chrome.serial.flush(serialJustOpened, function(result) {
+//            if(result === true) {
+//              serialJustOpened = null;
+//            }
+//          });
+//        } else {
+    if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
+      // send to terminal in broswer tab
+      serPacketView.set(new Uint8Array(info.data), serPacketLen);
+      serPacketLen += info.data.byteLength;
+      if (serPacketLen > 100) {
+        sendDebugPacket();
+      } else if (serPacketTimer === null) {
+        serPacketTimer = setTimeout(sendDebugPacket, 10)
       }
     }
-  } else {
-    // NOT 100% SURE ABOUT THIS!!!!
-//!!! Commented out the closing of "rogue serial connection(s)" because it's interfering with Propeller programming development work.  May be reinstated later.
-//!!!    chrome.serial.disconnect(info.connectionId, function() {console.log('disconnected a rogue serial connection');});
+  }
+
+  function sendDebugPacket() {
+    if (serPacketTimer !== null) {
+      clearTimeout(serPacketTimer);
+      serPacketTimer = null;
+    }
+    serPacketID++;
+    var encOutput = btoa(ab2str(serPacketView.slice(0, serPacketLen)));
+    serPacketLen = 0;
+//    console.log(serPacketID, encOutput, output);
+    var msg_to_send = JSON.stringify({type: 'serial-terminal', packetID: serPacketID, msg: encOutput});
+    if (connectedSockets[connectedUSB[k].wsSocket]) {
+      connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
+    }
   }
 });
 
