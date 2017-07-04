@@ -79,12 +79,11 @@ const ltLaunchNow = 3;
 var connectedUSB = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
-const serPacketFillTime = 10;                                                           // Max wait time to fill packet (ms)
-const serPacketBufSize = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10)*1.5);   // Size of buffer to hold 1.5x bytes received at max baudrate
-const serPacketMax = Math.trunc(serPacketBufSize/1.5);                                  // Max bytes to encode in packet
+const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
+const serPacketMax = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10));   // Size of buffer to hold max bytes receivable in FillTime at max baudrate
 const serPacket = {
     id      : 0,
-    bufView : new Uint8Array(new ArrayBuffer(serPacketBufSize)),
+    bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),
     len     : 0,
     timer   : null,
 };
@@ -345,7 +344,6 @@ function buffer2ArrayBuffer(buffer) {
     return buf;
 }
 
-//TODO Protect against buffer overflows
 //TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
