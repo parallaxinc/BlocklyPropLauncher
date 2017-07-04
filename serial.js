@@ -356,25 +356,25 @@ chrome.serial.onReceive.addListener(function(info) {
         }
     }
     if(k !== null) {
-        if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
+        let conn = connectedUSB[k];
+        if (conn.mode === 'debug' && conn.wsSocket !== null) {
             // send to terminal in broswer tab
             let offset = 0;
             do {
-                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-connectedUSB[k].packet.len);
-                connectedUSB[k].packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), connectedUSB[k].packet.len);
-                connectedUSB[k].packet.len += byteCount;
+                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-conn.packet.len);
+                conn.packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), conn.packet.len);
+                conn.packet.len += byteCount;
                 offset += byteCount;
-                if (connectedUSB[k].packet.len === serPacketMax) {
-                    sendDebugPacket(k);
-                } else if (connectedUSB[k].packet.timer === null) {
-                    connectedUSB[k].packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, k)
+                if (conn.packet.len === serPacketMax) {
+                    sendDebugPacket(conn);
+                } else if (conn.packet.timer === null) {
+                    conn.packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, conn)
                 }
             } while (offset < info.data.byteLength);
         }
     }
 
-    function sendDebugPacket(cid) {
-        let conn = connectedUSB[cid];
+    function sendDebugPacket(conn) {
         if (conn.packet.timer !== null) {
             clearTimeout(conn.packet.timer);
             conn.packet.timer = null;
