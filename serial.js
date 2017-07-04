@@ -79,9 +79,12 @@ const ltLaunchNow = 3;
 var connectedUSB = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
+const serPacketFillTime = 10;                                                  // Max wait time to fill packet (ms)
+const serPacketMax = trunc(serPacketBufSize/1.5);                              // Max bytes to encode in packet
+const serPacketBufSize = trunc(serPacketNagel/1000-(1/finalBaudrate*10)*1.5);  // Size of buffer to hold 1.5x bytes received at max baudrate
 const serPacket = {
     id      : 0,
-    bufView : new Uint8Array(new ArrayBuffer(4096)),
+    bufView : new Uint8Array(new ArrayBuffer(serPacketBufSize)),
     len     : 0,
     timer   : null,
 };
@@ -356,13 +359,18 @@ chrome.serial.onReceive.addListener(function(info) {
     if(k !== null) {
         if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
             // send to terminal in broswer tab
-            serPacket.bufView.set(new Uint8Array(info.data), serPacket.len);
-            serPacket.len += info.data.byteLength;
-            if (serPacket.len > 100) {
-                sendDebugPacket(connectedUSB[k].wsSocket);
-            } else if (serPacket.timer === null) {
-                serPacket.timer = setTimeout(sendDebugPacket, 10, connectedUSB[k].wsSocket)
-            }
+            let offset = 0;
+            do {
+                let byteCount = Math.min(info.data.byteLength, serPacketMax-serPacket.len);
+                serPacket.bufView.set(new Uint8Array(info.data).slice(offset, byteCount), serPacket.len);
+                serPacket.len += byteCount;
+                offset += byteCount;
+                if (serPacket.len = serPacketMax) {
+                    sendDebugPacket(connectedUSB[k].wsSocket);
+                } else if (serPacket.timer === null) {
+                    serPacket.timer = setTimeout(sendDebugPacket, serPacketFillTime, connectedUSB[k].wsSocket)
+                }
+            } while (offset < info.data.byteLength);
         }
     }
 
