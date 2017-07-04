@@ -138,14 +138,16 @@ function openPort(sock, portPath, baudrate, connMode) {
                 },
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
-                        // No error
+                        // No error; create USB connection object
                         connectedUSB.push({
                             wsSocket: sock,
                             connId: parseInt(openInfo.connectionId),
                             mode: connMode,
                             path: portPath,
-                            baud: portBaudrate
+                            baud: portBaudrate,
+                            packet: {}
                         });
+                        Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -344,7 +346,6 @@ function buffer2ArrayBuffer(buffer) {
     return buf;
 }
 
-//TODO Make NagelTimer feature work for any connection; currently only supports one possible connection
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
     var cn, k = null;
@@ -359,26 +360,27 @@ chrome.serial.onReceive.addListener(function(info) {
             // send to terminal in broswer tab
             let offset = 0;
             do {
-                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-serPacket.len);
-                serPacket.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), serPacket.len);
-                serPacket.len += byteCount;
+                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-connectedUSB[k].packet.len);
+                connectedUSB[k].packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), connectedUSB[k].packet.len);
+                connectedUSB[k].packet.len += byteCount;
                 offset += byteCount;
-                if (serPacket.len === serPacketMax) {
-                    sendDebugPacket(connectedUSB[k].wsSocket);
-                } else if (serPacket.timer === null) {
-                    serPacket.timer = setTimeout(sendDebugPacket, serPacketFillTime, connectedUSB[k].wsSocket)
+                if (connectedUSB[k].packet.len === serPacketMax) {
+                    sendDebugPacket(k);
+                } else if (connectedUSB[k].packet.timer === null) {
+                    connectedUSB[k].packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, k)
                 }
             } while (offset < info.data.byteLength);
         }
     }
 
-    function sendDebugPacket(socket) {
-        if (serPacket.timer !== null) {
-            clearTimeout(serPacket.timer);
-            serPacket.timer = null;
+    function sendDebugPacket(cid) {
+        let conn = connectedUSB[cid];
+        if (conn.packet.timer !== null) {
+            clearTimeout(conn.packet.timer);
+            conn.packet.timer = null;
         }
-        socket.send(JSON.stringify({type: 'serial-terminal', packetID: serPacket.id++, msg: btoa(ab2str(serPacket.bufView.slice(0, serPacket.len)))}));
-        serPacket.len = 0;
+        conn.wsSocket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
+        conn.packet.len = 0;
     }
 });
 
