@@ -16,7 +16,6 @@
 
 
 //TODO Handle "disconnected" and "device_lost" events (and possibly "system_error")
-//TODO Enhance to log brief messages (to either local log feature or console) and optionally also log verbose messages (for deeper debugging)
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
@@ -75,10 +74,31 @@ const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
+// Container for attributes of connected USB serial ports
+var connectedUSB = [];
+
+// Serial packet handling (for transmissions to browser's terminal)
+const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
+const serPacketMax = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10));   // Size of buffer to hold max bytes receivable in FillTime at max baudrate
+const serPacket = {
+    id      : 0,
+    bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),
+    len     : 0,
+    timer   : null,
+};
 
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
+
+//TODO Determine if there's a need to flush port upon opening from a browser terminal command (Note serialJustOpened removed)
+//        if(serialJustOpened === info.connectionId) {
+//          chrome.serial.flush(serialJustOpened, function(result) {
+//            if(result === true) {
+//              serialJustOpened = null;
+//            }
+//          });
+//        } else {
 
 //TODO Consider returning error object
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
@@ -117,23 +137,18 @@ function openPort(sock, portPath, baudrate, connMode) {
                 },
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
-                        // No error
-                        serialJustOpened = openInfo.connectionId;
-                        var vs = null;
-                        // Find the socket in the socket connection holder - if not found, create null one (this allows null to be passed for the socket).
-                        for (var j = 0; j < connectedSockets.length; j++) {
-                            if (connectedSockets[j] === sock) {
-                                vs = j;
-                                break;
-                            }
-                        }
+                        // No error; create USB connection object
                         connectedUSB.push({
-                            wsSocket: vs,
-                            connId: parseInt(openInfo.connectionId),
-                            mode: connMode,
-                            path: portPath,
-                            baud: portBaudrate
+                            socket   : sock,
+                            connId   : parseInt(openInfo.connectionId),
+                            mode     : connMode,
+                            path     : portPath,
+                            baud     : portBaudrate,
+                            packet   : {}
                         });
+                        Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
+                        let idx = findSocketIdx(sock);
+                        if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -332,6 +347,43 @@ function buffer2ArrayBuffer(buffer) {
     return buf;
 }
 
+chrome.serial.onReceive.addListener(function(info) {
+// Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
+    var cn, k = null;
+    for (cn = 0; cn < connectedUSB.length; cn++) {
+        if (connectedUSB[cn].connId === info.connectionId) {
+            k = cn;
+            break;
+        }
+    }
+    if(k !== null) {
+        let conn = connectedUSB[k];
+        if (conn.mode === 'debug' && conn.wsSocket !== null) {
+            // send to terminal in broswer tab
+            let offset = 0;
+            do {
+                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-conn.packet.len);
+                conn.packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), conn.packet.len);
+                conn.packet.len += byteCount;
+                offset += byteCount;
+                if (conn.packet.len === serPacketMax) {
+                    sendDebugPacket(conn);
+                } else if (conn.packet.timer === null) {
+                    conn.packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, conn)
+                }
+            } while (offset < info.data.byteLength);
+        }
+    }
+
+    function sendDebugPacket(conn) {
+        if (conn.packet.timer !== null) {
+            clearTimeout(conn.packet.timer);
+            conn.packet.timer = null;
+        }
+        conn.socket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
+        conn.packet.len = 0;
+    }
+});
 
 /***********************************************************
  *             Propeller Programming Functions             *
@@ -340,7 +392,6 @@ function buffer2ArrayBuffer(buffer) {
 //TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port cid
 //TODO Remove hard-coded example applications
 //TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
-//TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?
 //TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
 /* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
@@ -2909,7 +2960,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
     return new Promise(function(resolve, reject) {
 
-
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
             return new Promise(function(resolve, reject) {
@@ -2958,7 +3008,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         //TODO lower waittime
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
-        //TODO verify TotalPackets used somewhere
         //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
         function sendUserApp() {
         // Return a promise that delivers the user application to the Micro Boot Loader.
