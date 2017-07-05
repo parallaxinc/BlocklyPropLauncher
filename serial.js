@@ -16,7 +16,6 @@
 
 
 //TODO Handle "disconnected" and "device_lost" events (and possibly "system_error")
-//TODO Enhance to log brief messages (to either local log feature or console) and optionally also log verbose messages (for deeper debugging)
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
@@ -140,14 +139,16 @@ function openPort(sock, portPath, baudrate, connMode) {
                     if (!chrome.runtime.lastError) {
                         // No error; create USB connection object
                         connectedUSB.push({
-                            wsSocket: sock,
-                            connId: parseInt(openInfo.connectionId),
-                            mode: connMode,
-                            path: portPath,
-                            baud: portBaudrate,
-                            packet: {}
+                            socket   : sock,
+                            connId   : parseInt(openInfo.connectionId),
+                            mode     : connMode,
+                            path     : portPath,
+                            baud     : portBaudrate,
+                            packet   : {}
                         });
                         Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
+                        let idx = findSocketIdx(sock);
+                        if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -379,7 +380,7 @@ chrome.serial.onReceive.addListener(function(info) {
             clearTimeout(conn.packet.timer);
             conn.packet.timer = null;
         }
-        conn.wsSocket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
+        conn.socket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
         conn.packet.len = 0;
     }
 });
@@ -391,7 +392,6 @@ chrome.serial.onReceive.addListener(function(info) {
 //TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port cid
 //TODO Remove hard-coded example applications
 //TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
-//TODO New and existing ports can both be seamlessly used for programming, terminal, and graphing... do we really need to keep track of the intent of the actual opened port in the connection records?
 //TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
 /* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
@@ -3008,7 +3008,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         //TODO lower waittime
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
-        //TODO verify TotalPackets used somewhere
         //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
         function sendUserApp() {
         // Return a promise that delivers the user application to the Micro Boot Loader.

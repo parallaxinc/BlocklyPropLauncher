@@ -160,21 +160,34 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 });
 
+function findSocketIdx(socket) {
+//Return index of socket in connectedSockets list
+  let idx = 0;
+  while (idx < connectedSockets.length && connectedSockets[idx].socket !== socket) {idx++}
+  return (idx < connectedSockets.length) ? idx : -1;
+}
+
 function closeSockets() {
 // Close all sockets and remove them from the list
   while (connectedSockets.length) {
-      connectedSockets.shift().close();
+    connectedSocket[0].socket.close();
+    deleteSocket(0);
   }
 }
 
-function deleteSocket(socket) {
-// Delete socket from lists (connectedSockets and connectedUSB)
-  let idx = 0;
-  while (idx < connectedSockets.length && connectedSockets[idx] !== socket) {idx++}
-  if (idx < connectedSockets.length) {connectedSockets.splice(idx, 1)}
-  idx = 0;
-  while (idx < connectedUSB.length && connectedUSB[idx].wsSocket !== socket) {idx++}
-  if (idx < connectedUSB.length) {connectedUSB[idx].wsSocket = null}
+function deleteSocket(socketOrIdx) {
+/* Delete socket from lists (connectedSockets and connectedUSB)
+   socketOrIdx is socket object or index of socket record to delete*/
+  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : -1;
+  if (idx === -1) {
+    while (++idx < connectedSockets.length && connectedSockets[idx].socket !== socketOrIdx) {}
+  }
+  if (idx < connectedSockets.length) {
+    if (connectedSockets[idx].serialIdx > -1) {
+      connectedUSB[connectedSockets[idx].serialIdx].socket = null;
+    }
+    connectedSockets.splice(idx, 1);
+  }
 }
 
 function connect_ws(ws_port, url_path) {
@@ -200,7 +213,7 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       log('Client connected');
       var socket = req.accept();
-      connectedSockets.push(socket);
+      connectedSockets.push({socket:socket, serialIdx:-1});
       
       //Listen for ports
       if(portListener === null) {
@@ -251,7 +264,7 @@ function connect_ws(ws_port, url_path) {
       // When a socket is closed, remove it from the list of connected sockets.
       socket.addEventListener('close', function() {
         log('Client disconnected');
-        deleteSocket();
+        deleteSocket(socket);
         if (connectedSockets.length === 0) {
           $('connect-disconnect').innerHTML = 'Connect';
           $('connect-disconnect').className = 'button button-blue';
@@ -268,7 +281,7 @@ function connect_ws(ws_port, url_path) {
     $('input').addEventListener('keydown', function(e) {
       if (e.keyCode == 13) {
         for (var i = 0; i < connectedSockets.length; i++) {
-          connectedSockets[i].send(this.value);
+          connectedSockets[i].socket.send(this.value);
         }
         this.value = '';
       }
@@ -331,7 +344,7 @@ function sendPortList() {
       });
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < connectedSockets.length; i++) {
-        connectedSockets[i].send(JSON.stringify(msg_to_send));
+        connectedSockets[i].socket.send(JSON.stringify(msg_to_send));
       }
     }
   );
