@@ -111,8 +111,9 @@ function openPort(sock, portPath, baudrate, connMode) {
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findConnectionId(portPath);
         if (cid) {
-            //Already open; ensure correct baudrate and resolve immediately.
+            //Already open; ensure correct baudrate and connMode, then resolve.
             changeBaudrate(cid, portBaudrate)
+                .then(function () {findConnection(cid).mode = connMode})
                 .then(function () {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
