@@ -10,28 +10,42 @@
   </head>
   <body>
     <div id='settings-pane'>
-      <table border="0" cellpadding="1" cellspacing="0">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
-          <!-- change this to a list of ports available? -->
-          <td>Send:</td>
-          <td colspan="2"><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
+          <td id="port-path-tab" class="tab-selected" align="center">Connection</td>
+          <td id="wx-module-tab" class="tab-unselect" align="center">WX Modules</td>
         </tr>
-        <tr>
-          <td>IP Address:</td>
-          <td><input type="text" id="bpc-url" class="con" style="width:170px;"/></td>
-          <td rowspan="2"><button id='refresh-connection' style="width:24px;">&#x21bb;</button></td>
-        </tr>
-        <tr>
-          <td>Port:</td>
-          <td><input type="text" id="bpc-port" class="con" style="width:170px;"/></td>
-        </tr>
-        <tr>
-          <td>Trace Logging:</td>
-          <td colspan="2"><input type="checkbox" id="bpc-trace"/></td>
-        </tr>
-        <tr>
-          <td colspan="3"><div id="log" class="con"></div></td>
-        </tr>
+        <tr><td colspan="2" class="folder-page">
+          <table border="0" cellpadding="1" cellspacing="0" id="port-path-settings">
+            <!--
+            <tr>
+              <td>Send:</td>
+              <td colspan="2"><input type="text" id="input" placeholder="Type a message to other connected clients here" style="width:200px;"></td>
+            </tr>
+            -->
+            <tr>
+              <td>Path/IP Address:</td>
+              <td><input type="text" id="bpc-url" class="con" style="width:150px;"/></td>
+              <td rowspan="2"><button id='refresh-connection' style="width:24px;">&#x21bb;</button></td>
+            </tr>
+            <tr>
+              <td>Port:</td>
+              <td><input type="text" id="bpc-port" class="con" style="width:150px;"/></td>
+            </tr>
+            <tr>
+              <td>Verbose Logging:</td>
+              <td colspan="2"><input type="checkbox" id="bpc-trace"/></td>
+            </tr>
+            <tr>
+              <td colspan="3"><div id="log" class="con"></div></td>
+            </tr>
+          </table>
+          <table id="wx-module-settings" style="display:none; height:324px">
+            <tr>
+              <td>Nothing to see here...</td>
+            </tr>
+          </table>
+        </td></tr>
       </table>
     </div>
     

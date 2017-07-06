@@ -13,6 +13,33 @@ body {
   background-repeat: no-repeat;
 }
 
+.tab-selected {
+  border-top: 1px solid #aaa;
+  border-left: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+  border-bottom: none;
+  background: none;
+  color: #000;
+}
+
+.tab-unselect {
+  border-top: 1px solid #999;
+  border-left: 1px solid #999;
+  border-right: 1px solid #999;
+  border-bottom: 1px solid #aaa;
+  background: rgba(0,0,0,.15);
+  color: #888;
+  cursor: pointer;
+}
+
+.folder-page {
+  padding: 5px;
+  border-bottom: 1px solid #aaa;
+  border-left: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+  border-top: none;
+}
+
 .con {
   font-family: Andale Mono, Consolas, monospace;
   font-weight: bold;
@@ -21,7 +48,7 @@ body {
 
 #log {
   height: 260px;
-  width: 287px;
+  width: 280px;
   overflow-y: scroll;
   background: #fff;
   border: 1px solid #ccc;
@@ -32,6 +59,8 @@ body {
   top: 550px;
   left: 10px;
   padding: 5px;
+  width: 300px;
+  height: 355px;
   border-radius: 6px;
   transition-duration: 0.8s;
   background: rgba(255,255,255,0.9);
