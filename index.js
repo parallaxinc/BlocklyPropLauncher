@@ -98,6 +98,9 @@ var wsServer = new http.WebSocketServer(server);
 // Keep track of the interval that sends the port list so it can be turned off
 var portListener = null;
 
+// Is verbose loggin turned on?
+var verboseLogging = false;
+
 
 document.addEventListener('DOMContentLoaded', function() {
   chrome.runtime.getPlatformInfo(function(platformInfo) {
@@ -153,12 +156,35 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   $('open-settings').onclick = function() {
-    if($('settings-pane').style.top === '550px') {
+    if($('settings-pane').style.top !== '10px') {
       $('settings-pane').style.top = '10px';
     } else {
       $('settings-pane').style.top = '550px';
     }
   };
+  
+  $('bpc-trace').onclick = function() {
+    verboseLogging = $('bpc-trace').checked;
+  };
+  
+  $('wx-module-tab').onclick = function() {
+    if($('wx-module-tab').className === 'tab-unselect') {
+      $('wx-module-tab').className = 'tab-selected';
+      $('port-path-tab').className = 'tab-unselect';
+      $('wx-module-settings').style.display = 'block';
+      $('port-path-settings').style.display = 'none';
+    }
+  };
+
+  $('port-path-tab').onclick = function() {
+    if($('port-path-tab').className === 'tab-unselect') {
+      $('wx-module-tab').className = 'tab-unselect';
+      $('port-path-tab').className = 'tab-selected';
+      $('wx-module-settings').style.display = 'none';
+      $('port-path-settings').style.display = 'block';
+    }
+  };
+
 });
 
 function findSocketIdx(socket) {
