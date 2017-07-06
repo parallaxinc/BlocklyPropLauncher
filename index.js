@@ -202,21 +202,19 @@ function closeSockets() {
   }
 }
 
-//TODO Adjust socketIdxes of all USB connection records > idx
 function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (connectedSockets and connectedUSB)
    socketOrIdx is socket object or index of socket record to delete*/
-  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : -1;
-  if (idx === -1) {
-    while (++idx < connectedSockets.length && connectedSockets[idx].socket !== socketOrIdx) {}
-  }
-  if (idx < connectedSockets.length) {
+  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
+  if (idx > -1 && idx < connectedSockets.length) {
+    // Clear USB's knowledge of socket connection record
     if (connectedSockets[idx].serialIdx > -1) {
-      // Clear USB's knowledge of socket connection record
       connectedUSB[connectedSockets[idx].serialIdx].socket = null;
       connectedUSB[connectedSockets[idx].serialIdx].socketIdx = -1;
     }
+    // Delete socket connection record and adjust USB's later references down, if any
     connectedSockets.splice(idx, 1);
+    connectedUSB.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
   }
 }
 
@@ -305,17 +303,6 @@ function connect_ws(ws_port, url_path) {
 
       return true;
     });
-
-    // TODO: sends messages - eventually delete
-    $('input').addEventListener('keydown', function(e) {
-      if (e.keyCode == 13) {
-        for (var i = 0; i < connectedSockets.length; i++) {
-          connectedSockets[i].socket.send(this.value);
-        }
-        this.value = '';
-      }
-    });
-
   }
 
 
@@ -390,23 +377,25 @@ function helloClient(sock, baudrate) {
 
 //TODO Check send results and act accordingly?
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  var cid = findConnectionId(portPath);
+  let conn = null;
   if (action === "open") {
-    if (!cid) {
-      log('Unable to connect terminal to ' + portPath);
-      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-      sock.send(JSON.stringify(msg_to_send));
-    } else {
-      log('Connecting terminal to ' + portPath + ' at ' + baudrate + ' baud.');
-      openPort(sock, portPath, baudrate, 'debug');
-    }
+    openPort(sock, portPath, baudrate, 'debug')
+      .then(function(id) {var cid = id})
+      .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+      .catch(function() {
+        log('Unable to connect terminal to ' + portPath);
+        var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
+        sock.send(JSON.stringify(msg_to_send));
+      });
   } else if (action === "close") {
-    if (cid) {
-      closePort(cid);
-    }
+    // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+    // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+    // Instead, update the connection mode so that serial debug data halts.
+//      closePort(findConnectionId(portPath));
+    if (conn = findConnection(portPath)) {conn.mode = 'idle'}
   } else if (action === "msg") {
-    // must be something to send to the device - find its connection ID and send it.
-    send(cid, msg);
+    // Serial message to send to the device
+    send(findConnectionId(portPath), msg);
   }
 }
 

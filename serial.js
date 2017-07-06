@@ -111,8 +111,9 @@ function openPort(sock, portPath, baudrate, connMode) {
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findConnectionId(portPath);
         if (cid) {
-            //Already open; ensure correct baudrate and resolve immediately.
+            //Already open; ensure correct baudrate and connMode, then resolve.
             changeBaudrate(cid, portBaudrate)
+                .then(function () {findConnection(cid).mode = connMode})
                 .then(function () {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
@@ -156,7 +157,8 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-   if (conn === findConnection(cid)) {
+   let conn = findConnection(cid);
+   if (conn) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
                log("Closed port " + conn.path + " (id " + cid + ")", mStat);
@@ -182,7 +184,6 @@ function findConnectionPath(id) {
     return record ? record.path : null;
 }
 
-//TODO Adjust serialIdxes of all socket connection records > idx
 function deleteConnection(id) {
 // Delete connection associated with id
     let idx = 0;
@@ -192,8 +193,10 @@ function deleteConnection(id) {
             // Clear socket's knowledge of USB connection record
             connectedSockets[connectedUSB[idx].socketIdx].serialIdx = -1;
         }
-        // Delete USB connection record
+        // Delete USB connection record and adjust socket's later references down, if any
         connectedUSB.splice(idx, 1)
+        connectedSockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
+
     }
 }
 
