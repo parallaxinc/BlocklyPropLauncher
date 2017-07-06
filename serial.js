@@ -157,7 +157,8 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-   if (conn === findConnection(cid)) {
+   let conn = findConnection(cid);
+   if (conn) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
                log("Closed port " + conn.path + " (id " + cid + ")", mStat);

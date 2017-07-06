@@ -303,17 +303,6 @@ function connect_ws(ws_port, url_path) {
 
       return true;
     });
-
-    // TODO: sends messages - eventually delete
-    $('input').addEventListener('keydown', function(e) {
-      if (e.keyCode == 13) {
-        for (var i = 0; i < connectedSockets.length; i++) {
-          connectedSockets[i].socket.send(this.value);
-        }
-        this.value = '';
-      }
-    });
-
   }
 
 
