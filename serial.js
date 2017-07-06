@@ -182,7 +182,6 @@ function findConnectionPath(id) {
     return record ? record.path : null;
 }
 
-//TODO Adjust serialIdxes of all socket connection records > idx
 function deleteConnection(id) {
 // Delete connection associated with id
     let idx = 0;
@@ -192,8 +191,10 @@ function deleteConnection(id) {
             // Clear socket's knowledge of USB connection record
             connectedSockets[connectedUSB[idx].socketIdx].serialIdx = -1;
         }
-        // Delete USB connection record
+        // Delete USB connection record and adjust socket's later references down, if any
         connectedUSB.splice(idx, 1)
+        connectedSockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
+
     }
 }
 

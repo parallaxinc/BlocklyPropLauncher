@@ -176,21 +176,19 @@ function closeSockets() {
   }
 }
 
-//TODO Adjust socketIdxes of all USB connection records > idx
 function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (connectedSockets and connectedUSB)
    socketOrIdx is socket object or index of socket record to delete*/
-  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : -1;
-  if (idx === -1) {
-    while (++idx < connectedSockets.length && connectedSockets[idx].socket !== socketOrIdx) {}
-  }
-  if (idx < connectedSockets.length) {
+  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
+  if (idx > -1 && idx < connectedSockets.length) {
+    // Clear USB's knowledge of socket connection record
     if (connectedSockets[idx].serialIdx > -1) {
-      // Clear USB's knowledge of socket connection record
       connectedUSB[connectedSockets[idx].serialIdx].socket = null;
       connectedUSB[connectedSockets[idx].serialIdx].socketIdx = -1;
     }
+    // Delete socket connection record and adjust USB's later references down, if any
     connectedSockets.splice(idx, 1);
+    connectedUSB.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
   }
 }
 
