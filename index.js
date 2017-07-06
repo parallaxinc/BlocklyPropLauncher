@@ -90,25 +90,12 @@ portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"]
 // A list of connected websockets.
 var connectedSockets = [];
 
-// container for IDs of connected USB serial ports and what is being done with those ports.
-var connectedUSB = [];
-
 // Containers for the http and ws servers
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 
 // Keep track of the interval that sends the port list so it can be turned off
 var portListener = null;
-
-// tag a new serial port for buffer flushing
-var serialJustOpened = null;
-
-// Serial packet handling (for transmissions to browser's terminal)
-var serPacketID = 0;
-var serPacket = new ArrayBuffer(4096);
-var serPacketView = new Uint8Array(serPacket);
-var serPacketLen = 0;
-var serPacketTimer = null;
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -145,9 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       $('connect-disconnect').innerHTML = 'Connect';
       $('connect-disconnect').className = 'button button-blue';
-      for (var i = 0; i < connectedSockets.length; i++) {
-        connectedSockets[i].close();
-      }
+      closeSockets();
     }
   };
 
@@ -159,9 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('refresh-connection').onclick = function() {
     $('connect-disconnect').innerHTML = 'Connect';
     $('connect-disconnect').className = 'button button-blue';
-    for (var i = 0; i < connectedSockets.length; i++) {
-      connectedSockets[i].close();
-    }
+    closeSockets();
     if(chrome.storage) {
       chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
       chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
@@ -176,6 +159,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 });
+
+function findSocketIdx(socket) {
+//Return index of socket in connectedSockets list
+  let idx = 0;
+  while (idx < connectedSockets.length && connectedSockets[idx].socket !== socket) {idx++}
+  return (idx < connectedSockets.length) ? idx : -1;
+}
+
+function closeSockets() {
+// Close all sockets and remove them from the list
+  while (connectedSockets.length) {
+    connectedSocket[0].socket.close();
+    deleteSocket(0);
+  }
+}
+
+function deleteSocket(socketOrIdx) {
+/* Delete socket from lists (connectedSockets and connectedUSB)
+   socketOrIdx is socket object or index of socket record to delete*/
+  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : -1;
+  if (idx === -1) {
+    while (++idx < connectedSockets.length && connectedSockets[idx].socket !== socketOrIdx) {}
+  }
+  if (idx < connectedSockets.length) {
+    if (connectedSockets[idx].serialIdx > -1) {
+      connectedUSB[connectedSockets[idx].serialIdx].socket = null;
+    }
+    connectedSockets.splice(idx, 1);
+  }
+}
 
 function connect_ws(ws_port, url_path) {
   var port = parseInt(ws_port); //6010;
@@ -200,7 +213,7 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       log('Client connected');
       var socket = req.accept();
-      connectedSockets.push(socket);
+      connectedSockets.push({socket:socket, serialIdx:-1});
       
       //Listen for ports
       if(portListener === null) {
@@ -251,12 +264,7 @@ function connect_ws(ws_port, url_path) {
       // When a socket is closed, remove it from the list of connected sockets.
       socket.addEventListener('close', function() {
         log('Client disconnected');
-        for (var i = 0; i < connectedSockets.length; i++) {
-          if (connectedSockets[i] == socket) {
-            connectedSockets.splice(i, 1);
-            break;
-          }
-        }
+        deleteSocket(socket);
         if (connectedSockets.length === 0) {
           $('connect-disconnect').innerHTML = 'Connect';
           $('connect-disconnect').className = 'button button-blue';
@@ -273,7 +281,7 @@ function connect_ws(ws_port, url_path) {
     $('input').addEventListener('keydown', function(e) {
       if (e.keyCode == 13) {
         for (var i = 0; i < connectedSockets.length; i++) {
-          connectedSockets[i].send(this.value);
+          connectedSockets[i].socket.send(this.value);
         }
         this.value = '';
       }
@@ -336,7 +344,7 @@ function sendPortList() {
       });
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < connectedSockets.length; i++) {
-        connectedSockets[i].send(JSON.stringify(msg_to_send));
+        connectedSockets[i].socket.send(JSON.stringify(msg_to_send));
       }
     }
   );
@@ -370,64 +378,6 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   }
 }
 
-
-chrome.serial.onReceive.addListener(function(info) {
-  var cn, k = null;
-  for (cn = 0; cn < connectedUSB.length; cn++) {
-    if (connectedUSB[cn].connId === info.connectionId) {
-      k = cn;
-      break;
-    }
-  }
-  if(k !== null) {
-    var output = null;
-//    output = ab2str(info.data);
-//      output = info.data;
-//TODO Flush port upon opening from a browser terminal command
-//        if(serialJustOpened === info.connectionId) {
-//          chrome.serial.flush(serialJustOpened, function(result) {
-//            if(result === true) {
-//              serialJustOpened = null;
-//            }
-//          });
-//        } else {
-    if (connectedUSB[k].mode === 'debug' && connectedUSB[k].wsSocket !== null) {
-      // send to terminal in broswer tab
-      serPacketView.set(new Uint8Array(info.data), serPacketLen);
-      serPacketLen += info.data.byteLength;
-      if (serPacketLen > 100) {
-        sendDebugPacket();
-      } else if (serPacketTimer === null) {
-        serPacketTimer = setTimeout(sendDebugPacket, 10)
-      }
-    }
-  }
-
-  function sendDebugPacket() {
-    if (serPacketTimer !== null) {
-      clearTimeout(serPacketTimer);
-      serPacketTimer = null;
-    }
-    serPacketID++;
-    var encOutput = btoa(ab2str(serPacketView.slice(0, serPacketLen)));
-    serPacketLen = 0;
-//    console.log(serPacketID, encOutput, output);
-    var msg_to_send = JSON.stringify({type: 'serial-terminal', packetID: serPacketID, msg: encOutput});
-    if (connectedSockets[connectedUSB[k].wsSocket]) {
-      connectedSockets[connectedUSB[k].wsSocket].send(msg_to_send);
-    }
-  }
-});
-
-
-var settings = {
-  bitrate: 115200,
-  dataBits: 'eight',
-  parityBit: 'no',
-  stopBits: 'one',
-  ctsFlowControl: false
-};
-      
 // Convert ArrayBuffer to String
 var ab2str = function(buf) {
   var bufView = new Uint8Array(buf);
