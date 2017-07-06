@@ -112,13 +112,11 @@ function openPort(sock, portPath, baudrate, connMode) {
         var cid = findConnectionId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate and resolve immediately.
-            log("Port already open", mDbug);
             changeBaudrate(cid, portBaudrate)
                 .then(function () {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
             //Not already open; attempt to open it
-            log("Opening port", mDbug);
             chrome.serial.connect(portPath, {
                     'bitrate': portBaudrate,
                     'dataBits': 'eight',
@@ -129,16 +127,17 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create USB connection object
+                        let idx = findSocketIdx(sock);
                         connectedUSB.push({
-                            socket   : sock,
-                            connId   : parseInt(openInfo.connectionId),
-                            mode     : connMode,
-                            path     : portPath,
-                            baud     : portBaudrate,
-                            packet   : {}
+                            socket    : sock,
+                            socketIdx : idx,
+                            connId    : parseInt(openInfo.connectionId),
+                            mode      : connMode,
+                            path      : portPath,
+                            baud      : portBaudrate,
+                            packet    : {}
                         });
                         Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
-                        let idx = findSocketIdx(sock);
                         if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
@@ -183,11 +182,19 @@ function findConnectionPath(id) {
     return record ? record.path : null;
 }
 
+//TODO Adjust serialIdxes of all socket connection records > idx
 function deleteConnection(id) {
 // Delete connection associated with id
-    let cn = 0;
-    while (cn < connectedUSB.length && connectedUSB[cn].connId !== id) {cn++}
-    if (cn < connectedUSB.length) {connectedUSB.splice(cn, 1)}
+    let idx = 0;
+    while (idx < connectedUSB.length && connectedUSB[idx].connId !== id) {idx++}
+    if (idx < connectedUSB.length) {
+        if (connectedUSB[idx].socketIdx > -1) {
+            // Clear socket's knowledge of USB connection record
+            connectedSockets[connectedUSB[idx].socketIdx].serialIdx = -1;
+        }
+        // Delete USB connection record
+        connectedUSB.splice(idx, 1)
+    }
 }
 
 function findConnection(cidOrPath) {

@@ -176,6 +176,7 @@ function closeSockets() {
   }
 }
 
+//TODO Adjust socketIdxes of all USB connection records > idx
 function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (connectedSockets and connectedUSB)
    socketOrIdx is socket object or index of socket record to delete*/
@@ -185,7 +186,9 @@ function deleteSocket(socketOrIdx) {
   }
   if (idx < connectedSockets.length) {
     if (connectedSockets[idx].serialIdx > -1) {
+      // Clear USB's knowledge of socket connection record
       connectedUSB[connectedSockets[idx].serialIdx].socket = null;
+      connectedUSB[connectedSockets[idx].serialIdx].socketIdx = -1;
     }
     connectedSockets.splice(idx, 1);
   }
@@ -236,8 +239,7 @@ function connect_ws(ws_port, url_path) {
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open" or "close"
-            log('Port ' + ws_msg.action + ' [' + ws_msg.portPath + '] at ' + ws_msg.baudrate + ' baud');
-  
+
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
             sendPortList();
@@ -369,7 +371,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
       sock.send(JSON.stringify(msg_to_send));
     } else {
-      log('Connecting terminal to ' + portPath);
+      log('Connecting terminal to ' + portPath + ' at ' + baudrate + ' baud.');
       openPort(sock, portPath, baudrate, 'debug');
     }
   } else if (action === "close") {
