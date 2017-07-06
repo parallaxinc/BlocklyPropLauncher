@@ -111,10 +111,11 @@ function openPort(sock, portPath, baudrate, connMode) {
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findConnectionId(portPath);
         if (cid) {
-            //Already open; ensure correct baudrate and connMode, then resolve.
+            //Already open; ensure correct baudrate, socket, and connMode, then resolve.
             changeBaudrate(cid, portBaudrate)
-                .then(function () {findConnection(cid).mode = connMode})
-                .then(function () {resolve(cid)})
+                .then(function() {updateConnectionSocket(cid, sock)})
+                .then(function() {findConnection(cid).mode = connMode})
+                .then(function() {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
             //Not already open; attempt to open it
@@ -128,18 +129,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create USB connection object
-                        let idx = findSocketIdx(sock);
-                        connectedUSB.push({
-                            socket    : sock,
-                            socketIdx : idx,
-                            connId    : parseInt(openInfo.connectionId),
-                            mode      : connMode,
-                            path      : portPath,
-                            baud      : portBaudrate,
-                            packet    : {}
-                        });
-                        Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
-                        if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
+                        addConnection(sock, openInfo.connectionId, connMode, portPath, portBaudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -170,18 +160,63 @@ function closePort(cid) {
    }
 }
 
+function addConnection(socket, cid, connMode, portPath, portBaudrate) {
+// Add new USB connection record
+    let idx = findSocketIdx(socket);
+    connectedUSB.push({
+        socket    : socket,
+        socketIdx : idx,
+        connId    : cid,
+        mode      : connMode,
+        path      : portPath,
+        baud      : portBaudrate,
+        packet    : {}
+    });
+    // Give it its own packet buffer
+    Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
+    // Point existing socket reference to new USB record
+    if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
+}
+
+function updateConnectionSocket(cid, newSocket) {
+/* Update connection cid's socket references
+   cid is the open port's connection identifier
+   newSocket is the new socket object*/
+  let cIdx = findConnectionIdx(cid);
+  if (cIdx > -1) {
+      let sIdx = (newSocket) ? findSocketIdx(newSocket) : -1;
+      if (connectedUSB[cIdx].socketIdx !== sIdx) {
+          // newSocket is different; update required
+          if (connectedUSB[cIdx].socketIdx !== -1) {
+              // Adjust existing socket's record
+              connectedSockets[connectedUSB[cIdx].socketIdx].serialIdx = -1;
+          }
+          // Update USB and socket records
+          connectedUSB[cIdx].socket = newSocket;
+          connectedUSB[cIdx].socketIdx = sIdx;
+          connectedSockets[sIdx].serialIdx = cIdx;
+      }
+  }
+}
+
 function findConnectionId(portPath) {
 /* Return id (cid) of connection associated with portPath
-   Returns null if not found. */
+   Returns null if not found*/
   const record = findConnection(portPath);
   return record ? record.connId : null;
 }
 
 function findConnectionPath(id) {
 /* Return port path of connection associated with id
-   Returns null if not found. */
+   Returns null if not found*/
     const record = findConnection(id);
     return record ? record.path : null;
+}
+
+function findConnectionIdx(id) {
+/* Return index of connection associated with id
+   Returns -1 if not found*/
+    return connectedUSB.findIndex(function(a) {return a.connId === id});
 }
 
 function deleteConnection(id) {
@@ -218,6 +253,7 @@ function findConnection(cidOrPath) {
     }
 }
 
+//TODO: Determine if changeBaudrate should change USB record's portBaudrate value
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier

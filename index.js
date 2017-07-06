@@ -188,10 +188,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function findSocketIdx(socket) {
-//Return index of socket in connectedSockets list
-  let idx = 0;
-  while (idx < connectedSockets.length && connectedSockets[idx].socket !== socket) {idx++}
-  return (idx < connectedSockets.length) ? idx : -1;
+/* Return index of socket in connectedSockets list
+   Returns -1 if not found*/
+    return connectedSockets.findIndex(function(a) {return a.socket === socket});
 }
 
 function closeSockets() {
