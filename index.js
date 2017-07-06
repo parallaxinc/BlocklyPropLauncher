@@ -39,10 +39,11 @@ const mdLog     = 16;      // BP local log
 const mdConsole = 32;      // BP local console
 
 // [Messages]     --- Category(ies) ---   ------- Destination(s) ------
-const mUser     = mcUser                +  mdDisplay + mdLog;
+const mUser     = mcUser                +  mdDisplay;
 const mStat     = mcStatus              +              mdLog;
 const mDbug     = mcStatus              +              mdLog + mdConsole;
 const mDeep     = mcVerbose             +                      mdConsole;
+const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 
 //TODO allow this to be further filtered with includes/excludes set by app options at runtime
 //TODO provide mechanism for this to be a downloadable date-stamped file.
@@ -226,7 +227,7 @@ function connect_ws(ws_port, url_path) {
           
           // load the propeller
           if (ws_msg.type === "load-prop") {
-            log('Loading Propeller ' + ws_msg.action);
+            log('Received Propeller Application for ' + ws_msg.action);
             setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
 //            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
 //            socket.send(JSON.stringify(msg_to_send));
@@ -345,6 +346,9 @@ function sendPortList() {
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < connectedSockets.length; i++) {
         connectedSockets[i].socket.send(JSON.stringify(msg_to_send));
+        if (chrome.runtime.lastError) {
+          console.log(chrome.runtime.lastError);
+        }
       }
     }
   );
