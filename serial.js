@@ -324,7 +324,7 @@ chrome.serial.onReceive.addListener(function(info) {
     }
     if(k !== null) {
         let conn = connectedUSB[k];
-        if (conn.mode === 'debug' && conn.wsSocket !== null) {
+        if (conn.mode === 'debug' && conn.socket !== null) {
             // send to terminal in broswer tab
             let offset = 0;
             do {
