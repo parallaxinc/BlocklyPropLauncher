@@ -111,23 +111,12 @@ function openPort(sock, portPath, baudrate, connMode) {
         portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findConnectionId(portPath);
         if (cid) {
-            log("Checking if port is open", mDbug);
-            isOpen()
-                //Already open?  Ensure correct baudrate and resolve immediately.  Else; try to open it
-                .then(function() {return applyBaud()}, function() {return open()});
-        } else {
-            open();
-        }
-
-        function applyBaud() {
-            log("Port already open", mDbug);
+            //Already open; ensure correct baudrate and resolve immediately.
             changeBaudrate(cid, portBaudrate)
-                .then(function () {resolve(openInfo.connectionId)})
+                .then(function () {resolve(cid)})
                 .catch(function (e) {reject(e)});
-        }
-
-        function open() {
-            log("Opening port", mDbug);
+        } else {
+            //Not already open; attempt to open it
             chrome.serial.connect(portPath, {
                     'bitrate': portBaudrate,
                     'dataBits': 'eight',
@@ -138,16 +127,17 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create USB connection object
+                        let idx = findSocketIdx(sock);
                         connectedUSB.push({
-                            socket   : sock,
-                            connId   : parseInt(openInfo.connectionId),
-                            mode     : connMode,
-                            path     : portPath,
-                            baud     : portBaudrate,
-                            packet   : {}
+                            socket    : sock,
+                            socketIdx : idx,
+                            connId    : parseInt(openInfo.connectionId),
+                            mode      : connMode,
+                            path      : portPath,
+                            baud      : portBaudrate,
+                            packet    : {}
                         });
                         Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
-                        let idx = findSocketIdx(sock);
                         if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
@@ -166,23 +156,16 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-    isOpen(cid)
-        .then(function() {
-            chrome.serial.disconnect(cid, function(closeResult) {
-                if (closeResult === true) {
-                    var conn = findConnection(cid);
-                    if (conn !== null) {
-                        log("Closed port " + conn.path + " (id " + cid + ")", mStat);
-                        deleteConnection(cid);
-                    } else {
-                        log("Closed port id " + cid + " but connection not found", mStat);
-                    }
-                } else {
-                    log("Connection not closed", mStat  );
-                }
-            });
-        })
-        .catch(function(e) {log(e.message, mStat)});
+   if (conn = findConnection(cid)) {
+       chrome.serial.disconnect(cid, function (closeResult) {
+           if (closeResult) {
+               log("Closed port " + conn.path + " (id " + cid + ")", mStat);
+               deleteConnection(cid);
+           } else {
+               log("Could not close port " + conn.path + " (id " + cid + ")", mStat);
+           }
+       });
+   }
 }
 
 function findConnectionId(portPath) {
@@ -199,11 +182,19 @@ function findConnectionPath(id) {
     return record ? record.path : null;
 }
 
+//TODO Adjust serialIdxes of all socket connection records > idx
 function deleteConnection(id) {
 // Delete connection associated with id
-    let cn = 0;
-    while (cn < connectedUSB.length && connectedUSB[cn].connId !== id) {cn++}
-    if (cn < connectedUSB.length) {connectedUSB.splice(cn, 1)}
+    let idx = 0;
+    while (idx < connectedUSB.length && connectedUSB[idx].connId !== id) {idx++}
+    if (idx < connectedUSB.length) {
+        if (connectedUSB[idx].socketIdx > -1) {
+            // Clear socket's knowledge of USB connection record
+            connectedSockets[connectedUSB[idx].socketIdx].serialIdx = -1;
+        }
+        // Delete USB connection record
+        connectedUSB.splice(idx, 1)
+    }
 }
 
 function findConnection(cidOrPath) {
@@ -222,26 +213,6 @@ function findConnection(cidOrPath) {
     } else {
         return findConn(function() {return connectedUSB[cn].path === cidOrPath})
     }
-}
-
-//TODO re-explore execution of isOpen with different states of the serial port- when disconnected, the reject() is properly handled in log, but appears again (with null path) in console
-function isOpen(cid) {
-/* Return a promise that is resolved if cid port is open, rejected otherwise
-   cid is the open port's connection identifier*/
-    return new Promise(function(resolve, reject) {
-        chrome.serial.getInfo(cid, function (connectionInfo) {
-            if (connectionInfo.dataBits !== undefined) {
-                // Port exists and is open
-                resolve(cid);
-            } else {
-                reject(Error("Port " + findConnectionPath(cid) + " is disconnected."));
-                deleteConnection(cid);
-            }
-        });
-        if (chrome.runtime.lastError) {
-            reject(Error("Port id:" + cid + " is not open."));
-        }
-    });
 }
 
 function changeBaudrate(cid, baudrate) {
@@ -274,22 +245,17 @@ function changeBaudrate(cid, baudrate) {
 
 //TODO .bitrate may be omitted if non-standard baudrate used - determine how to check for missing field
 function getBaudrate(cid) {
-    /* Return a promise that retrieves the cid port's baudrate.
-     cid is the open port's connection identifier
-     Resolves with baudrate; rejects with Error*/
+/* Return a promise that retrieves the cid port's baudrate.
+   cid is the open port's connection identifier
+   Resolves with baudrate; rejects with Error*/
     return new Promise(function(resolve, reject) {
-        isOpen(cid)
-            .then(function() {
-                log("Checking " + findConnectionPath(cid) + "'s baudrate", mDeep);
-                chrome.serial.getInfo(cid, function(connectionInfo) {
-                    if (!chrome.runtime.lastError) {
-                        resolve(connectionInfo.bitrate);
-                    } else {
-                        reject(Error("Could not retrieve baudrate of port " + findConnectionPath(cid)));
-                    }
-                });
-            })
-            .catch(function(e) {reject(e)});
+        log("Checking " + findConnectionPath(cid) + "'s baudrate", mDeep);
+        chrome.serial.getInfo(cid, function (connectionInfo) {
+            resolve(connectionInfo.bitrate);
+        });
+        if (chrome.runtime.lastError) {
+            reject(Error("Could not retrieve baudrate of port " + findConnectionPath(cid)));
+        }
     });
 }
 
@@ -358,7 +324,7 @@ chrome.serial.onReceive.addListener(function(info) {
     }
     if(k !== null) {
         let conn = connectedUSB[k];
-        if (conn.mode === 'debug' && conn.wsSocket !== null) {
+        if (conn.mode === 'debug' && conn.socket !== null) {
             // send to terminal in broswer tab
             let offset = 0;
             do {
@@ -383,6 +349,16 @@ chrome.serial.onReceive.addListener(function(info) {
         conn.socket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
         conn.packet.len = 0;
     }
+});
+
+chrome.serial.onReceiveError.addListener(function(info) {
+// Permanent serial receive error listener.
+    switch (info.error) {
+        case "disconnected":
+        case "device_lost" :
+        case "system_error": deleteConnection(info.connectionId);
+    }
+//    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });
 
 /***********************************************************
@@ -2930,13 +2906,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
             findConnection(cid).mode = (debug !== "none") ? "debug" : "programming";
-            log("Download successful.", mUser, sock);
+            log("Download successful.", mUser+mStat, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })                                                                                                      //Error? Disable listener and display error
-        .catch(function(e) {listen(false); log("Error: " + e.message, mDbug+mUser, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .catch(function(e) {listen(false); log("Error: " + e.message, mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 function listen(engage) {
@@ -2990,7 +2966,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error("Loader failed.")); return;}
-                    log("Found Propeller!", mUser, sock);
+                    log("Found Propeller", mUser+mStat, sock);
                     resolve();
                 }
                 log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
@@ -3135,7 +3111,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var instPacket = packetGenerator();
         var next;
 
-        isOpen(cid)
+        Promise.resolve()
             .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
             .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
