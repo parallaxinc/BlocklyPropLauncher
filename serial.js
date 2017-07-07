@@ -15,7 +15,6 @@
  SELL ANYTHING THAT IT MAY DESCRIBE, IN WHOLE OR IN PART.                                                                                */
 
 
-//TODO Handle "disconnected" and "device_lost" events (and possibly "system_error")
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
 //TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
@@ -2927,7 +2926,6 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
-//        port.mode = (debug !== "none") ? "debug" : "programming";
         port.mode = "programming";
         connect = function() {return changeBaudrate(cid, initialBaudrate)}
     } else {

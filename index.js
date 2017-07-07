@@ -196,7 +196,7 @@ function findSocketIdx(socket) {
 function closeSockets() {
 // Close all sockets and remove them from the list
   while (connectedSockets.length) {
-    connectedSocket[0].socket.close();
+    connectedSockets[0].socket.close();
     deleteSocket(0);
   }
 }
