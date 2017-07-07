@@ -16,12 +16,9 @@
 
 
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
-//TODO Eliminate portBaudrate; instead, store it with the connection id.
 //TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
 //TODO Study .bind for opportunities to save scope context of private functions
-
-let portBaudrate = 0;                               //Current baud rate
 
 // Programming metrics
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
@@ -73,7 +70,7 @@ const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
-// Container for attributes of connected USB serial ports
+// Container for attributes of connected serial ports
 var connectedUSB = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
@@ -104,14 +101,16 @@ const serPacket = {
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
    sock can be null to open serial port without an associated socket
+   portPath is the string path to the serial port
    baudrate is optional; defaults to initialBaudrate
+   connMode is the current point of the connection; 'term', 'graph', 'programming'
    Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
-        portBaudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
+        baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findConnectionId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-            changeBaudrate(cid, portBaudrate)
+            changeBaudrate(cid, baudrate)
                 .then(function() {updateConnectionSocket(cid, sock)})
                 .then(function() {findConnection(cid).mode = connMode})
                 .then(function() {resolve(cid)})
@@ -119,7 +118,7 @@ function openPort(sock, portPath, baudrate, connMode) {
         } else {
             //Not already open; attempt to open it
             chrome.serial.connect(portPath, {
-                    'bitrate': portBaudrate,
+                    'bitrate': baudrate,
                     'dataBits': 'eight',
                     'parityBit': 'no',
                     'stopBits': 'one',
@@ -128,7 +127,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create USB connection object
-                        addConnection(sock, openInfo.connectionId, connMode, portPath, portBaudrate);
+                        addConnection(sock, openInfo.connectionId, connMode, portPath, baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -146,14 +145,14 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-   let conn = findConnection(cid);
-   if (conn) {
+   let port = findConnection(cid);
+   if (port) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
-               log("Closed port " + conn.path + " (id " + cid + ")", mStat);
+               log("Closed port " + port.path + " (id " + cid + ")", mStat);
                deleteConnection(cid);
            } else {
-               log("Could not close port " + conn.path + " (id " + cid + ")", mStat);
+               log("Could not close port " + port.path + " (id " + cid + ")", mStat);
            }
        });
    }
@@ -201,21 +200,21 @@ function updateConnectionSocket(cid, newSocket) {
 function findConnectionId(portPath) {
 /* Return id (cid) of connection associated with portPath
    Returns null if not found*/
-  const record = findConnection(portPath);
-  return record ? record.connId : null;
+  const port = findConnection(portPath);
+  return port ? port.connId : null;
 }
 
 function findConnectionPath(id) {
 /* Return port path of connection associated with id
    Returns null if not found*/
-    const record = findConnection(id);
-    return record ? record.path : null;
+    const port = findConnection(id);
+    return port ? port.path : null;
 }
 
 function findConnectionIdx(id) {
 /* Return index of connection associated with id
    Returns -1 if not found*/
-    return connectedUSB.findIndex(function(a) {return a.connId === id});
+    return connectedUSB.findIndex(function(p) {return p.connId === id});
 }
 
 function deleteConnection(id) {
@@ -252,47 +251,30 @@ function findConnection(cidOrPath) {
     }
 }
 
-//TODO: Determine if changeBaudrate should change USB record's portBaudrate value
 function changeBaudrate(cid, baudrate) {
 /* Return a promise that changes the cid port's baudrate.
    cid is the open port's connection identifier
    baudrate is optional; defaults to finalBaudrate
    Resolves with cid; rejects with Error*/
     return new Promise(function(resolve, reject) {
-        portBaudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
-        getBaudrate(cid)
-            .then(function(br) {
-                if (br !== portBaudrate) {
-                    // Need to change current baudrate
-                    log("Changing " + findConnection(cid).path + " to " + portBaudrate + " baud", mDbug);
-                    chrome.serial.update(cid, {'bitrate': portBaudrate}, function (updateResult) {
-                        if (!chrome.runtime.lastError) {
-                            resolve(cid);
-                        } else {
-                            reject(Error("Can not set port " + findConnection(cid).path + " to baudrate " + baudrate));
-                        }
-                    });
-                } else {
-                    // Port is already set to baudrate
-                    resolve(cid);
-                }
-            })
-            .catch(function(e) {reject(e)});
-    });
-}
-
-//TODO .bitrate may be omitted if non-standard baudrate used - determine how to check for missing field
-function getBaudrate(cid) {
-/* Return a promise that retrieves the cid port's baudrate.
-   cid is the open port's connection identifier
-   Resolves with baudrate; rejects with Error*/
-    return new Promise(function(resolve, reject) {
-        log("Checking " + findConnectionPath(cid) + "'s baudrate", mDeep);
-        chrome.serial.getInfo(cid, function (connectionInfo) {
-            resolve(connectionInfo.bitrate);
-        });
-        if (chrome.runtime.lastError) {
-            reject(Error("Could not retrieve baudrate of port " + findConnectionPath(cid)));
+        baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
+        let port = findConnection(cid);
+        if (port) {
+            if (port.baud !== baudrate) {
+                // Need to change current baudrate
+                log("Changing " + port.path + " to " + baudrate + " baud", mDbug);
+                chrome.serial.update(cid, {'bitrate': baudrate}, function (updateResult) {
+                    if (updateResult) {
+                        port.baud = baudrate;
+                        resolve(cid);
+                    } else {
+                        reject(Error("Can not set port " + port.path + " to baudrate " + baudrate));
+                    }
+                });
+            } else {
+                // Port is already set to baudrate
+                resolve(cid);
+            }
         }
     });
 }
@@ -361,31 +343,31 @@ chrome.serial.onReceive.addListener(function(info) {
         }
     }
     if(k !== null) {
-        let conn = connectedUSB[k];
-        if (conn.mode === 'debug' && conn.socket !== null) {
+        let port = connectedUSB[k];
+        if (port.mode === 'debug' && port.socket !== null) {
             // send to terminal in broswer tab
             let offset = 0;
             do {
-                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-conn.packet.len);
-                conn.packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), conn.packet.len);
-                conn.packet.len += byteCount;
+                let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-port.packet.len);
+                port.packet.bufView.set(new Uint8Array(info.data).slice(offset, offset+byteCount), port.packet.len);
+                port.packet.len += byteCount;
                 offset += byteCount;
-                if (conn.packet.len === serPacketMax) {
-                    sendDebugPacket(conn);
-                } else if (conn.packet.timer === null) {
-                    conn.packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, conn)
+                if (port.packet.len === serPacketMax) {
+                    sendDebugPacket(port);
+                } else if (port.packet.timer === null) {
+                    port.packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, port)
                 }
             } while (offset < info.data.byteLength);
         }
     }
 
-    function sendDebugPacket(conn) {
-        if (conn.packet.timer !== null) {
-            clearTimeout(conn.packet.timer);
-            conn.packet.timer = null;
+    function sendDebugPacket(port) {
+        if (port.packet.timer !== null) {
+            clearTimeout(port.packet.timer);
+            port.packet.timer = null;
         }
-        conn.socket.send(JSON.stringify({type: 'serial-terminal', packetID: conn.packet.id++, msg: btoa(ab2str(conn.packet.bufView.slice(0, conn.packet.len)))}));
-        conn.packet.len = 0;
+        port.socket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
+        port.packet.len = 0;
     }
 });
 
@@ -3064,7 +3046,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     });
                 }
                 sendUA()
-                    .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);})
+                    .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/port.baud)*1000+1);})
                     .then(function() {if (packetId > 0) {return sendUserApp()}})
                     .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
@@ -3120,13 +3102,15 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 }
 
                 sendInstructionPacket()
-                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/portBaudrate)*1000+1);}})
+                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
                     .then(function(ack) {if (ack) {return finalizeDelivery()}})
                     .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
             });
         }
 
+        //Get port connection record
+        port = findConnection(cid);
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
@@ -3142,7 +3126,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         //Calculate expected max package delivery time
         //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
         // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-        var deliveryTime = 300+((10*(txData.byteLength+20+8))/portBaudrate)*1000+1;
+        var deliveryTime = 300+((10*(txData.byteLength+20+8))/port.baud)*1000+1;
 
         //Prep packetGenerator iterator and next object
         var instPacket = packetGenerator();

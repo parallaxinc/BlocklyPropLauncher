@@ -391,7 +391,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
     // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
     // Instead, update the connection mode so that serial debug data halts.
 //      closePort(findConnectionId(portPath));
-    if (conn = findConnection(portPath)) {conn.mode = 'idle'}
+    if (conn = findConnection(portPath)) {conn.mode = 'none'}
   } else if (action === "msg") {
     // Serial message to send to the device
     send(findConnectionId(portPath), msg);
