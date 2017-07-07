@@ -71,7 +71,7 @@ const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
 
 // Container for attributes of connected serial ports
-var connectedUSB = [];
+var ports = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
 const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
@@ -107,12 +107,12 @@ function openPort(sock, portPath, baudrate, connMode) {
    Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        var cid = findConnectionId(portPath);
+        var cid = findPortId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate, socket, and connMode, then resolve.
             changeBaudrate(cid, baudrate)
-                .then(function() {updateConnectionSocket(cid, sock)})
-                .then(function() {findConnection(cid).mode = connMode})
+                .then(function() {updatePortSocket(cid, sock)})
+                .then(function() {findPort(cid).mode = connMode})
                 .then(function() {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
@@ -126,8 +126,8 @@ function openPort(sock, portPath, baudrate, connMode) {
                 },
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
-                        // No error; create USB connection object
-                        addConnection(sock, openInfo.connectionId, connMode, portPath, baudrate);
+                        // No error; create serial port object
+                        addPort(sock, openInfo.connectionId, connMode, portPath, baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -145,110 +145,17 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-   let port = findConnection(cid);
+   let port = findPort(cid);
    if (port) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
                log("Closed port " + port.path + " (id " + cid + ")", mStat);
-               deleteConnection(cid);
+               deletePort(cid);
            } else {
                log("Could not close port " + port.path + " (id " + cid + ")", mStat);
            }
        });
    }
-}
-
-function addConnection(socket, cid, connMode, portPath, portBaudrate) {
-// Add new USB connection record
-    let idx = findSocketIdx(socket);
-    connectedUSB.push({
-        socket    : socket,
-        socketIdx : idx,
-        connId    : cid,
-        mode      : connMode,
-        path      : portPath,
-        baud      : portBaudrate,
-        packet    : {}
-    });
-    // Give it its own packet buffer
-    Object.assign(connectedUSB[connectedUSB.length-1].packet, serPacket);
-    // Point existing socket reference to new USB record
-    if (idx > -1) {connectedSockets[idx].serialIdx = connectedUSB.length-1}
-}
-
-function updateConnectionSocket(cid, newSocket) {
-/* Update connection cid's socket references
-   cid is the open port's connection identifier
-   newSocket is the new socket object*/
-  let cIdx = findConnectionIdx(cid);
-  if (cIdx > -1) {
-      let sIdx = (newSocket) ? findSocketIdx(newSocket) : -1;
-      if (connectedUSB[cIdx].socketIdx !== sIdx) {
-          // newSocket is different; update required
-          if (connectedUSB[cIdx].socketIdx !== -1) {
-              // Adjust existing socket's record
-              connectedSockets[connectedUSB[cIdx].socketIdx].serialIdx = -1;
-          }
-          // Update USB and socket records
-          connectedUSB[cIdx].socket = newSocket;
-          connectedUSB[cIdx].socketIdx = sIdx;
-          connectedSockets[sIdx].serialIdx = cIdx;
-      }
-  }
-}
-
-function findConnectionId(portPath) {
-/* Return id (cid) of connection associated with portPath
-   Returns null if not found*/
-  const port = findConnection(portPath);
-  return port ? port.connId : null;
-}
-
-function findConnectionPath(id) {
-/* Return port path of connection associated with id
-   Returns null if not found*/
-    const port = findConnection(id);
-    return port ? port.path : null;
-}
-
-function findConnectionIdx(id) {
-/* Return index of connection associated with id
-   Returns -1 if not found*/
-    return connectedUSB.findIndex(function(p) {return p.connId === id});
-}
-
-function deleteConnection(id) {
-// Delete connection associated with id
-    let idx = 0;
-    while (idx < connectedUSB.length && connectedUSB[idx].connId !== id) {idx++}
-    if (idx < connectedUSB.length) {
-        if (connectedUSB[idx].socketIdx > -1) {
-            // Clear socket's knowledge of USB connection record
-            connectedSockets[connectedUSB[idx].socketIdx].serialIdx = -1;
-        }
-        // Delete USB connection record and adjust socket's later references down, if any
-        connectedUSB.splice(idx, 1)
-        connectedSockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
-
-    }
-}
-
-function findConnection(cidOrPath) {
-/* Return connection record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
-   cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
-   Returns null record if not found*/
-    let cn = 0;
-    // Find connection record based on scan function
-    function findConn(scan) {
-        while (cn < connectedUSB.length && !scan()) {cn++}
-        return cn < connectedUSB.length ? connectedUSB[cn] : null;
-    }
-    // Scan for connID or path
-    if (isNumber(cidOrPath)) {
-        return findConn(function() {return connectedUSB[cn].connId === cidOrPath})
-    } else {
-        return findConn(function() {return connectedUSB[cn].path === cidOrPath})
-    }
 }
 
 function changeBaudrate(cid, baudrate) {
@@ -258,7 +165,7 @@ function changeBaudrate(cid, baudrate) {
    Resolves with cid; rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
-        let port = findConnection(cid);
+        let port = findPort(cid);
         if (port) {
             if (port.baud !== baudrate) {
                 // Need to change current baudrate
@@ -287,7 +194,7 @@ function setControl(cid, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set port " + findConnection(cid).path + "'s options: " + options));
+            reject(Error("Can not set port " + findPort(cid).path + "'s options: " + options));
           }
         });
     });
@@ -301,7 +208,7 @@ function flush(cid) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush port " + findConnection(cid).path + "'s transmit/receive buffer"));
+              reject(Error("Can not flush port " + findPort(cid).path + "'s transmit/receive buffer"));
             }
         });
     });
@@ -335,15 +242,8 @@ function buffer2ArrayBuffer(buffer) {
 
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
-    var cn, k = null;
-    for (cn = 0; cn < connectedUSB.length; cn++) {
-        if (connectedUSB[cn].connId === info.connectionId) {
-            k = cn;
-            break;
-        }
-    }
-    if(k !== null) {
-        let port = connectedUSB[k];
+    let port = findPort(info.connectionId);
+    if(port) {
         if (port.mode === 'debug' && port.socket !== null) {
             // send to terminal in broswer tab
             let offset = 0;
@@ -376,10 +276,104 @@ chrome.serial.onReceiveError.addListener(function(info) {
     switch (info.error) {
         case "disconnected":
         case "device_lost" :
-        case "system_error": deleteConnection(info.connectionId);
+        case "system_error": deletePort(info.connectionId);
     }
 //    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });
+
+function updatePortSocket(cid, newSocket) {
+    /* Update port cid's socket references
+     cid is the open port's connection identifier
+     newSocket is the new socket object*/
+    let cIdx = findPortIdx(cid);
+    if (cIdx > -1) {
+        let sIdx = (newSocket) ? findSocketIdx(newSocket) : -1;
+        if (ports[cIdx].socketIdx !== sIdx) {
+            // newSocket is different; update required
+            if (ports[cIdx].socketIdx !== -1) {
+                // Adjust existing socket's record
+                sockets[ports[cIdx].socketIdx].serialIdx = -1;
+            }
+            // Update port and socket records
+            ports[cIdx].socket = newSocket;
+            ports[cIdx].socketIdx = sIdx;
+            sockets[sIdx].serialIdx = cIdx;
+        }
+    }
+}
+
+function addPort(socket, cid, connMode, portPath, portBaudrate) {
+// Add new serial port record
+    let idx = findSocketIdx(socket);
+    ports.push({
+        socket    : socket,
+        socketIdx : idx,
+        connId    : cid,
+        mode      : connMode,
+        path      : portPath,
+        baud      : portBaudrate,
+        packet    : {}
+    });
+    // Give it its own packet buffer
+    Object.assign(ports[ports.length-1].packet, serPacket);
+    // Point existing socket reference to new serial port record
+    if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
+}
+
+function findPortId(portPath) {
+    /* Return id (cid) of serial port associated with portPath
+     Returns null if not found*/
+    const port = findPort(portPath);
+    return port ? port.connId : null;
+}
+
+function findPortPath(id) {
+    /* Return path of serial port associated with id
+     Returns null if not found*/
+    const port = findPort(id);
+    return port ? port.path : null;
+}
+
+function findPortIdx(id) {
+    /* Return index of serial port associated with id
+     Returns -1 if not found*/
+    return ports.findIndex(function(p) {return p.connId === id});
+}
+
+function deletePort(id) {
+// Delete serial port associated with id
+    let idx = 0;
+    while (idx < ports.length && ports[idx].connId !== id) {idx++}
+    if (idx < ports.length) {
+        if (ports[idx].socketIdx > -1) {
+            // Clear socket's knowledge of serial port record
+            sockets[ports[idx].socketIdx].serialIdx = -1;
+        }
+        // Delete port record and adjust socket's later references down, if any
+        ports.splice(idx, 1)
+        sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
+
+    }
+}
+
+function findPort(cidOrPath) {
+    /* Return port record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
+     cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
+     Returns null record if not found*/
+    let cn = 0;
+    // Find port record based on scan function
+    function findConn(scan) {
+        while (cn < ports.length && !scan()) {cn++}
+        return cn < ports.length ? ports[cn] : null;
+    }
+    // Scan for connID or path
+    if (isNumber(cidOrPath)) {
+        return findConn(function() {return ports[cn].connId === cidOrPath})
+    } else {
+        return findConn(function() {return ports[cn].path === cidOrPath})
+    }
+}
+
 
 /***********************************************************
  *             Propeller Programming Functions             *
@@ -2900,8 +2894,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         var binImage = buffer2ArrayBuffer(bin);
     }
 
-    // Look for an existing connection
-    var port = findConnection(portPath);
+    // Look for an existing port
+    var port = findPort(portPath);
     var cid = port ? port.connId : null;
     var connect;
     var originalBaudrate;
@@ -2919,12 +2913,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {listen(true)})                                                                        //Enable listener
-        .then(function() {log("Scanning port " + findConnectionPath(cid), mUser, sock)})                        //Notify what port we're using
+        .then(function() {log("Scanning port " + findPortPath(cid), mUser, sock)})                        //Notify what port we're using
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
-            findConnection(cid).mode = (debug !== "none") ? "debug" : "programming";
+            findPort(cid).mode = (debug !== "none") ? "debug" : "programming";
             log("Download successful.", mUser+mStat, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
@@ -3109,8 +3103,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             });
         }
 
-        //Get port connection record
-        port = findConnection(cid);
+        //Get serial port record
+        var port = findPort(cid);
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;

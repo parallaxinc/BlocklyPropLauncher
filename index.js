@@ -89,7 +89,7 @@ var platform = pfUnk;
 portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
 
 // A list of connected websockets.
-var connectedSockets = [];
+var sockets = [];
 
 // Containers for the http and ws servers
 var server = new http.Server();
@@ -188,32 +188,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function findSocketIdx(socket) {
-/* Return index of socket in connectedSockets list
+/* Return index of socket in sockets list
    Returns -1 if not found*/
-    return connectedSockets.findIndex(function(a) {return a.socket === socket});
+    return sockets.findIndex(function(s) {return s.socket === socket});
 }
 
 function closeSockets() {
 // Close all sockets and remove them from the list
-  while (connectedSockets.length) {
-    connectedSockets[0].socket.close();
+  while (sockets.length) {
+    sockets[0].socket.close();
     deleteSocket(0);
   }
 }
 
 function deleteSocket(socketOrIdx) {
-/* Delete socket from lists (connectedSockets and connectedUSB)
+/* Delete socket from lists (sockets and ports)
    socketOrIdx is socket object or index of socket record to delete*/
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
-  if (idx > -1 && idx < connectedSockets.length) {
+  if (idx > -1 && idx < sockets.length) {
     // Clear USB's knowledge of socket connection record
-    if (connectedSockets[idx].serialIdx > -1) {
-      connectedUSB[connectedSockets[idx].serialIdx].socket = null;
-      connectedUSB[connectedSockets[idx].serialIdx].socketIdx = -1;
+    if (sockets[idx].serialIdx > -1) {
+      ports[sockets[idx].serialIdx].socket = null;
+      ports[sockets[idx].serialIdx].socketIdx = -1;
     }
     // Delete socket connection record and adjust USB's later references down, if any
-    connectedSockets.splice(idx, 1);
-    connectedUSB.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
+    sockets.splice(idx, 1);
+    ports.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
   }
 }
 
@@ -240,7 +240,7 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       log('Client connected');
       var socket = req.accept();
-      connectedSockets.push({socket:socket, serialIdx:-1});
+      sockets.push({socket:socket, serialIdx:-1});
       
       //Listen for ports
       if(portListener === null) {
@@ -291,7 +291,7 @@ function connect_ws(ws_port, url_path) {
       socket.addEventListener('close', function() {
         log('Client disconnected');
         deleteSocket(socket);
-        if (connectedSockets.length === 0) {
+        if (sockets.length === 0) {
           $('connect-disconnect').innerHTML = 'Connect';
           $('connect-disconnect').className = 'button button-blue';
           clearInterval(portListener);
@@ -358,8 +358,8 @@ function sendPortList() {
         }
       });
       var msg_to_send = {type:'port-list',ports:pt};
-      for (var i = 0; i < connectedSockets.length; i++) {
-        connectedSockets[i].socket.send(JSON.stringify(msg_to_send));
+      for (var i = 0; i < sockets.length; i++) {
+        sockets[i].socket.send(JSON.stringify(msg_to_send));
         if (chrome.runtime.lastError) {
           console.log(chrome.runtime.lastError);
         }
@@ -390,11 +390,11 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
     // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
     // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
     // Instead, update the connection mode so that serial debug data halts.
-//      closePort(findConnectionId(portPath));
-    if (conn = findConnection(portPath)) {conn.mode = 'none'}
+//      closePort(findPortId(portPath));
+    if (conn = findPort(portPath)) {conn.mode = 'none'}
   } else if (action === "msg") {
     // Serial message to send to the device
-    send(findConnectionId(portPath), msg);
+    send(findPortId(portPath), msg);
   }
 }
 
