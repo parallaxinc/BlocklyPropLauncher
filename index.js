@@ -231,11 +231,12 @@ function deleteSocket(socketOrIdx) {
 
 function connect_ws(ws_port, url_path) {
   var port = parseInt(ws_port); //6010;
-  var isServer = false;
+// commented out unused variable
+//  var isServer = false;
   if (http.Server && http.WebSocketServer) {
     // Listen for HTTP connections.
     server.listen(port);
-    isServer = true;
+//    isServer = true;
   
     // Do we need this?
     /*
