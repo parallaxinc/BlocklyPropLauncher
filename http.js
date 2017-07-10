@@ -323,6 +323,7 @@ EventSource.prototype = {
 function HttpServer() {
   EventSource.apply(this);
   this.readyState_ = 0;
+  this.socketId = -1;
 }
 
 HttpServer.prototype = {
@@ -350,6 +351,7 @@ HttpServer.prototype = {
         function(result) {
           if (!result) {
             t.readyState_ = 1;
+            t.socketId = socketInfo.socketId;
           }
           else {
             console.log(
@@ -359,6 +361,20 @@ HttpServer.prototype = {
           }
         });
     });
+  },
+
+  close: function() {
+    var t = this;
+    if (t.socketId > -1) {
+      chrome.sockets.tcpServer.close(t.socketId, function() {
+        if (!chrome.runtime.lastError) {
+          t.readyState_ = 0;
+          t.socketId = -1;
+        } else {
+          console.log('Could not close socket ' + chrome.runtime.lastError.message);
+        }
+      });
+    }
   },
 
   readRequestFromSocket_: function(pSocket) {

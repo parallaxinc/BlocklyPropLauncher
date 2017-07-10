@@ -185,6 +185,7 @@ function connect() {
 
 function disconnect() {
   closeSockets();
+  server.close();
 }
 
 function updateConnect(connected) {
