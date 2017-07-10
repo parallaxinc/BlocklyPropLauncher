@@ -185,10 +185,9 @@ function connect() {
 
 function disconnect() {
   closeSockets();
-  server.close();
 }
 
-function updateConnect(connected) {
+function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = 'Connected';
       $('connect-disconnect').className = 'button button-green';
@@ -198,6 +197,11 @@ function updateConnect(connected) {
       $('connect-disconnect').className = 'button button-blue';
       log('BlocklyProp site disconnected');
   }
+}
+
+function closeServer() {
+  wsServer.removeEventListener('request');
+  server.close();
 }
 
 function findSocketIdx(socket) {
@@ -283,7 +287,7 @@ function connect_ws(ws_port, url_path) {
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
-            updateConnect(true);
+            updateStatus(true);
           // Handle clear-to-send
           } else if (ws_msg.type === "debug-cts") {
           //TODO Add clear-to-send handling code
@@ -301,7 +305,7 @@ function connect_ws(ws_port, url_path) {
       socket.addEventListener('close', function() {
         deleteSocket(socket);
         if (sockets.length === 0) {
-          updateConnect(false);
+          updateStatus(false);
           clearInterval(portListener);
           portListener = null;
           chrome.app.window.current().drawAttention();
