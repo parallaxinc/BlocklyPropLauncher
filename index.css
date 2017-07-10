@@ -112,13 +112,16 @@ body {
 }
 
 .status-green {
+  height: 34px;
   width: 118px;
   background-color: #4caf50; /* Green */
+  padding-top: 31px;
   color: white;
   border: none;
 }
 
 .status-clear {
+  height: 38px;
   width: 114px;
   background: none; /* Green */
   color: #ccc;

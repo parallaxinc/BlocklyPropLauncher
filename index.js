@@ -194,11 +194,15 @@ function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = '&#10004; Connected';
       $('websocket-connect').innerHTML = 'Disconnect';
+      $('ws-button-container').style.visibility = 'visible';
+      $('log').style.height = '240px';
       $('connect-disconnect').className = 'status status-green';
       log('BlocklyProp site connected');
   } else {
       $('connect-disconnect').innerHTML = 'Waiting to<br>connect...';
       $('connect-disconnect').className = 'status status-clear';
+      $('ws-button-container').style.visibility = 'hidden';
+      $('log').style.height = '240px';
       $('websocket-connect').innerHTML = 'Connect';
       log('BlocklyProp site disconnected');
   }
