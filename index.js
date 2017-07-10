@@ -124,8 +124,8 @@ document.addEventListener('DOMContentLoaded', function() {
     $('bpc-url').value = 'localhost';
   }
 
-  $('connect-disconnect').onclick = function() {
-    if($('connect-disconnect').innerHTML === 'Connect') {
+  $('websocket-connect').onclick = function() {
+    if($('websocket-connect').innerHTML === 'Connect') {
       connect();
     } else {
       disconnect();
@@ -189,12 +189,14 @@ function disconnect() {
 
 function updateConnect(connected) {
   if (connected) {
-      $('connect-disconnect').innerHTML = 'Connected';
-      $('connect-disconnect').className = 'button button-green';
+      $('connect-disconnect').innerHTML = '&#10004; Connected';
+      $('websocket-connect').innerHTML = 'Disconnect';
+      $('connect-disconnect').className = 'status status-green';
       log('BlocklyProp site connected');
   } else {
-      $('connect-disconnect').innerHTML = 'Waiting to connect';
-      $('connect-disconnect').className = 'button button-blue';
+      $('connect-disconnect').innerHTML = 'Waiting to<br>connect...';
+      $('connect-disconnect').className = 'status status-clear';
+      $('websocket-connect').innerHTML = 'Connect';
       log('BlocklyProp site disconnected');
   }
 }

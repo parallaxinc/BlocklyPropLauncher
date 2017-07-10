@@ -92,12 +92,37 @@ body {
   margin: 4px 2px;
   transition-duration: 0.4s;
   cursor: pointer;
-  color: white; 
+  border-radius: 6px;
+}
+
+.status {
+  word-break: break-all;
+  padding: 17px 16px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 2px;
+  transition-duration: 0.4s;
   border-radius: 6px;
 }
 
 .button:hover {
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.status-green {
+  width: 118px;
+  background-color: #4caf50; /* Green */
+  color: white;
+  border: none;
+}
+
+.status-clear {
+  width: 114px;
+  background: none; /* Green */
+  color: #ccc;
+  border:2px solid #ddd;
 }
 
 .button-blue {
