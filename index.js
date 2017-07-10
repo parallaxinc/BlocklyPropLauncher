@@ -187,7 +187,7 @@ function disconnect() {
   closeSockets();
 }
 
-function updateConnect(connected) {
+function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = '&#10004; Connected';
       $('websocket-connect').innerHTML = 'Disconnect';
@@ -199,6 +199,11 @@ function updateConnect(connected) {
       $('websocket-connect').innerHTML = 'Connect';
       log('BlocklyProp site disconnected');
   }
+}
+
+function closeServer() {
+  wsServer.removeEventListener('request');
+  server.close();
 }
 
 function findSocketIdx(socket) {
@@ -284,7 +289,7 @@ function connect_ws(ws_port, url_path) {
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
-            updateConnect(true);
+            updateStatus(true);
           // Handle clear-to-send
           } else if (ws_msg.type === "debug-cts") {
           //TODO Add clear-to-send handling code
@@ -302,7 +307,7 @@ function connect_ws(ws_port, url_path) {
       socket.addEventListener('close', function() {
         deleteSocket(socket);
         if (sockets.length === 0) {
-          updateConnect(false);
+          updateStatus(false);
           clearInterval(portListener);
           portListener = null;
           chrome.app.window.current().drawAttention();
@@ -385,7 +390,6 @@ function helloClient(sock, baudrate) {
 
 //TODO Check send results and act accordingly?
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  let conn = null;
   if (action === "open") {
     openPort(sock, portPath, baudrate, 'debug')
       .then(function(id) {var cid = id})
@@ -400,7 +404,8 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
     // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
     // Instead, update the connection mode so that serial debug data halts.
 //      closePort(findPortId(portPath));
-    if (conn = findPort(portPath)) {conn.mode = 'none'}
+    let conn = findPort(portPath);
+    if (conn) {conn.mode = 'none'}
   } else if (action === "msg") {
     // Serial message to send to the device
     send(findPortId(portPath), msg);
