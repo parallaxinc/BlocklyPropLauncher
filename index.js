@@ -103,6 +103,7 @@ var verboseLogging = false;
 
 
 document.addEventListener('DOMContentLoaded', function() {
+
   chrome.runtime.getPlatformInfo(function(platformInfo) {
     if (!chrome.runtime.lastError) {
       let os = platformInfo.os;
@@ -125,18 +126,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   $('connect-disconnect').onclick = function() {
     if($('connect-disconnect').innerHTML === 'Connect') {
-      connect_ws($('bpc-port').value, $('bpc-url').value);
-      $('connect-disconnect').innerHTML = 'Connected &#10003';
-      $('connect-disconnect').className = 'button button-green';
-
-      //Temporary direct development download step
-//      loadPropeller(null, 'COM3', 'RAM', null, false);
-//        loadPropeller(null, '/dev/ttyUSB0', 'RAM', null, false);
-
+      connect();
     } else {
-      $('connect-disconnect').innerHTML = 'Connect';
-      $('connect-disconnect').className = 'button button-blue';
-      closeSockets();
+      disconnect();
     }
   };
 
@@ -146,9 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // TODO: re-write this to use onblur and/or onchange to auto-save. 
   $('refresh-connection').onclick = function() {
-    $('connect-disconnect').innerHTML = 'Connect';
-    $('connect-disconnect').className = 'button button-blue';
-    closeSockets();
+    disconnect();
     if(chrome.storage) {
       chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
       chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
@@ -185,7 +175,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 
+  //Connect automatically upon opening
+  setTimeout(connect, 500);
 });
+
+function connect() {
+  connect_ws($('bpc-port').value, $('bpc-url').value);
+}
+
+function disconnect() {
+  closeSockets();
+}
+
+function updateConnect(connected) {
+  if (connected) {
+      $('connect-disconnect').innerHTML = 'Connected';
+      $('connect-disconnect').className = 'button button-green';
+      log('BlocklyProp site connected');
+  } else {
+      $('connect-disconnect').innerHTML = 'Waiting to connect';
+      $('connect-disconnect').className = 'button button-blue';
+      log('BlocklyProp site disconnected');
+  }
+}
 
 function findSocketIdx(socket) {
 /* Return index of socket in sockets list
@@ -219,11 +231,12 @@ function deleteSocket(socketOrIdx) {
 
 function connect_ws(ws_port, url_path) {
   var port = parseInt(ws_port); //6010;
-  var isServer = false;
+// commented out unused variable
+//  var isServer = false;
   if (http.Server && http.WebSocketServer) {
     // Listen for HTTP connections.
     server.listen(port);
-    isServer = true;
+//    isServer = true;
   
     // Do we need this?
     /*
@@ -238,7 +251,6 @@ function connect_ws(ws_port, url_path) {
     */
   
     wsServer.addEventListener('request', function(req) {
-      log('Client connected');
       var socket = req.accept();
       sockets.push({socket:socket, serialIdx:-1});
       
@@ -270,10 +282,7 @@ function connect_ws(ws_port, url_path) {
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
-            $('connect-disconnect').innerHTML = 'Connected &#10003';
-            $('connect-disconnect').className = 'button button-green';
-            log('BlocklyProp site connected');
-
+            updateConnect(true);
           // Handle clear-to-send
           } else if (ws_msg.type === "debug-cts") {
           //TODO Add clear-to-send handling code
@@ -289,11 +298,9 @@ function connect_ws(ws_port, url_path) {
 
       // When a socket is closed, remove it from the list of connected sockets.
       socket.addEventListener('close', function() {
-        log('Client disconnected');
         deleteSocket(socket);
         if (sockets.length === 0) {
-          $('connect-disconnect').innerHTML = 'Connect';
-          $('connect-disconnect').className = 'button button-blue';
+          updateConnect(false);
           clearInterval(portListener);
           portListener = null;
           chrome.app.window.current().drawAttention();
