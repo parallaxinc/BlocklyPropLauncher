@@ -189,11 +189,11 @@ function disconnect() {
 
 function updateConnect(connected) {
   if (connected) {
-      $('connect-disconnect').innerHTML = 'Connected &#10003';
+      $('connect-disconnect').innerHTML = 'Connected';
       $('connect-disconnect').className = 'button button-green';
       log('BlocklyProp site connected');
   } else {
-      $('connect-disconnect').innerHTML = 'Connect';
+      $('connect-disconnect').innerHTML = 'Waiting to connect';
       $('connect-disconnect').className = 'button button-blue';
       log('BlocklyProp site disconnected');
   }
