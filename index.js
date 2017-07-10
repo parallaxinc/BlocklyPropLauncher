@@ -388,7 +388,6 @@ function helloClient(sock, baudrate) {
 
 //TODO Check send results and act accordingly?
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  let conn = null;
   if (action === "open") {
     openPort(sock, portPath, baudrate, 'debug')
       .then(function(id) {var cid = id})
@@ -403,7 +402,8 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
     // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
     // Instead, update the connection mode so that serial debug data halts.
 //      closePort(findPortId(portPath));
-    if (conn = findPort(portPath)) {conn.mode = 'none'}
+    let conn = findPort(portPath);
+    if (conn) {conn.mode = 'none'}
   } else if (action === "msg") {
     // Serial message to send to the device
     send(findPortId(portPath), msg);
