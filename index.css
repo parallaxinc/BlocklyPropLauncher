@@ -47,7 +47,7 @@ body {
 }
 
 #log {
-  height: 260px;
+  height: 240px;
   width: 280px;
   overflow-y: scroll;
   background: #fff;
