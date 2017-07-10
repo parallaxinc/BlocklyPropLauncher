@@ -91,9 +91,10 @@ portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"]
 // A list of connected websockets.
 var sockets = [];
 
-// Containers for the http and ws servers
+// Http and ws servers
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
+var isServer = false;
 
 // Keep track of the interval that sends the port list so it can be turned off
 var portListener = null;
@@ -139,10 +140,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // TODO: re-write this to use onblur and/or onchange to auto-save. 
   $('refresh-connection').onclick = function() {
     disconnect();
+    closeServer();
     if(chrome.storage) {
       chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
       chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
     }
+    connect_ws($('bpc-port').value, $('bpc-url').value);
   };
 
   $('open-settings').onclick = function() {
@@ -204,6 +207,7 @@ function updateStatus(connected) {
 function closeServer() {
   wsServer.removeEventListener('request');
   server.close();
+  isServer = false;
 }
 
 function findSocketIdx(socket) {
@@ -239,11 +243,10 @@ function deleteSocket(socketOrIdx) {
 function connect_ws(ws_port, url_path) {
   var port = parseInt(ws_port); //6010;
 // commented out unused variable
-//  var isServer = false;
-  if (http.Server && http.WebSocketServer) {
+  if (http.Server && http.WebSocketServer && !isServer) {
     // Listen for HTTP connections.
     server.listen(port);
-//    isServer = true;
+    isServer = true;
   
     // Do we need this?
     /*
