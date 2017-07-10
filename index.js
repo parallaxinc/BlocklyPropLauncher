@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   //Connect automatically upon opening
-  setTimeout(connect, 10);
+  setTimeout(connect, 500);
 });
 
 function connect() {
