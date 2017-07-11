@@ -59,8 +59,9 @@ This is a frequent operation to be performed every time a release to the Chrome 
     2. Run the _MakeRelease_ script
         - ```$ ./MakeScript```
         - This will clean out (or create) the _release_ subfolder and will generate the obfuscated files plus the other unobscured resources necessary for a Chrome App package.
-    3. Test the app by installing the _release_ subfolder contents (Load Unpackaged App from Chrome or the Chrome Apps & Extensions Developer Tool).
-    4. Distribute the app by archiving the _release_ subfolder contents and publishing to it's Chrome Web Store account.
+            - This folder _should not_ be archived in repository commits, thus the repo's ```.gitignore``` file excludes the entire _release_ folder.
+2. Test the app by installing the _release_ subfolder contents (Load Unpackaged App from Chrome or the Chrome Apps & Extensions Developer Tool).
+3. Distribute the app by archiving the _release_ subfolder contents and publishing it to it's Chrome Web Store account.
 
 
 ## Attribution
