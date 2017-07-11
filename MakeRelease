@@ -1,0 +1,35 @@
+echo
+echo ---Making Obfuscated Chrome App release in ./release folder---
+echo
+echo STEP 1 of 3: Clearing ./release folder
+echo
+# Clear release folder
+rm -R release/*
+
+echo STEP 2 of 3: Generating obfuscated source - automatically creating ./release folder if needed
+echo
+#
+# Options Notes:
+#   disableConsoleOutput - causes the Chrome App to fail to launch (on background.js) or refuse to evaluate statements (parser.js and presumably others).  It must be set 'false' to prevent this.
+#   rotateStringArray - set to false on small files, true on large files.  This makes it harder to determine the order of strings, but on small files the inserted helper function can attact attention.
+#   stringArrayEncode - further obscures strings by base-64 (or rc4) encoding them, but slows down execution by up to 50%.
+#   mangle - obfuscates variable names.  In practice, it doesn't obfuscate all of them, but it doesn't hurt to have it enabled.
+#
+./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   background.js --output release/background.js   --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray false  --stringArrayEncoding false  --mangle true  --selfDefending true
+./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   index.js      --output release/index.js        --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray true   --stringArrayEncoding false  --mangle true  --selfDefending true
+./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   parser.js     --output release/parser.js       --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray false  --stringArrayEncoding false  --mangle true  --selfDefending true
+./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   serial.js     --output release/serial.js       --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray true   --stringArrayEncoding false  --mangle true  --selfDefending true
+
+echo STEP 3 of 3: Copying static resources to ./release folder
+echo
+# Copy static resources
+cp -R assets          release/assets
+cp    http.js         release/
+cp    index.css       release/
+cp    index.html      release/
+cp    LICENSE         release/
+cp    manifest.json   release/
+cp    sha1.js         release/
+
+echo Done!
+
