@@ -60,5 +60,7 @@ typings/
 # Idera tools
 .idea/
 
-# Archives
+# Archives, node, and releases
 *.zip
+node_modules/
+release/
