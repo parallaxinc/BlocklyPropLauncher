@@ -10,7 +10,11 @@ It serves as the local conduit through which the cloud-based BlocklyProp Editor 
 
 ## Running
 
-BlocklyProp Launcher has been written using HTML, CSS, and JavaScript, and is packaged as a Chrome Application.  After installing the Chrome Application, simply click to run it on a Chromebook.
+BlocklyProp Launcher has been written using HTML, CSS, and JavaScript, and is packaged as a Chrome Application.
+
+There's a [public release](https://chrome.google.com/webstore/detail/blocklyprop-launcher/iddpgcclgepllhnhlkkinbmmafpbnddb) (available to anyone on a Chromebook) and a [development release](https://chrome.google.com/webstore/detail/fbfgnnnjbckeodelipalbpnbpaiadggm) (available only to a select group of testers).  _Developers must be logged into Chrome with their "permitted" account in order for the development release link to work._
+
+After installing the Chrome Application, simply click to run it on a Chromebook.
 
 
 ## Building
@@ -61,7 +65,7 @@ This is a frequent operation to be performed every time a release to the Chrome 
         - This will clean out (or create) the _release_ subfolder and will generate the obfuscated files plus the other unobscured resources necessary for a Chrome App package.
             - This folder _should not_ be archived in repository commits, thus the repo's ```.gitignore``` file excludes the entire _release_ folder.
 2. Test the app by installing the _release_ subfolder contents (Load Unpackaged App from Chrome or the Chrome Apps & Extensions Developer Tool).
-3. Distribute the app by archiving the _release_ subfolder contents and publishing it to it's Chrome Web Store account.
+3. Distribute the app by archiving (ZIP'ing) the _release_ subfolder contents (_not_ the folder; just its contents) and publishing it to it's Chrome Web Store account.
 
 
 ## Attribution
