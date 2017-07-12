@@ -7,13 +7,14 @@
     <script src="serial.js"></script>
     <script src="parser.js"></script>
     <script src="index.js"></script>
+    <script src="wx.js"></script>
   </head>
   <body>
     <div id='settings-pane'>
       <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
           <td id="port-path-tab" class="tab-selected" align="center" style="width:50%">Connection</td>
-          <td id="wx-module-tab" class="tab-unselect" align="center">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td>
+          <td id="wx-module-tab" class="tab-unselect" align="center">WX Modules</td>
         </tr>
         <tr><td colspan="2" class="folder-page">
           <table border="0" cellpadding="1" cellspacing="0" id="port-path-settings">
@@ -46,7 +47,25 @@
           </table>
           <table id="wx-module-settings" style="display:none; height:324px">
             <tr>
-              <td>This page intentionally left blank.</td>
+              <td colspan="2"><b>WX Modules are not fully supported yet.</b></td>
+            </tr>
+            <tr>
+              <td>Enable WX Modules:</td>
+              <td><input type="checkbox" id="wx-allow"/></td>
+            </tr>
+            <tr>
+              <td>Subnet Mask:</td>
+              <td>
+                <input type="text" id="sm-0" class="con" style="width:23px;" value="255"/>.
+                <input type="text" id="sm-1" class="con" style="width:23px;" value="255"/>.
+                <input type="text" id="sm-2" class="con" style="width:23px;" value="255"/>.
+                <input type="text" id="sm-3" class="con" style="width:23px;" value="0"/></td>
+            </tr>
+            <tr>
+              <td colspan="2">WX modules:</td>
+            </tr>
+            <tr>
+              <td colspan="2" id="wx-list"></td>
             </tr>
           </table>
         </td></tr>

@@ -160,6 +160,21 @@ document.addEventListener('DOMContentLoaded', function() {
     verboseLogging = $('bpc-trace').checked;
   };
   
+  $('wx-allow').onclick = function() {
+    var wx_enabled = $('wx-allow').checked;
+    if(wx_enabled) {
+      wx_scanner_interval = setInterval(function() {
+        discover_modules();
+        remove_modules();
+        display_modules();
+      }, 3500);
+    } else {
+      if(wx_scanner_interval) {
+        clearInterval(wx_scanner_interval);
+      }
+    }
+  };
+  
   $('wx-module-tab').onclick = function() {
     if($('wx-module-tab').className === 'tab-unselect') {
       $('wx-module-tab').className = 'tab-selected';
