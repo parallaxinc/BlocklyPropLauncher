@@ -15,6 +15,9 @@
  SELL ANYTHING THAT IT MAY DESCRIBE, IN WHOLE OR IN PART.                                                                                */
 
 
+// TODO Error checking/reporting, especially in socket functions
+// TODO Connect to the rest of the system - add to port list, add program loading functionality, add debugging functionality
+
 var udp_sock;
 var local_ip = [];
 var temp_ip_addr = '';
