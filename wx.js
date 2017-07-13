@@ -90,7 +90,9 @@ function display_modules() {
   var wxl = '';
   for(v = 0; v < wx_modules.length; v++) {
     //if(wx_modules.address !== undefined) {
-      wxl += '&nbsp;&nbsp;&#x1f4f6; ' + wx_modules[v].id + ' (' + wx_modules[v].address.join('.') + ')<br>';
+      wxl += '&nbsp;&nbsp;&#x1f4f6; ' + wx_modules[v].id + 
+      ' (<a style="text-decoration:none;" href="http://' + wx_modules[v].address.join('.') + 
+      '" target="_blank">' + wx_modules[v].address.join('.') + '</a>)<br>';
     //}
   }
   $('wx-list').innerHTML = wxl;

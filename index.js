@@ -171,6 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       if(wx_scanner_interval) {
         clearInterval(wx_scanner_interval);
+        $('wx-list').innerHTML = '';
       }
     }
   };
