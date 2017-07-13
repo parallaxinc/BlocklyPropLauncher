@@ -12,7 +12,7 @@ echo
 # Options Notes:
 #   disableConsoleOutput - causes the Chrome App to fail to launch (on background.js) or refuse to evaluate statements (parser.js and presumably others).  It must be set 'false' to prevent this.
 #   rotateStringArray - set to false on small files, true on large files.  This makes it harder to determine the order of strings, but on small files the inserted helper function can attact attention.
-#   stringArrayEncode - further obscures strings by base-64 (or rc4) encoding them, but slows down execution by up to 50%.
+#   stringArrayEncode - further obscures strings by base-64 (or rc4) encoding them, but slows down execution by up to 50%.  It also breaks the Chrome App when true; set to false.
 #   mangle - obfuscates variable names.  In practice, it doesn't obfuscate all of them, but it doesn't hurt to have it enabled.
 #
 ./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   background.js --output release/background.js   --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray false  --stringArrayEncoding false  --mangle true  --selfDefending true
