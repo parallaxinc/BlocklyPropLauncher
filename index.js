@@ -74,7 +74,7 @@ function isJson(str) {
 }
 
 // the version of this BPclient/app
-var clientVersion = '0.7.0';
+var clientVersion = chrome.runtime.getManifest().version;
 
 // Platform metrics (var in DOMContentLoaded listener)
 const pfUnk = 0;
@@ -104,6 +104,8 @@ var verboseLogging = false;
 
 
 document.addEventListener('DOMContentLoaded', function() {
+
+  $('version-text').innerHTML = 'v'+clientVersion;
 
   chrome.runtime.getPlatformInfo(function(platformInfo) {
     if (!chrome.runtime.lastError) {
@@ -150,8 +152,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top !== '10px') {
+      setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
       $('settings-pane').style.top = '10px';
     } else {
+      setTimeout(function() {$('version-text').style.visibility = 'visible'}, 350);
       $('settings-pane').style.top = '550px';
     }
   };

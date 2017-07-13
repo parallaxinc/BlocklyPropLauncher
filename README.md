@@ -32,7 +32,7 @@ Though there is no need for a "build" process during development, the release pr
     - Requires (and can be installed with) Node.js.
     - Source repository and instructions: [https://github.com/javascript-obfuscator/javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator)
     - Live online version: [https://javascriptobfuscator.herokuapp.com/](https://javascriptobfuscator.herokuapp.com/)
-    - One can use the _Beautify_ option of tools like the [UglifyJS Demo](http://lisperator.net/uglifyjs/) to test the effectiveness of (or circumvent) obfuscated code.
+    - Anyone can use the _Beautify_ option of the [UglifyJS Demo](http://lisperator.net/uglifyjs/) or the _Nicify Javascript_ option of [http://jsnice.org](http://jsnice.org) to test the effectiveness of (or circumvent) obfuscated code.
 - The only files needing obfuscation are: _background.js_, _index.js_, _parser.js_, and _serial.js_.  All others should be unobscured.
 
 
@@ -65,7 +65,8 @@ This is a frequent operation to be performed every time a release to the Chrome 
         - This will clean out (or create) the _release_ subfolder and will generate the obfuscated files plus the other unobscured resources necessary for a Chrome App package.
             - This folder _should not_ be archived in repository commits, thus the repo's ```.gitignore``` file excludes the entire _release_ folder.
 2. Test the app by installing the _release_ subfolder contents (Load Unpackaged App from Chrome or the Chrome Apps & Extensions Developer Tool).
-3. Distribute the app by archiving (ZIP'ing) the _release_ subfolder contents (_not_ the folder; just its contents) and publishing it to it's Chrome Web Store account.
+3. Distribute the app by archiving (ZIP'ing) the _release_ subfolder contents (_not_ the folder; just its contents) and updating its Chrome Web Store publication.
+    - __IMPORTANT:__ Updates to the "public" release are automatically pushed to active existing Chromebook users - mistakes will propogate swiftly.  Make _frequent_ updates to the [development release](https://chrome.google.com/webstore/detail/fbfgnnnjbckeodelipalbpnbpaiadggm) channel, and only well-tested, deliberate updates to the [public release](https://chrome.google.com/webstore/detail/blocklyprop-launcher/iddpgcclgepllhnhlkkinbmmafpbnddb) channel.
 
 
 ## Attribution

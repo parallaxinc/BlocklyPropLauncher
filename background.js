@@ -20,6 +20,8 @@ chrome.app.runtime.onLaunched.addListener(function() {
     chrome.app.window.create('index.html', {
         id: "BlocklyProp-Launcher",
         innerBounds: {
+            width: 500,
+            height: 414,
             maxWidth: 500,
             maxHeight: 500,
             minWidth: 200,
