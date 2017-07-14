@@ -193,21 +193,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
   
-  $('wx-module-tab').onclick = function() {
-    if($('wx-module-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-selected';
-      $('port-path-tab').className = 'tab-unselect';
-      $('wx-module-settings').style.display = 'block';
-      $('port-path-settings').style.display = 'none';
+  $('wmt').onclick = function() {
+    if($('wx-module-tab').className === 'tab-unselect tab-right') {
+      $('wx-module-tab').className = 'tab-selected tab-right';
+      $('port-path-tab').className = 'tab-unselect tab-left';
+      $('wx-module-settings').style.visibility = 'visible';
+      $('port-path-settings').style.visibility = 'hidden';
+      $('sep-right').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'hidden';
+      $('cor-left').style.visibility = 'visible';
+      $('cor-right').style.visibility = 'hidden';
     }
   };
 
-  $('port-path-tab').onclick = function() {
-    if($('port-path-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-unselect';
-      $('port-path-tab').className = 'tab-selected';
-      $('wx-module-settings').style.display = 'none';
-      $('port-path-settings').style.display = 'block';
+  $('ppt').onclick = function() {
+    if($('port-path-tab').className === 'tab-unselect tab-left') {
+      $('wx-module-tab').className = 'tab-unselect tab-right';
+      $('port-path-tab').className = 'tab-selected tab-left';
+      $('wx-module-settings').style.visibility = 'hidden';
+      $('port-path-settings').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'visible';
+      $('sep-right').style.visibility = 'hidden';
+      $('cor-right').style.visibility = 'visible';
+      $('cor-left').style.visibility = 'hidden';
     }
   };
 

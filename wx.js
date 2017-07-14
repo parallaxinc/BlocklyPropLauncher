@@ -36,10 +36,10 @@ var wx_modules = [];
 
 // Calculate a broadcast IP from a given address and subnet mask
 function calc_broadcast_addr(mip) {
-  return ((parseInt(mip[0]) | (~parseInt($('sn-0')))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[1]) | (~parseInt($('sn-1')))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[2]) | (~parseInt($('sn-2')))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[3]) | (~parseInt($('sn-3')))) & 0xFF).toString(10);
+  return ((parseInt(mip[0]) | (~parseInt($('sm-0').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[1]) | (~parseInt($('sm-1').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[2]) | (~parseInt($('sm-2').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[3]) | (~parseInt($('sm-3').value))) & 0xFF).toString(10);
 }
 
 // convert an IP address to a single 32-bit (4-byte) chunk
@@ -162,12 +162,14 @@ document.addEventListener('DOMContentLoaded', function() {
     wx_info.id = 'wx-' + w_id[3] + w_id[4] + w_id[5];
     wx_info.present = 3;
     
+    //console.log(wx_modules);
+    
     var i = false;
     for(v = 0; v < wx_modules.length; v++) {
       if(wx_info.id === wx_modules[v].id) {
         wx_modules[v].present = 3;
+        i = true;
       }
-      i = true;
     }
     if(!i) {
       wx_modules.push(wx_info);
