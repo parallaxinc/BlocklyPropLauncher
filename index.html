@@ -45,10 +45,11 @@
               <td colspan="3"><div id="log" class="con"></div></td>
             </tr>
           </table>
-          <table id="wx-module-settings" style="display:none; height:324px">
+          <table id="wx-module-settings" border="0" cellpadding="1" cellspacing="0" style="display:none;">
             <tr>
               <td colspan="2" style="background-color:#fcc;color:#c00;"><b>WX Modules are not fully supported yet.</b></td>
             </tr>
+            <!--
             <tr>
               <td>Enable WX Modules:</td>
               <td><input type="checkbox" id="wx-allow"/></td>
@@ -56,17 +57,19 @@
             <tr>
               <td>Subnet Mask:</td>
               <td>
-                <input type="text" id="sm-0" class="con" style="width:23px;" value="255"/>.
-                <input type="text" id="sm-1" class="con" style="width:23px;" value="255"/>.
-                <input type="text" id="sm-2" class="con" style="width:23px;" value="255"/>.
-                <input type="text" id="sm-3" class="con" style="width:23px;" value="0"/></td>
+                <input type="text" id="sm-0" class="con" style="width:20px;" value="255"/>.
+                <input type="text" id="sm-1" class="con" style="width:20px;" value="255"/>.
+                <input type="text" id="sm-2" class="con" style="width:20px;" value="255"/>.
+                <input type="text" id="sm-3" class="con" style="width:20px;" value="0"/>&nbsp;&nbsp;
+                <button id='save-netmask' style="width:24px;">&#x21bb;</button></td>
             </tr>
             <tr>
               <td colspan="2">WX modules:</td>
             </tr>
             <tr>
-              <td colspan="2" id="wx-list"></td>
+              <td colspan="2" id="wx-list" class="con"></td>
             </tr>
+            -->
           </table>
         </td></tr>
       </table>
