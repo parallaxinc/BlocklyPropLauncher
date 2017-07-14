@@ -58,6 +58,10 @@ body {
   z-index: 2;
 }
 
+.wx-name {
+  color: #bbb;
+}
+
 .con {
   font-family: Andale Mono, Consolas, monospace;
   font-weight: bold;
@@ -65,7 +69,16 @@ body {
   letter-spacing: -0.7px;
 }
 
-#log, #wx-list {
+#log {
+  height: 255px;
+  width: 270px;
+  overflow-y: scroll;
+  background: #fff;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+
+#wx-list {
   height: 255px;
   width: 270px;
   overflow-y: scroll;

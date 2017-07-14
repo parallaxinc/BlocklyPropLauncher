@@ -141,9 +141,10 @@ function remove_modules() {
 function display_modules() {
   var wxl = '';
   for(v = 0; v < wx_modules.length; v++) {
-    wxl += '&nbsp;&nbsp;&#x1f4f6; ' + wx_modules[v].id + 
-        ' (<a style="text-decoration:none;" href="http://' + wx_modules[v].address.join('.') + 
-        '" target="_blank">' + wx_modules[v].address.join('.') + '</a>)<br>';
+    wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + wx_modules[v].id + 
+        '&nbsp;(<a style="text-decoration:none;" href="http://' + wx_modules[v].address.join('.') + 
+        '" target="_blank">' + wx_modules[v].address.join('.') + '</a>)&nbsp;<span class="wx-name">' + 
+        wx_modules[v].name.substr(0,20) + '</span><br>';
   }
   $('wx-list').innerHTML = wxl;
 }
@@ -168,6 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
     for(v = 0; v < wx_modules.length; v++) {
       if(wx_info.id === wx_modules[v].id) {
         wx_modules[v].present = 3;
+        wx_modules[v].name = wx_info.name;
         i = true;
       }
     }
