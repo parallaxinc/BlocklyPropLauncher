@@ -21,22 +21,27 @@ chrome.app.runtime.onLaunched.addListener(function() {
         id: "BlocklyProp-Launcher",
         innerBounds: {
             width: 500,
-            height: 414,
-            maxWidth: 500,
-            maxHeight: 500,
-            minWidth: 200,
-            minHeight: 200
-        }, state: "normal"
+            height: 414
+        }, state: "normal",
+        resizable: false
     }, function(win) {
       win.onClosed.addListener(closeSerialPorts);
+      win.onClosed.addListener(closeServer);
     });
   });
 
-function closeSerialPorts(){
+function closeSerialPorts() {
 // Close this app's active serial ports
     chrome.serial.getConnections(function(activeConnections) {
         activeConnections.forEach(function(port) {
             chrome.serial.disconnect(port.connectionId, function() {});
         });
+    });
+}
+
+function closeServer() {
+// Close this app's active server(s)
+    chrome.sockets.tcpServer.getSockets(function (socketInfos) {
+        socketInfos.forEach(function(v) {chrome.sockets.tcpServer.close(v.socketId)});
     });
 }
