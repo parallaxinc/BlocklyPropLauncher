@@ -234,13 +234,15 @@ function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (sockets and ports)
    socketOrIdx is socket object or index of socket record to delete*/
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
+//  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
     // Clear USB's knowledge of socket connection record
     if (sockets[idx].serialIdx > -1) {
+//      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
       ports[sockets[idx].serialIdx].socket = null;
       ports[sockets[idx].serialIdx].socketIdx = -1;
     }
-    // Delete socket connection record and adjust USB's later references down, if any
+    // Delete socket connection record and adjust ports' later references down, if any
     sockets.splice(idx, 1);
     ports.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
   }
@@ -268,6 +270,7 @@ function connect_ws(ws_port, url_path) {
   
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
+//      log("Adding socket at index " + sockets.length, mDbug);
       sockets.push({socket:socket, serialIdx:-1});
       
       //Listen for ports
@@ -289,7 +292,7 @@ function connect_ws(ws_port, url_path) {
 
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
-            serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open" or "close"
+            serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
 
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
@@ -417,7 +420,17 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
     if (conn) {conn.mode = 'none'}
   } else if (action === "msg") {
     // Serial message to send to the device
-    send(findPortId(portPath), msg);
+    // Find port connection id from portPath or socket
+    let cid = findPortId(portPath);
+    if (!cid) {
+      let sIdx = findSocketIdx(sock);
+      if (sIdx > -1) {
+         cid = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx].connId : null;
+      }
+    }
+    if (cid) {
+      send(cid, msg);
+    }
   }
 }
 
