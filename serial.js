@@ -282,11 +282,11 @@ chrome.serial.onReceiveError.addListener(function(info) {
 function addPort(cid, socket, connMode, portPath, portBaudrate) {
 // Add new serial port record
     let idx = findSocketIdx(socket);
-    if (idx = -1) {
+/*    if (idx = -1) {
         log("Adding port at index " + ports.length, mDbug);
     } else {
         log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
-    }
+    }*/
     ports.push({
         connId    : cid,
         path      : portPath,
@@ -307,13 +307,13 @@ function updatePort(socket, cid, connMode, portBaudrate) {
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
         let cIdx = findPortIdx(cid);
-        log("Updating port at index " + cIdx, mDbug);
+//        log("Updating port at index " + cIdx, mDbug);
         if (cIdx > -1) {
             //Update sockets<->ports links as necessary
             let sIdx = (socket) ? findSocketIdx(socket) : -1;
             if (ports[cIdx].socketIdx !== sIdx) {
                 // newSocket is different; update required
-                log("  Linking to socket index " + sIdx, mDbug);
+//                log("  Linking to socket index " + sIdx, mDbug);
                 if (ports[cIdx].socketIdx !== -1) {
                     // Adjust existing socket's record
                     sockets[ports[cIdx].socketIdx].serialIdx = -1;

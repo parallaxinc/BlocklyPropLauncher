@@ -234,11 +234,11 @@ function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (sockets and ports)
    socketOrIdx is socket object or index of socket record to delete*/
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
-  log("Deleting socket at index " + idx, mDbug);
+//  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
     // Clear USB's knowledge of socket connection record
     if (sockets[idx].serialIdx > -1) {
-      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
+//      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
       ports[sockets[idx].serialIdx].socket = null;
       ports[sockets[idx].serialIdx].socketIdx = -1;
     }
@@ -270,7 +270,7 @@ function connect_ws(ws_port, url_path) {
   
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
-      log("Adding socket at index " + sockets.length, mDbug);
+//      log("Adding socket at index " + sockets.length, mDbug);
       sockets.push({socket:socket, serialIdx:-1});
       
       //Listen for ports
