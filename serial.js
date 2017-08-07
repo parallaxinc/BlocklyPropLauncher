@@ -110,9 +110,7 @@ function openPort(sock, portPath, baudrate, connMode) {
         var cid = findPortId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-            changeBaudrate(cid, baudrate)
-                .then(function() {updatePortSocket(cid, sock)})
-                .then(function() {findPort(cid).mode = connMode})
+            updatePort(sock, cid, connMode, baudrate)
                 .then(function() {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
@@ -127,7 +125,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create serial port object
-                        addPort(sock, openInfo.connectionId, connMode, portPath, baudrate);
+                        addPort(openInfo.connectionId, sock, connMode, portPath, baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -281,36 +279,20 @@ chrome.serial.onReceiveError.addListener(function(info) {
 //    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });
 
-function updatePortSocket(cid, newSocket) {
-    /* Update port cid's socket references
-     cid is the open port's connection identifier
-     newSocket is the new socket object*/
-    let cIdx = findPortIdx(cid);
-    if (cIdx > -1) {
-        let sIdx = (newSocket) ? findSocketIdx(newSocket) : -1;
-        if (ports[cIdx].socketIdx !== sIdx) {
-            // newSocket is different; update required
-            if (ports[cIdx].socketIdx !== -1) {
-                // Adjust existing socket's record
-                sockets[ports[cIdx].socketIdx].serialIdx = -1;
-            }
-            // Update port and socket records
-            ports[cIdx].socket = newSocket;
-            ports[cIdx].socketIdx = sIdx;
-            sockets[sIdx].serialIdx = cIdx;
-        }
-    }
-}
-
-function addPort(socket, cid, connMode, portPath, portBaudrate) {
+function addPort(cid, socket, connMode, portPath, portBaudrate) {
 // Add new serial port record
     let idx = findSocketIdx(socket);
+    if (idx = -1) {
+        log("Adding port at index " + ports.length, mDbug);
+    } else {
+        log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
+    }
     ports.push({
+        connId    : cid,
+        path      : portPath,
         socket    : socket,
         socketIdx : idx,
-        connId    : cid,
         mode      : connMode,
-        path      : portPath,
         baud      : portBaudrate,
         packet    : {}
     });
@@ -318,6 +300,39 @@ function addPort(socket, cid, connMode, portPath, portBaudrate) {
     Object.assign(ports[ports.length-1].packet, serPacket);
     // Point existing socket reference to new serial port record
     if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
+}
+
+function updatePort(socket, cid, connMode, portBaudrate) {
+// Update port attributes if necessary
+// Automatically handles special cases like baudrate changes and sockets<->ports links
+    return new Promise(function(resolve, reject) {
+        let cIdx = findPortIdx(cid);
+        log("Updating port at index " + cIdx, mDbug);
+        if (cIdx > -1) {
+            //Update sockets<->ports links as necessary
+            let sIdx = (socket) ? findSocketIdx(socket) : -1;
+            if (ports[cIdx].socketIdx !== sIdx) {
+                // newSocket is different; update required
+                log("  Linking to socket index " + sIdx, mDbug);
+                if (ports[cIdx].socketIdx !== -1) {
+                    // Adjust existing socket's record
+                    sockets[ports[cIdx].socketIdx].serialIdx = -1;
+                }
+                // Update port and socket records
+                ports[cIdx].socket = socket;
+                ports[cIdx].socketIdx = sIdx;
+                if (sIdx > -1) {
+                    sockets[sIdx].serialIdx = cIdx;
+                }
+            }
+            //Update connection mode
+            ports[cIdx].mode = connMode;
+            //Update baudrate
+            changeBaudrate(cid, portBaudrate)
+                .then(function (p) {resolve(p)})
+                .catch(function (e) {reject(e)});
+        }
+    })
 }
 
 function findPortId(portPath) {
