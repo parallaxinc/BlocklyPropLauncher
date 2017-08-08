@@ -61,7 +61,7 @@ This is a frequent operation to be performed every time a release to the Chrome 
         - _IMPORTANT: On Windows platforms, open a Git Bash command window_
         - ```$ cd path_to_BlocklyProp_Launcher/```
     2. Run the _MakeRelease_ script
-        - ```$ ./MakeScript```
+        - ```$ ./MakeRelease```
         - This will clean out (or create) the _release_ subfolder and will generate the obfuscated files plus the other unobscured resources necessary for a Chrome App package.
             - This folder _should not_ be archived in repository commits, thus the repo's ```.gitignore``` file excludes the entire _release_ folder.
 2. Test the app by installing the _release_ subfolder contents (Load Unpackaged App from Chrome or the Chrome Apps & Extensions Developer Tool).
