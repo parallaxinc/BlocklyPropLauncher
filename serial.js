@@ -2934,13 +2934,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
             findPort(cid).mode = (debug !== "none") ? "debug" : "programming";
-            log(notice(nsDownloadSuccessful), mUser+mStat, sock);
+            log(notice(nsDownloadSuccessful), mAll, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })                                                                                                      //Error? Disable listener and display error
-        .catch(function(e) {listen(false); log(e.message, mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .catch(function(e) {listen(false); log(e.message, mAll, sock); log(notice(neDownloadFailed), mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 function listen(engage) {
@@ -3045,7 +3045,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                             log("Verifying loader acknowledgement " + (totalPackets-packetId+0) + " of " + totalPackets, mDeep);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error(notice(neDownloadFailed))); return
+                                reject(Error(notice(neCommunicationFailed))); return
                             }
                             log("Packet delivered.", mDeep);
                             resolve();
