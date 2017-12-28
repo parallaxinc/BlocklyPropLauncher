@@ -192,7 +192,7 @@ function setControl(cid, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error("Can not set port " + findPort(cid).path + "'s options: " + options));
+            reject(Error(notice(000, ["Can not set port " + findPort(cid).path + "'s options: " + options])));
           }
         });
     });
@@ -206,7 +206,7 @@ function flush(cid) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error("Can not flush port " + findPort(cid).path + "'s transmit/receive buffer"));
+              reject(Error(notice(000, ["Can not flush port " + findPort(cid).path + "'s transmit/receive buffer"])));
             }
         });
     });
@@ -2928,7 +2928,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     connect()
         .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
         .then(function() {listen(true)})                                                                        //Enable listener
-        .then(function() {log("Scanning port " + findPortPath(cid), mUser, sock)})                        //Notify what port we're using
+        .then(function() {log(notice(000, ["Scanning port " + findPortPath(cid)]), mUser, sock)})               //Notify what port we're using
         .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
@@ -2990,11 +2990,11 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     //Check for proper version
                     if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
                     //Check RAM checksum
-                    if (propComm.ramCheck === stValidating) {reject(Error(notice(nePropellerCommunicationLost))); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCanNotDeliverLoader))); return;}
+                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailure))); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
-                    log("Found Propeller", mUser+mStat, sock);
+                    log(notice(000, ["Found Propeller"]), mUser+mStat, sock);
                     resolve();
                 }
                 log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
@@ -3064,12 +3064,12 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: "Verifying RAM", recvTime: 800, recvErr: "RAM checksum failure!"};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(000, ["Verifying RAM"]), recvTime: 800, recvErr: notice(neRAMChecksumFailure)};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: "Programming and verifying EEPROM", recvTime: 4500, recvErr: "EEPROM verify failure!"};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(000, ["Programming and verifying EEPROM"]), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailure)};
             }
-            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: "Ready for Launch", recvTime: 800, recvErr: "Communication failed!"};
-            yield {type: ltLaunchNow, nextId: -1, sendLog: "Launching", recvTime: 0, recvErr: ""};
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: 800, recvErr: notice(neCommunicationLost)};
+            yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};
         }
 
         //TODO lower waittime
@@ -3150,7 +3150,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
-            .then(function() {       log(notice(nsDownloading), mUser, sock);}      )
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!

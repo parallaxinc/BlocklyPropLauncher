@@ -25,10 +25,12 @@ const neDownloadFailed             = 102;
 const nePropellerNotFound          = 104;
 const neCanNotOpenPort             = 117;
 const neCanNotSetBaudrate          = 119;
-const neCanNotDeliverLoader        = 123;
 const neUnknownPropellerVersion    = 124;
-const nePropellerCommunicationLost = 128;
+const neRAMChecksumFailure         = 125;
+const neEEPROMVerifyFailure        = 127;
+const neCommunicationLost          = 128;
 const neLoaderFailed               = 129;
+const neCommunicationFailure       = 199;
 
 // Notices, by ID
 notices = {
@@ -38,10 +40,12 @@ notices = {
     [nePropellerNotFound]          : "Propeller not found.",
     [neCanNotOpenPort]             : "Can not open port %s.",
     [neCanNotSetBaudrate]          : "Can not set port %s to baudrate %s.",
-    [neCanNotDeliverLoader]        : "Unable to deliver loader.",
     [neUnknownPropellerVersion]    : "Found Propeller version %d - expected version 1.",
-    [nePropellerCommunicationLost] : "Propeller communication lost while delivering loader.",
-    [neLoaderFailed]               : "Loader failed."
+    [neRAMChecksumFailure]         : "RAM checksum failed!",
+    [neEEPROMVerifyFailure]        : "EEPROM verify failed!",
+    [neCommunicationLost]          : "Communication lost!",    /*No response*/
+    [neLoaderFailed]               : "Loader failed.",
+    [neCommunicationFailure]       : "Communication failed!"   /*Response unexpected*/
 };
 
 function notice(noticeId = 0, values = []) {
