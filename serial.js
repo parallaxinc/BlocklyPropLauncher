@@ -3064,9 +3064,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(000, ["Verifying RAM"]), recvTime: 800, recvErr: notice(neRAMChecksumFailed)};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(nsVerifyingRAM), recvTime: 800, recvErr: notice(neRAMChecksumFailed)};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(000, ["Programming and verifying EEPROM"]), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailed)};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(nsVerifyingEEPROM), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailed)};
             }
             yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: 800, recvErr: notice(neCommunicationLost)};
             yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};
@@ -3080,7 +3080,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
-                        log(next.value.sendLog, mDbug);
+                        log(next.value.sendLog, mAll);
                         prepForMBLResponse();
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID

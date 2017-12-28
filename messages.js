@@ -19,7 +19,7 @@
 // Status Notice IDs ("rsvd" are reserved by PropLoader and/or for future use)
 //rsvd nsOpeningFile               = 001;
 const nsDownloading                = 002;
-//rsvd nsVerifyingRam              = 003;
+const nsVerifyingRAM               = 003;
 //rsvd nsOpeningFile               = 004;
 const nsDownloadSuccessful         = 005;
 //rsvd nsTerminalMode              = 006;
@@ -30,7 +30,7 @@ const nsDownloadSuccessful         = 005;
 //rsvd nsUsingAlternatePort        = 011;
 //rsvd nsSteppingDownBaudRate      = 012;
 //rsvd nsUsingSingleStageLoader    = 013;
-//rsvd nsVerifyingEEPROM           = 014;
+const nsVerifyingEEPROM            = 014;
 
 // Error Notice IDs
 //rsvd neCanOnlyNameWIFIModules    = 100;
@@ -68,7 +68,9 @@ const neCommunicationFailed        = 199;
 // Notices, by ID
 notices = {
     [nsDownloading]                : ".",                     /*Downloading*/
+    [nsVerifyingRAM]               : "Verifying RAM.",
     [nsDownloadSuccessful]         : "Download successful.",
+    [nsVerifyingEEPROM]            : "Programming and verifying EEPROM.",
     [neDownloadFailed]             : "Download failed.",
     [nePropellerNotFound]          : "Propeller not found.",
     [neCanNotOpenPort]             : "Can not open port %s.",
