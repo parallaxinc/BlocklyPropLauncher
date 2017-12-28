@@ -130,7 +130,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                         resolve(openInfo.connectionId);
                     } else {
                         // Error
-                        reject(Error("Could not open port " + portPath));
+                        reject(Error(notice(neCanNotOpenPort, [portPath])));
                     }
                 }
             );
@@ -173,7 +173,7 @@ function changeBaudrate(cid, baudrate) {
                         port.baud = baudrate;
                         resolve(cid);
                     } else {
-                        reject(Error("Can not set port " + port.path + " to baudrate " + baudrate));
+                        reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
                     }
                 });
             } else {
@@ -2934,13 +2934,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
             findPort(cid).mode = (debug !== "none") ? "debug" : "programming";
-            log("Download successful.", mUser+mStat, sock);
+            log(notice(nsDownloadSuccessful), mUser+mStat, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                 sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
             }
         })                                                                                                      //Error? Disable listener and display error
-        .catch(function(e) {listen(false); log("Error: " + e.message, mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
+        .catch(function(e) {listen(false); log(e.message, mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 function listen(engage) {
@@ -2986,14 +2986,14 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function verifier() {
                     log("Verifying package delivery", mDeep);
                     //Check handshake and version
-                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error("Propeller not found.")); return;}
+                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
                     //Check for proper version
-                    if (propComm.version !== 1) {reject(Error("Found Propeller version " + propComm.version + " - expected version 1.")); return;}
+                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
                     //Check RAM checksum
-                    if (propComm.ramCheck === stValidating) {reject(Error("Propeller communication lost while delivering loader.")); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error("Unable to deliver loader.")); return;}
+                    if (propComm.ramCheck === stValidating) {reject(Error(notice(nePropellerCommunicationLost))); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCanNotDeliverLoader))); return;}
                     //Check Micro Boot Loader Ready Signal
-                    if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error("Loader failed.")); return;}
+                    if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
                     log("Found Propeller", mUser+mStat, sock);
                     resolve();
                 }
@@ -3045,7 +3045,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                             log("Verifying loader acknowledgement " + (totalPackets-packetId+0) + " of " + totalPackets, mDeep);
                             //Check Micro Boot Loader response
                             if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error("Download failed.")); return
+                                reject(Error(notice(neDownloadFailed))); return
                             }
                             log("Packet delivered.", mDeep);
                             resolve();
@@ -3150,7 +3150,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
             .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
-            .then(function() {       log("Downloading", mUser, sock);}              )
+            .then(function() {       log(notice(nsDownloading), mUser, sock);}      )
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
