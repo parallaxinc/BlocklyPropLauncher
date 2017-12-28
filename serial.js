@@ -3080,7 +3080,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
-                        log(next.value.sendLog, mAll);
+                        log(next.value.sendLog, mAll, sock);
                         prepForMBLResponse();
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
