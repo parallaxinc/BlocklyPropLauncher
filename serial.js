@@ -2991,7 +2991,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
                     //Check RAM checksum
                     if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailure))); return;}
+                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
                     log(notice(000, ["Found Propeller"]), mUser+mStat, sock);
@@ -3020,7 +3020,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function sendUA() {
                     return new Promise(function(resolve, reject) {
                         log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
-                        log(".", mUser, sock);
+                        log(notice(nsDownloading), mUser, sock);
                         prepForMBLResponse();
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
@@ -3064,9 +3064,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(000, ["Verifying RAM"]), recvTime: 800, recvErr: notice(neRAMChecksumFailure)};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(000, ["Verifying RAM"]), recvTime: 800, recvErr: notice(neRAMChecksumFailed)};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(000, ["Programming and verifying EEPROM"]), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailure)};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(000, ["Programming and verifying EEPROM"]), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailed)};
             }
             yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: 800, recvErr: notice(neCommunicationLost)};
             yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};

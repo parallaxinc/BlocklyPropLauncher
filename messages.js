@@ -16,36 +16,69 @@
  is created, it simply takes on the next available code number even if it's logically related to another far away notice.
 */
 
-// Status Notice IDs
+// Status Notice IDs ("rsvd" are reserved by PropLoader and/or for future use)
+//rsvd nsOpeningFile               = 001;
 const nsDownloading                = 002;
+//rsvd nsVerifyingRam              = 003;
+//rsvd nsOpeningFile               = 004;
 const nsDownloadSuccessful         = 005;
+//rsvd nsTerminalMode              = 006;
+//rsvd nsWritingToSDCard           = 007;
+//rsvd nsBytesRemaining            = 008;
+//rsvd nsBytesSent                 = 009;
+//rsvd nsSettingModuleName         = 010;
+//rsvd nsUsingAlternatePort        = 011;
+//rsvd nsSteppingDownBaudRate      = 012;
+//rsvd nsUsingSingleStageLoader    = 013;
+//rsvd nsVerifyingEEPROM           = 014;
 
 // Error Notice IDs
+//rsvd neCanOnlyNameWIFIModules    = 100;
+//rsvd neInvalidModuleAddress      = 101;
 const neDownloadFailed             = 102;
+//rsvd neCantOpenFile              = 103;
 const nePropellerNotFound          = 104;
+//rsvd neFailedToEnterTerminalMode = 105;
+//rsvd neWrongWIFIModuleFirmware   = 106;
+//rsvd neFailedToWriteToSDCard     = 107;
+//rsvd neInvalidModuleName         = 108;
+//rsvd neFailedToSetModuleName     = 109;
+//rsvd neFileTruncated             = 110;
+//rsvd neFileCorrupted             = 111;
+//rsvd neCantReadPropellerAppFile  = 112;
+//rsvd neWIFIModuleDiscoveryFailed = 113;
+//rsvd neNoWIFIModulesFound        = 114;
+//rsvd neSerialPortDiscoveryFailed = 115;
+//rsvd neNoSerialPortsFound        = 116;
 const neCanNotOpenPort             = 117;
+//rsvd neCanNotConnectToModule     = 118;
 const neCanNotSetBaudrate          = 119;
+//rsvd neInternalCodeError         = 120;
+//rsvd neInsufficientMemory        = 121;
+//rsvd neNoResetMethod             = 122;
+//rsvd neResetFailed               = 123;
 const neUnknownPropellerVersion    = 124;
-const neRAMChecksumFailure         = 125;
-const neEEPROMVerifyFailure        = 127;
+const neRAMChecksumFailed          = 125;
+//rsvd neEEPROMChecksumFailed      = 126;
+const neEEPROMVerifyFailed         = 127;
 const neCommunicationLost          = 128;
 const neLoaderFailed               = 129;
-const neCommunicationFailure       = 199;
+const neCommunicationFailed        = 199;
 
 // Notices, by ID
 notices = {
-    [nsDownloading]                : "Downloading",
+    [nsDownloading]                : ".",                     /*Downloading*/
     [nsDownloadSuccessful]         : "Download successful.",
     [neDownloadFailed]             : "Download failed.",
     [nePropellerNotFound]          : "Propeller not found.",
     [neCanNotOpenPort]             : "Can not open port %s.",
     [neCanNotSetBaudrate]          : "Can not set port %s to baudrate %s.",
     [neUnknownPropellerVersion]    : "Found Propeller version %d - expected version 1.",
-    [neRAMChecksumFailure]         : "RAM checksum failed!",
-    [neEEPROMVerifyFailure]        : "EEPROM verify failed!",
+    [neRAMChecksumFailed]          : "RAM checksum failed!",
+    [neEEPROMVerifyFailed]         : "EEPROM verify failed!",
     [neCommunicationLost]          : "Communication lost!",    /*No response*/
     [neLoaderFailed]               : "Loader failed.",
-    [neCommunicationFailure]       : "Communication failed!"   /*Response unexpected*/
+    [neCommunicationFailed]        : "Communication failed!"   /*Response unexpected*/
 };
 
 function notice(noticeId = 0, values = []) {
