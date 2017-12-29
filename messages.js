@@ -67,20 +67,20 @@ const neCommunicationFailed        = 199;
 
 // Notices, by ID
 notices = {
-    [nsDownloading]                : ".",                     /*Downloading*/
-    [nsVerifyingRAM]               : "Verifying RAM.",
-    [nsDownloadSuccessful]         : "Download successful.",
-    [nsVerifyingEEPROM]            : "Programming and verifying EEPROM.",
-    [neDownloadFailed]             : "Download failed.",
-    [nePropellerNotFound]          : "Propeller not found.",
-    [neCanNotOpenPort]             : "Can not open port %s.",
-    [neCanNotSetBaudrate]          : "Can not set port %s to baudrate %s.",
-    [neUnknownPropellerVersion]    : "Found Propeller version %d - expected version 1.",
-    [neRAMChecksumFailed]          : "RAM checksum failed!",
-    [neEEPROMVerifyFailed]         : "EEPROM verify failed!",
-    [neCommunicationLost]          : "Communication lost!",    /*No response*/
-    [neLoaderFailed]               : "Loader failed.",
-    [neCommunicationFailed]        : "Communication failed!"   /*Response unexpected*/
+    [nsDownloading]                : "Downloading",
+    [nsVerifyingRAM]               : "Verifying RAM",
+    [nsDownloadSuccessful]         : "Download successful!",
+    [nsVerifyingEEPROM]            : "Programming and verifying EEPROM",
+    [neDownloadFailed]             : "Download failed!",
+    [nePropellerNotFound]          : "Propeller not found",
+    [neCanNotOpenPort]             : "Can not open port %s",
+    [neCanNotSetBaudrate]          : "Can not set port %s to baudrate %s",
+    [neUnknownPropellerVersion]    : "Found Propeller version %d - expected version 1",
+    [neRAMChecksumFailed]          : "RAM checksum failed",
+    [neEEPROMVerifyFailed]         : "EEPROM verify failed",
+    [neCommunicationLost]          : "Communication lost",    /*No response*/
+    [neLoaderFailed]               : "Loader failed",
+    [neCommunicationFailed]        : "Communication failed"   /*Response unexpected*/
 };
 
 function notice(noticeId = 0, values = []) {
