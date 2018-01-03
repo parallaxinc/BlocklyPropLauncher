@@ -29,6 +29,7 @@ cp    index.css       release/
 cp    index.html      release/
 cp    LICENSE         release/
 cp    manifest.json   release/
+cp    messages.js     release/
 cp    sha1.js         release/
 
 echo Done!
