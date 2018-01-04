@@ -2967,15 +2967,19 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
 //!!! Experimental code
 
-        var p1 = function() {return msgout("This");};
-        var p2 = function() {return msgout("");};
         var p3 = function() {return msgout("test");};
+        var p2 = function() {return msgout("is a", p3);};
+        var p1 = function() {return msgout("This", p2);};
 
         function msgout(mess, nextp) {
             return new Promise(function(resolve, reject) {
                 if (mess !== "") {
                     console.log(mess);
-                    resolve();
+                    if (nextp) {
+                        resolve(nextp());
+                    } else {
+                        resolve();
+                    }
                 } else {
                     reject(Error("<empty message>"));
 //                    reject();
@@ -2985,12 +2989,17 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         Promise.resolve()
             .then(p1)
+            .catch(function(e) {console.log(e.message);});
+        return
+/*
+        Promise.resolve()
+            .then(p1)
             .then(p2)
             .then(p3)
 //            .catch(function() {});
             .catch(function(e) {console.log(e.message);});
         return;
-
+*/
 //!!! End Experimental code
 
         function sendLoader(waittime) {
