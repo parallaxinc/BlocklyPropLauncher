@@ -2901,13 +2901,14 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         postResetDelay = platform === pfWin ? 60 : 100;
         }
 
-    if (payload) {
-        //Extract Propeller Application from payload
-        var binImage = parseFile(payload);
-        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
-    } else {
+//!!! Temporarily disabled normal operation
+//    if (payload) {
+//        //Extract Propeller Application from payload
+//        var binImage = parseFile(payload);
+//        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
+//    } else {
         var binImage = buffer2ArrayBuffer(bin);
-    }
+//    }
 
     // Look for an existing port
     var port = findPort(portPath);
@@ -2963,6 +2964,30 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
     return new Promise(function(resolve, reject) {
+
+//!!! Experimental code
+
+        function msgout(mess) {
+            return new Promise(function(resolve, reject) {
+                if (mess !== "") {
+                    console.log(mess);
+                    resolve();
+                } else {
+                    reject(Error("<empty message>"));
+//                    reject();
+                }
+            })
+        }
+
+        Promise.resolve()
+            .then(function() {return msgout("This");})
+            .then(function() {return msgout("");})
+            .then(function() {return msgout("test");})
+//            .catch(function() {});
+            .catch(function(e) {console.log(e.message);});
+        return;
+
+//!!! End Experimental code
 
         function sendLoader(waittime) {
         // Return a promise that waits for waittime then sends communication package including loader.
