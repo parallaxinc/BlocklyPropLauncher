@@ -2967,6 +2967,25 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
 //!!! Experimental code
 
+        function delayedResult(mess, delay, succeedFail) {
+            console.log("Creating delayed promise for: " + mess);
+            return new Promise(function(resolve, reject) {
+                setTimeout(function() {
+                    console.log(mess);
+                    if (succeedFail) {resolve()} else {reject(Error("Failed"))}
+                }, delay);
+            })
+        }
+
+        Promise.resolve()
+            .then(function() {return delayedResult("Second", 1500, true);})
+            .then(function() {return delayedResult("First", 1000, true);})
+            .then(function() {return delayedResult("Third", 2000, false);})
+            .then(function() {return delayedResult("Forth", 2500, true);})
+            .catch(function(e) {console.log(e.message);});
+        return
+
+/*
         var p3 = function() {return msgout("test");};
         var p2 = function() {return msgout("is a", p3);};
         var p1 = function() {return msgout("This", p2);};
@@ -2991,6 +3010,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(p1)
             .catch(function(e) {console.log(e.message);});
         return
+*/
 /*
         Promise.resolve()
             .then(p1)
