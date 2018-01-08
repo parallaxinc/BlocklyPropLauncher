@@ -2967,22 +2967,55 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
 //!!! Experimental code
 
-        function delayedResult(mess, delay, succeedFail) {
+        //This code creates a deferred promise (resolved or rejected outside of its constructor) and demonstrates that the promise
+        //can be passed to other functions (delayedResult) and even resolved/rejected within them.
+
+        function delayedResult(mess, delay, succeedFail, otherPromise) {
             console.log("Creating delayed promise for: " + mess);
             return new Promise(function(resolve, reject) {
                 setTimeout(function() {
                     console.log(mess);
+                    if (otherPromise) {otherPromise.resolve();}
                     if (succeedFail) {resolve()} else {reject(Error("Failed"))}
                 }, delay);
             })
         }
 
+        // Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
+        function deferredPromise() {
+            /*Create promise with externally-accessible resolve/reject functions*/
+
+            var res, rej;
+
+            //Create promise and expose its constructor's resolve/reject functions (normally only accessible within the constructor)
+            var promise = new Promise((resolve, reject) => {
+                res = resolve;
+                rej = reject;
+            });
+
+            //Update promise to provide external-accessible resolve/reject functions
+            promise.resolve = res;
+            promise.reject = rej;
+
+            return promise;
+        }
+
+        //Create new promise that will be resolved by another function at a later time (a deferred promise)
+        let p1 = deferredPromise();
+
+        //Define promise chain of this deferred promise
+        p1
+            .then(function() {console.log("p1 resolved")})
+            .catch(function() {console.log("p1 rejected")});
+
+        //Create another normal-pattern promise chain, that, as a matter of demonstration, passes in the deferred promise in a specific step
         Promise.resolve()
-            .then(function() {return delayedResult("Second", 1500, true);})
             .then(function() {return delayedResult("First", 1000, true);})
+            .then(function() {return delayedResult("Second", 1500, true, p1);})
             .then(function() {return delayedResult("Third", 2000, false);})
             .then(function() {return delayedResult("Forth", 2500, true);})
             .catch(function(e) {console.log(e.message);});
+
         return
 
 /*
