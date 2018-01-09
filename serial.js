@@ -52,9 +52,10 @@ let mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Load
 const propCommStart = {                             //propCommStart is used to initialize propComm
     stage       : sgHandshake,                      //Propeller Protocol Stage
     rxCount     : 0,                                //Current count of receive bytes (for stage)
-    handshake   : deferredPromise(),                //ROM-resident boot loader RxHandshake response validity
-    version     : stValidating,                     //ROM-resident boot loader Propeller version number response validity
-    ramCheck    : stValidating,                     //ROM-resident boot loader RAM Checksum response validity
+    handshake   : null,                             //ROM-resident boot loader RxHandshake response validity (Promise)
+    version     : null,                             //ROM-resident boot loader Propeller version number response validity (Promise)
+    firmver     : 0,                                //Propeller firmware version number
+    ramCheck    : null,                             //ROM-resident boot loader RAM Checksum response validity (Promise)
     mblResponse : stValidating,                     //Micro Boot Loader response format validity
     mblRespBuf  : new Uint8Array(mblRespAB),        //Micro Boot Loader responses data (unsigned byte format)
     mblPacketId : new Int32Array(mblRespAB, 0, 1),  //Micro Boot Loader requested next packet id (32-bit signed int format)
@@ -2973,11 +2974,20 @@ function listen(engage) {
    engage = true to add listener; false to remove listener.*/
     if (engage) {
         //Add programming protocol serial receive handler
+        resetPropComm();
         chrome.serial.onReceive.addListener(hearFromProp);
     } else {
         //Remove programming protocol serial receive handler
         chrome.serial.onReceive.removeListener(hearFromProp);
     }
+}
+
+function resetPropComm() {
+/*Reset propComm object to default values*/
+    Object.assign(propComm, propCommStart);                   //Reset propComm object
+    propComm.handshake = deferredPromise();                   //Create new deferred promise for handshake
+    propComm.version = deferredPromise();                     //Create new deferred promise for version
+    propComm.ramCheck = deferredPromise();                    //Create new deferred promise for RAM check
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -3084,19 +3094,24 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     //Check handshake and version
 //!!!                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
                     //Check for proper version
-                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
+//!!!                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
                     //Check RAM checksum
-                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
+//!!!                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
+//!!!                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
                     //Check Micro Boot Loader Ready Signal
                     if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
                     log(notice(000, ["Found Propeller"]), mUser+mStat, sock);
                     resolve();
                 }
-                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
+//!!!                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
 
                 propComm.handshake
-                    .then(function() {setTimeout(verifier, waittime);})
+                    .then(function() {console.log("handshake");})
+                    .then(function() {return propComm.version;})
+                    .then(function() {console.log("version");})
+                    .then(function() {return propComm.ramCheck;})
+                    .then(function() {console.log("ram check");})
+                    //                    .then(function() {setTimeout(verifier, waittime);})
                     .catch(function(e) {return reject(e);});
             });
         }
@@ -3241,7 +3256,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var next;
 
         Promise.resolve()
-            .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
+            .then(function() {       resetPropComm();}                              )    //Reset propComm object
             .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
@@ -3294,7 +3309,7 @@ function hearFromProp(info) {
                     break;
                 }
             } else {
-                //Handshake failure!  Ignore the rest
+                //Handshake failure!  Note rejected; Ignore the rest
                 propComm.handshake.reject(Error(notice(nePropellerNotFound)));
                 propComm.stage = sgIdle;
                 break;
@@ -3306,16 +3321,18 @@ function hearFromProp(info) {
     if (propComm.stage === sgVersion) {
         while (sIdx < stream.length && propComm.rxCount < 4) {
             //More data to decode into Propeller version (4 bytes, 2 data bits per byte)
-            propComm.version = (propComm.version >> 2 & 0x3F) | ((stream[sIdx] & 0x01) << 6) | ((stream[sIdx] & 0x20) << 2);
+            propComm.firmver = (propComm.firmver >> 2 & 0x3F) | ((stream[sIdx] & 0x01) << 6) | ((stream[sIdx] & 0x20) << 2);
             sIdx++;
             if (++propComm.rxCount === 4) {
                 //Received all 4 bytes
-                if (propComm.version === 1) {
-                    //Version matches expected value!  Prep for next stage
+                if (propComm.firmver === 1) {
+                    //Version matches expected value!  Note resolved and prep for next stage
+                    propComm.version.resolve();
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
                 } else {
-                    //Unexpected version!  Ignore the rest
+                    //Unexpected version!  Note rejected; Ignore the rest
+                    propComm.version.reject(Error(notice(neUnknownPropellerVersion, [propComm.firmver])));
                     propComm.stage = sgIdle;
                 }
                 break;
@@ -3326,10 +3343,16 @@ function hearFromProp(info) {
     // Receive RAM Checksum
     if (propComm.stage === sgRAMChecksum && sIdx < stream.length) {
         //Received RAM Checksum response?
-        propComm.ramCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
-        //Set next stage according to result
+        if (stream[sIdx++] === 0xFE) {
+            //RAM Checksum valid;  Note resolved and prep for next stage
+            propComm.ramCheck.resolve();
+            propComm.stage = sgMBLResponse;
+        } else {
+            //RAM Checksum invalid;  Note rejected; Ignore the rest
+            propComm.ramCheck.reject(Error(notice(neCommunicationFailed)));
+            propComm.stage = sgIdle;
+        }
         propComm.rxCount = 0;
-        propComm.stage = propComm.ramCheck ? sgMBLResponse : sgIdle;
     }
 
     // Receive Micro Boot Loader's "Ready" Signal
