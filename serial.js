@@ -52,7 +52,7 @@ let mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Load
 const propCommStart = {                             //propCommStart is used to initialize propComm
     stage       : sgHandshake,                      //Propeller Protocol Stage
     rxCount     : 0,                                //Current count of receive bytes (for stage)
-    handshake   : stValidating,                     //ROM-resident boot loader RxHandshake response validity
+    handshake   : deferredPromise(),                //ROM-resident boot loader RxHandshake response validity
     version     : stValidating,                     //ROM-resident boot loader Propeller version number response validity
     ramCheck    : stValidating,                     //ROM-resident boot loader RAM Checksum response validity
     mblResponse : stValidating,                     //Micro Boot Loader response format validity
@@ -228,16 +228,6 @@ function send(cid, data) {
     });
 }
 
-function buffer2ArrayBuffer(buffer) {
-// Convert buffer to ArrayBuffer
-    var buf = new ArrayBuffer(buffer.length);
-    var bufView = new Uint8Array(buf);
-    for (var i = 0; i < buffer.length; i++) {
-        bufView[i] = buffer[i];
-    }
-    return buf;
-}
-
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
     let port = findPort(info.connectionId);
@@ -389,6 +379,40 @@ function findPort(cidOrPath) {
     }
 }
 
+/***********************************************************
+ *                     Support Functions                   *
+ ***********************************************************/
+
+function buffer2ArrayBuffer(buffer) {
+// Convert buffer to ArrayBuffer
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
+}
+
+function deferredPromise() {
+/* Create promise with externally-accessible resolve/reject functions
+   Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
+*/
+
+    var res, rej;
+
+    //Create promise and expose its constructor's resolve/reject functions (normally only accessible within the constructor)
+    var promise = new Promise((resolve, reject) => {
+        res = resolve;
+        rej = reject;
+    });
+
+    //Update promise to provide externally-accessible resolve/reject functions
+    promise.resolve = res;
+    promise.reject = rej;
+
+    //Return the enhanced promise (deferred promise)
+    return promise;
+}
 
 /***********************************************************
  *             Propeller Programming Functions             *
@@ -2966,7 +2990,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
     return new Promise(function(resolve, reject) {
 
 //!!! Experimental code
-
+/*
         //This code creates a deferred promise (resolved or rejected outside of its constructor) and demonstrates that the promise
         //can be passed to other functions (delayedResult) and even resolved/rejected within them.
 
@@ -2979,25 +3003,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     if (succeedFail) {resolve()} else {reject(Error("Failed"))}
                 }, delay);
             })
-        }
-
-        // Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
-        function deferredPromise() {
-            /*Create promise with externally-accessible resolve/reject functions*/
-
-            var res, rej;
-
-            //Create promise and expose its constructor's resolve/reject functions (normally only accessible within the constructor)
-            var promise = new Promise((resolve, reject) => {
-                res = resolve;
-                rej = reject;
-            });
-
-            //Update promise to provide external-accessible resolve/reject functions
-            promise.resolve = res;
-            promise.reject = rej;
-
-            return promise;
         }
 
         //Create new promise that will be resolved by another function at a later time (a deferred promise)
@@ -3017,7 +3022,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .catch(function(e) {console.log(e.message);});
 
         return
-
+*/
 /*
         var p3 = function() {return msgout("test");};
         var p2 = function() {return msgout("is a", p3);};
@@ -3077,7 +3082,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 function verifier() {
                     log("Verifying package delivery", mDeep);
                     //Check handshake and version
-                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
+//!!!                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
                     //Check for proper version
                     if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
                     //Check RAM checksum
@@ -3089,7 +3094,10 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     resolve();
                 }
                 log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
-                setTimeout(verifier, waittime);
+
+                propComm.handshake
+                    .then(function() {setTimeout(verifier, waittime);})
+                    .catch(function(e) {return reject(e);});
             });
         }
 
@@ -3279,15 +3287,15 @@ function hearFromProp(info) {
             if (stream[sIdx++] === rxHandshake[propComm.rxCount++]) {
                 //Handshake matches so far...
                 if (propComm.rxCount === rxHandshake.length) {
-                    //Entire handshake matches!  Note valid and prep for next stage
-                    propComm.handshake = stValid;
+                    //Entire handshake matches!  Note resolved and prep for next stage
+                    propComm.handshake.resolve();
                     propComm.rxCount = 0;
                     propComm.stage = sgVersion;
                     break;
                 }
             } else {
                 //Handshake failure!  Ignore the rest
-                propComm.handshake = stInvalid;
+                propComm.handshake.reject(Error(notice(nePropellerNotFound)));
                 propComm.stage = sgIdle;
                 break;
             }
