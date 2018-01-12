@@ -3102,10 +3102,10 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 //!!!                    resolve();
 //!!!                }
 //!!!                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
-                //Ready for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
-                propComm.mblEPacketId = packetId;
-                propComm.mblETransId = transmissionId;
-                //Set up for asynchronous Micro-Boot-Loader "Ready" response
+                //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
+                propComm.mblEPacketId[0] = packetId;
+                propComm.mblETransId[0] = transmissionId;
+                //Set up for asynchronous responses from ROM-Resident Boot Loader and finally Micro Boot Loader
                 propComm.response
                     .then(function() {log(notice(000, ["Found Propeller"]), mUser+mStat, sock);})
                     //                    .then(function() {setTimeout(verifier, waittime);})
@@ -3362,7 +3362,7 @@ function hearFromProp(info) {
                     propComm.stage = sgIdle;
                 } else {
                     //MBL Response invalid;  Note rejected; Ignore the rest
-                    reject(Error(notice(neLoaderFailed)));
+                    propComm.response.reject(Error(notice(neLoaderFailed)));
                     propComm.stage = sgIdle;
                 }
                 //Valid if end of stream, otherwise something's wrong (invalid response)
