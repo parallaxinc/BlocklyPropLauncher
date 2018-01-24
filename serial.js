@@ -2986,6 +2986,7 @@ function resetPropComm() {
 /*Reset propComm object to default values*/
     Object.assign(propComm, propCommStart);                   //Reset propComm object
     propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
+
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -3106,7 +3107,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 propComm.mblEPacketId[0] = packetId;
                 propComm.mblETransId[0] = transmissionId;
                 //Set up for asynchronous responses from ROM-Resident Boot Loader and finally Micro Boot Loader
+                log("Waiting for propComm.response", mDeep);  //!!!
                 propComm.response
+                    .then(function() {log("received propComm.response", mDeep);})  //!!!
                     .then(function() {log(notice(000, ["Found Propeller"]), mUser+mStat, sock);})
                     //                    .then(function() {setTimeout(verifier, waittime);})
                     .catch(function(e) {return reject(e);});
@@ -3300,6 +3303,7 @@ function hearFromProp(info) {
                 //Handshake matches so far...
                 if (propComm.rxCount === rxHandshake.length) {
                     //Entire handshake matches!  Prep for next stage
+                    log("passed handshake", mDeep);  //!!!
                     propComm.rxCount = 0;
                     propComm.stage = sgVersion;
                     break;
@@ -3323,6 +3327,7 @@ function hearFromProp(info) {
                 //Received all 4 bytes
                 if (propComm.version === 1) {
                     //Version matches expected value!  Prep for next stage
+                    log("passed version", mDeep);  //!!!
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
                 } else {
@@ -3340,6 +3345,7 @@ function hearFromProp(info) {
         //Received RAM Checksum response?
         if (stream[sIdx++] === 0xFE) {
             //RAM Checksum valid;  Prep for next stage
+            log("passed RAM checksum", mDeep);  //!!!
             propComm.stage = sgMBLResponse;
         } else {
             //RAM Checksum invalid;  Note rejected; Ignore the rest
@@ -3358,6 +3364,7 @@ function hearFromProp(info) {
                 propComm.stage = sgIdle;
                 if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
                     //MBL Response is perfect;  Note resolved
+                    log("passed response", mDeep);  //!!!
                     propComm.response.resolve();
                     propComm.stage = sgIdle;
                 } else {
