@@ -3111,6 +3111,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 propComm.response
                     .then(function() {log("received propComm.response", mDeep);})  //!!!
                     .then(function() {log(notice(000, ["Found Propeller"]), mUser+mStat, sock);})
+                    .then(function() {return resolve()})
                     //                    .then(function() {setTimeout(verifier, waittime);})
                     .catch(function(e) {return reject(e);});
             });
@@ -3141,6 +3142,10 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
                         transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
+
+                        propComm.mblEPacketId[0] = packetId;
+                        propComm.mblETransId[0] = transmissionId;
+
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
