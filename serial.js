@@ -3143,7 +3143,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         txView = new Uint8Array(txData);
                         transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
 
-                        propComm.mblEPacketId[0] = packetId;
+                        propComm.mblEPacketId[0] = packetId-1;
                         propComm.mblETransId[0] = transmissionId;
 
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
@@ -3174,7 +3174,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     });
                 }
                 sendUA()
-                    .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/port.baud)*1000+1);})
+                    .then(function() {return propComm.response;})
                     .then(function() {if (packetId > 0) {return sendUserApp()}})
                     .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
@@ -3204,8 +3204,12 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        send(cid, txData);                                                                         //Transmit packet
+
                         packetId = next.value.nextId;                                                              //Ready next Packet ID
+                        propComm.mblEPacketId[0] = packetId;
+                        propComm.mblETransId[0] = transmissionId;
+
+                        send(cid, txData);                                                                         //Transmit packet
                         resolve(next.value.type !== ltLaunchNow);                                                  //Resolve and indicate if there's more to come
                     });
                 }
@@ -3232,6 +3236,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 sendInstructionPacket()
                     .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
                     .then(function(ack) {if (ack) {return finalizeDelivery()}})
+                    .then(function() {return new Promise(function(resolve) {setTimeout(resolve, 100)})})
                     .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
             });
@@ -3367,6 +3372,8 @@ function hearFromProp(info) {
             //Finish stage when expected response size received
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
                 propComm.stage = sgIdle;
+                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);  //!!!
+                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);  //!!!
                 if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
                     //MBL Response is perfect;  Note resolved
                     log("passed response", mDeep);  //!!!
