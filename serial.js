@@ -3209,8 +3209,12 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         propComm.mblEPacketId[0] = packetId;
                         propComm.mblETransId[0] = transmissionId;
 
-                        send(cid, txData);                                                                         //Transmit packet
-                        resolve(next.value.type !== ltLaunchNow);                                                  //Resolve and indicate if there's more to come
+                        send(cid, txData);                                                                             //Transmit packet
+                        propComm.response                                                                              //If response
+                            .then(function() {if (next.value.type !== ltLaunchNow) {return sendInstructionPacket()}})  //  is success; send next packet (if any) and
+                            .then(function() {return resolve()})                                                       //    resolve
+//                            .then(function() {return resolve(next.value.type !== ltLaunchNow);})                   //  is success; resolve and indicate if there's more to come
+                            .catch(function(e) {return rejects(e)});                                                   //  is failure; return the error
                     });
                 }
                 function loaderAcknowledged(waittime) {
@@ -3234,9 +3238,10 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 }
 
                 sendInstructionPacket()
-                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
-                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
-                    .then(function() {return new Promise(function(resolve) {setTimeout(resolve, 100)})})
+//                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
+//                    .then(function(ack) {return propComm.response.then(function() {if (ack) {return finalizeDelivery()}}).catch(function(e) {return reject(e)})})
+//                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
+                    .then(function() {return new Promise(function(resolve) {setTimeout(resolve, 1000)})})
                     .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
             });
