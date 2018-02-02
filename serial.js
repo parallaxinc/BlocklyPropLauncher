@@ -3191,7 +3191,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};
         }
 
-        //TODO lower waittime
         function finalizeDelivery() {
         // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
             return new Promise(function(resolve, reject) {
@@ -3217,46 +3216,16 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
                         if (next.value.type !== ltLaunchNow) {                                                     //If not last instruction packet...
                             propComm.response                                                                      //  When response...
-                                .then(function() {
-                                    log("sendInstructionPacket got response", mDeep);
-                                    return sendInstructionPacket();
-                                    })                                                                             //  is success; send next packet (if any) and
-                                .then(function() {return resolve()})
-                                //                                .then(function() {log("sendInstructionPacket resolving", mDeep); return resolve();})                                                       //    resolve
-                                //                                .then(function() {return resolve(next.value.type !== ltLaunchNow);})               //  is success; resolve and indicate if there's more to come
-                                .catch(function(e) {
-                                    return reject(e)
-                                });                                           //  is failure; return the error
-                        } else {                                                                                    //Else, last packet sent; success
-                            log("sendInstructionPacket resolved", mDeep);
-                            resolve();                                                                              //Success; User App Launched!
+                                .then(function() {return sendInstructionPacket()})                                 //    is success; send next packet (if any) and
+                                .then(function() {return resolve()})                                               //      resolve
+                                .catch(function(e) {return reject(e)});                                            //    is failure; reject (return the error)
+                        } else {                                                                                   //Else, last instruction packet sent; success
+                            resolve();                                                                             //  Success; User App Launched!
                         }
-                    });
-                }
-                function loaderAcknowledged(waittime) {
-                /* Did Micro Boot Loader acknowledge the packet?
-                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
-                    return new Promise(function(resolve, reject) {
-                        function verifier() {
-                            log("Verifying loader acknowledgement", mDeep);
-                            //Check Micro Boot Loader response (values checked by value only, not value+type)
-//!!!                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-//!!!                                reject(Error(next.value.recvErr)); return;
-//!!!                            }
-                            //Resolve and indicate there's more to come
-                            log("Packet accepted.", mDeep);
-                            resolve(true);
-                        }
-                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
-                        setTimeout(verifier, waittime);
                     });
                 }
 
                 sendInstructionPacket()
-//                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
-//                    .then(function(ack) {return propComm.response.then(function() {if (ack) {return finalizeDelivery()}}).catch(function(e) {return reject(e)})})
-//                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
 //                    .then(function() {log("finalizeDelivery delaying resolve", mDeep); return new Promise(function() {setTimeout(resolve, 1000)});})
                     .then(function() {log("finalizeDelivery resolved", mDeep); return resolve();})
                     .catch(function(e) {return reject(e)});
