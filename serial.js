@@ -433,13 +433,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     //Temporary hard-coded Propeller Application for development testing
     //Blink P26
-    const bin = [
+    /*const bin = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
         0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
-    ];
+    ];*/
     //Clock Demo PABWX (adjusted for P20 through P27)
-    /*    const bin = [
+    const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x01, 0x10, 0x00, 0x1C, 0x02, 0x50, 0x02, 0x3E, 0x00, 0x54, 0x02,
      0xBC, 0x00, 0x04, 0x01, 0x2E, 0x00, 0x00, 0x00, 0x63, 0x00, 0x00, 0x00, 0xA4, 0x00, 0x00, 0x00,
      0xBC, 0x00, 0x28, 0x00, 0x6B, 0x00, 0x6C, 0x00, 0x00, 0x00, 0x6D, 0x00, 0x6E, 0x00, 0x6F, 0x00,
@@ -474,7 +474,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x0F, 0x42, 0x40, 0xF6, 0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x35, 0xC0,
      0x39, 0x03, 0xE8, 0xF6, 0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x35, 0xC0,
      0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x00, 0x00
-     ];*/
+     ];
     //FloatMathDemoPABWX.spin
     /*    const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0xE7, 0x10, 0x00, 0x98, 0x19, 0x8C, 0x50, 0x4C, 0x00, 0x94, 0x50,
@@ -3175,8 +3175,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 }
                 sendUA()
                     .then(function() {return propComm.response;})
-                    .then(function() {if (packetId > 0) {return sendUserApp()}})
-                    .then(function() {return resolve()})
+                    .then(function() {if (packetId > 0) {return sendUserApp()} else {return resolve()}})
+//                    .then(function() {return resolve()})
                     .catch(function(e) {return reject(e)});
             });
         }
@@ -3200,21 +3200,37 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
                         log(next.value.sendLog, mAll, sock);
-                        prepForMBLResponse();
-                        generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
+
+                        generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
 
-                        packetId = next.value.nextId;                                                              //Ready next Packet ID
-                        propComm.mblEPacketId[0] = packetId;
-                        propComm.mblETransId[0] = transmissionId;
 
-                        send(cid, txData);                                                                             //Transmit packet
-                        propComm.response                                                                              //If response
-                            .then(function() {if (next.value.type !== ltLaunchNow) {return sendInstructionPacket()}})  //  is success; send next packet (if any) and
-                            .then(function() {return resolve()})                                                       //    resolve
-//                            .then(function() {return resolve(next.value.type !== ltLaunchNow);})                   //  is success; resolve and indicate if there's more to come
-                            .catch(function(e) {return rejects(e)});                                                   //  is failure; return the error
+                        if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
+                            prepForMBLResponse();                                                                  //  Prepare to receive next MBL response
+                            packetId = next.value.nextId;                                                          //  Ready next Packet ID
+                            propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
+                            propComm.mblETransId[0] = transmissionId;
+                        }
+
+                        send(cid, txData);                                                                         //Transmit packet
+
+                        if (next.value.type !== ltLaunchNow) {                                                     //If not last instruction packet...
+                            propComm.response                                                                      //  When response...
+                                .then(function() {
+                                    log("sendInstructionPacket got response", mDeep);
+                                    return sendInstructionPacket();
+                                    return resolve();
+                                    })                                                                             //  is success; send next packet (if any) and
+                                //                                .then(function() {log("sendInstructionPacket resolving", mDeep); return resolve();})                                                       //    resolve
+                                //                                .then(function() {return resolve(next.value.type !== ltLaunchNow);})               //  is success; resolve and indicate if there's more to come
+                                .catch(function(e) {
+                                    return reject(e)
+                                });                                           //  is failure; return the error
+                        } else {                                                                                    //Else, last packet sent; success
+                            log("sendInstructionPacket resolved", mDeep);
+                            return resolve();                                                                       //Success; User App Launched!
+                        }
                     });
                 }
                 function loaderAcknowledged(waittime) {
@@ -3241,8 +3257,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 //                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
 //                    .then(function(ack) {return propComm.response.then(function() {if (ack) {return finalizeDelivery()}}).catch(function(e) {return reject(e)})})
 //                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
-                    .then(function() {return new Promise(function(resolve) {setTimeout(resolve, 1000)})})
-                    .then(function() {return resolve()})
+//                    .then(function() {log("finalizeDelivery delaying resolve", mDeep); return new Promise(function() {setTimeout(resolve, 1000)});})
+                    .then(function() {log("finalizeDelivery resolved", mDeep); return resolve();})
                     .catch(function(e) {return reject(e)});
             });
         }
