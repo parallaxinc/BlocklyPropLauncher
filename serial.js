@@ -3220,8 +3220,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                                 .then(function() {
                                     log("sendInstructionPacket got response", mDeep);
                                     return sendInstructionPacket();
-                                    return resolve();
                                     })                                                                             //  is success; send next packet (if any) and
+                                .then(function() {return resolve()})
                                 //                                .then(function() {log("sendInstructionPacket resolving", mDeep); return resolve();})                                                       //    resolve
                                 //                                .then(function() {return resolve(next.value.type !== ltLaunchNow);})               //  is success; resolve and indicate if there's more to come
                                 .catch(function(e) {
@@ -3229,7 +3229,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                                 });                                           //  is failure; return the error
                         } else {                                                                                    //Else, last packet sent; success
                             log("sendInstructionPacket resolved", mDeep);
-                            return resolve();                                                                       //Success; User App Launched!
+                            resolve();                                                                              //Success; User App Launched!
                         }
                     });
                 }
