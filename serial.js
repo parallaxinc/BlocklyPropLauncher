@@ -59,7 +59,9 @@ const propCommStart = {                              //propCommStart is used to 
     mblRPacketId : new Int32Array(mblRespAB, 0, 1),  //Micro Boot Loader requested next packet id (32-bit signed int format)
     mblRTransId  : new Int32Array(mblRespAB, 4, 1),  //Micro Boot Loader response-to transmission id (32-bit signed int format)
     mblEPacketId : new Int32Array(mblExpdAB, 0, 1),  //Micro Boot Loader expected next packet id (32-bit signed int format)
-    mblETransId  : new Int32Array(mblExpdAB, 4, 1)   //Micro Boot Loader expected transmission id (32-bit signed int format)
+    mblETransId  : new Int32Array(mblExpdAB, 4, 1),  //Micro Boot Loader expected transmission id (32-bit signed int format)
+    timer        : null,                             //Holds current timeout timer
+    timeoutError : ""                                //Error to issue at end of next timeout
 //!!!    eeProg    : stValidating,
 //!!!    eeCheck   : stValidating
 };
@@ -2986,7 +2988,20 @@ function resetPropComm() {
 /*Reset propComm object to default values*/
     Object.assign(propComm, propCommStart);                   //Reset propComm object
     propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
+    setPropCommTimer(0, notice(nePropellerNotFound));         //Default to "Propeller Not Found" error
+}
 
+function setPropCommTimer(timeout, timeoutError) {
+/*  Set timeout timer for Propeller Communication
+    timeout = timeout period (in ms)
+    timeoutError = string message to issue upon a timeout
+*/
+    propComm.timeoutError = timeoutError;
+    propComm.timer = setTimeout(function() {
+        log("Timed out!", mDbug);  //!!!
+        propComm.response.reject(Error(propComm.timeoutError));
+        propComm.timer = null;
+    }, timeout);
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -3093,11 +3108,15 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             });
         }
 
-        function prepForMBLResponse() {
-        // Set propComm to prep for another Micro Boot Loader response.
+        function prepForMBLResponse(timeout, timeoutError) {
+        /* Set propComm to prep for another Micro Boot Loader response.
+           timeout = timeout period (in ms)
+           timeoutError = string message to issue upon a timeout
+        */
             propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
             propComm.stage = sgMBLResponse;
             propComm.rxCount = 0;
+            setPropCommTimer(timeout, timeoutError);
         }
 
         //TODO catch send() errors
@@ -3246,23 +3265,6 @@ function hearFromProp(info) {
     var stream = ab2num(info.data);
     var sIdx = 0;
 
-
-
-//!!!                function verifier() {
-//!!!                    log("Verifying package delivery", mDeep);
-    //Check handshake and version
-//!!!                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
-    //Check for proper version
-//!!!                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
-    //Check RAM checksum
-//!!!                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
-//!!!                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
-    //Check Micro Boot Loader Ready Signal
-//!!!                    if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
-
-
-
-
     // Validate rxHandshake
     if (propComm.stage === sgHandshake) {
         while (sIdx < stream.length && propComm.rxCount < rxHandshake.length) {
@@ -3278,6 +3280,7 @@ function hearFromProp(info) {
                 }
             } else {
                 //Handshake failure!  Note rejected; Ignore the rest
+                clearTimeout(propComm.timer);
                 propComm.response.reject(Error(notice(nePropellerNotFound)));
                 propComm.stage = sgIdle;
                 break;
@@ -3296,10 +3299,13 @@ function hearFromProp(info) {
                 if (propComm.version === 1) {
                     //Version matches expected value!  Prep for next stage
 //!!!                    log("passed version", mDeep);  //!!!
+                    //Found Propeller; update timeout for next possible error (if no RAM Checksum received or no Micro Boot Loader response received)
+                    propComm.timeoutError(notice(neCommunicationLost));
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
                 } else {
                     //Unexpected version!  Note rejected; Ignore the rest
+                    clearTimeout(propComm.timer);
                     propComm.response.reject(Error(notice(neUnknownPropellerVersion, [propComm.version])));
                     propComm.stage = sgIdle;
                 }
@@ -3317,6 +3323,7 @@ function hearFromProp(info) {
             propComm.stage = sgMBLResponse;
         } else {
             //RAM Checksum invalid;  Note rejected; Ignore the rest
+            clearTimeout(propComm.timer);
             propComm.response.reject(Error(notice(neCommunicationFailed)));
             propComm.stage = sgIdle;
         }
@@ -3339,6 +3346,7 @@ function hearFromProp(info) {
             propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             //Finish stage when expected response size received
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+                clearTimeout(propComm.timer);
                 propComm.stage = sgIdle;
 //!!!                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);  //!!!
 //!!!                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);  //!!!
@@ -3350,7 +3358,6 @@ function hearFromProp(info) {
                     //MBL Response invalid;  Note rejected; Ignore the rest
                     propComm.response.reject(Error(notice(neLoaderFailed)));
                 }
-                propComm.stage = sgIdle;
                 //Valid if end of stream, otherwise something's wrong (invalid response)
 //!!!
                 propComm.mblResponse = stream.length === sIdx ? stValid : stInvalid;
