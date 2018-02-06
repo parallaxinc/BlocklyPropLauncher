@@ -889,7 +889,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x09, 0xE2, 0xEA, 0x33, 0x32, 0x00, 0x00, 0x00
      ];*/
     //LargeSpinCodeFlip.spin
-        const bin = [
+    const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x86, 0x10, 0x00, 0xC0, 0x7E, 0xA8, 0x7F, 0xD0, 0x79, 0xB0, 0x7F,
      0x70, 0x7A, 0x03, 0x01, 0xC0, 0x79, 0x04, 0x00, 0x15, 0x7A, 0x04, 0x00, 0x70, 0x7A, 0x04, 0x00,
      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -3070,8 +3070,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 //!!! End Experimental code
 
         function sendLoader(waittime) {
-        /* Return a promise that waits for waittime milliseconds, then sends communication package including loader, then waits for the responding
-           Propeller Handshake, Version, and successful Micro Boot Loader delivery notice.
+        /* Return a promise that waits for waittime milliseconds, then sends communication package (Timing Pulses, Host Handshake, and Micro Boot Loader),
+           then waits for the responding Propeller Handshake, Version, and successful Micro Boot Loader delivery notice.
            Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
            Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.  //!!!
         */
@@ -3094,7 +3094,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         }
 
         function prepForMBLResponse() {
-            // Set propComm to prep for another Micro Boot Loader response.
+        // Set propComm to prep for another Micro Boot Loader response.
             propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
             propComm.stage = sgMBLResponse;
             propComm.rxCount = 0;
@@ -3131,11 +3131,11 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     });
                 }
 
-                sendUA()
-                    .then(function() {return propComm.response;})
-                    .then(function() {if (packetId > 0) {return sendUserApp()} else {return resolve()}})
-                    .then(function() {return resolve()})
-                    .catch(function(e) {return reject(e)});
+                sendUA()                                                                                                 //Send user application packet
+                    .then(function() {return propComm.response;})                                                        //Wait for response
+                    .then(function() {if (packetId > 0) {return sendUserApp()}})                                         //More packets? repeat
+                    .then(function() {return resolve()})                                                                 //else, resolve
+                    .catch(function(e) {return reject(e)});                                                              //Error? return error message
             });
         }
 
