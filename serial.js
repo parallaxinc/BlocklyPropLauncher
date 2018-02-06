@@ -3080,7 +3080,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 }, waittime);
             });
         }
-
+        //TODO see if isLoaderReady can be combined with sendLoader
         function isLoaderReady(packetId) {
         /* Is Micro Boot Loader delivered and Ready?
         Return a promise that waits for the responding Propeller Handshake, Version, and successful Micro Boot Loader delivery.
@@ -3096,7 +3096,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 //!!!                    .then(function() {log("received propComm.response", mDeep);})  //!!!
                     .then(function() {log(notice(000, ["Found Propeller"]), mUser+mStat, sock);})
                     .then(function() {return resolve()})
-                    .catch(function(e) {return reject(e);});
+                    .catch(function(e) {return reject(e)});
             });
         }
 
@@ -3107,7 +3107,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             propComm.rxCount = 0;
         }
 
-        //TODO lower waittime
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
@@ -3317,25 +3316,6 @@ function hearFromProp(info) {
         }
     }
 
-    //Check handshake and version
-//!!!                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
-    //Check for proper version
-//!!!                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
-    //Check RAM checksum
-//!!!                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
-//!!!                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
-    //Check Micro Boot Loader Ready Signal
-//!!!                    if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
-
-
-//!!! SendUserApp
-    //Check Micro Boot Loader response
-//!!!                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-//!!!                                reject(Error(notice(neCommunicationFailed))); return
-//!!!                            }
-
-
-
     // Receive RAM Checksum
     if (propComm.stage === sgRAMChecksum && sIdx < stream.length) {
         //Received RAM Checksum response?
@@ -3350,6 +3330,16 @@ function hearFromProp(info) {
         }
         propComm.rxCount = 0;
     }
+
+
+    
+//!!! SendUserApp
+    //Check Micro Boot Loader response
+//!!!                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
+//!!!                                reject(Error(notice(neCommunicationFailed))); return
+//!!!                            }
+
+
 
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
