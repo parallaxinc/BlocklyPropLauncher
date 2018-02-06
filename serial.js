@@ -3070,33 +3070,26 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 //!!! End Experimental code
 
         function sendLoader(waittime) {
-        // Return a promise that waits for waittime then sends communication package including loader.
+        /* Return a promise that waits for waittime milliseconds, then sends communication package including loader, then waits for the responding
+           Propeller Handshake, Version, and successful Micro Boot Loader delivery notice.
+           Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
+           Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.  //!!!
+        */
             return new Promise(function(resolve, reject) {
-                log("Waiting " + Math.trunc(waittime), mDeep);
+                log("Waiting " + Math.trunc(waittime) + " ms", mDeep);
                 setTimeout(function() {
+                    //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
+                    propComm.mblEPacketId[0] = packetId;
+                    propComm.mblETransId[0] = transmissionId;
+                    //Send Micro Boot Loader package
                     log("Transmitting Micro Boot Loader package", mDeep);
                     send(cid, txData);
-                    resolve();
+                    //Wait for response
+                    propComm.response
+                        .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock);})
+                        .then(function() {return resolve()})
+                        .catch(function(e) {return reject(e)});
                 }, waittime);
-            });
-        }
-        //TODO see if isLoaderReady can be combined with sendLoader
-        function isLoaderReady(packetId) {
-        /* Is Micro Boot Loader delivered and Ready?
-        Return a promise that waits for the responding Propeller Handshake, Version, and successful Micro Boot Loader delivery.
-        Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
-        Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/  //!!!
-
-            return new Promise(function(resolve, reject) {
-                //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
-                propComm.mblEPacketId[0] = packetId;
-                propComm.mblETransId[0] = transmissionId;
-                //Set up for asynchronous responses from ROM-Resident Boot Loader and finally Micro Boot Loader
-                propComm.response
-//!!!                    .then(function() {log("received propComm.response", mDeep);})  //!!!
-                    .then(function() {log(notice(000, ["Found Propeller"]), mUser+mStat, sock);})
-                    .then(function() {return resolve()})
-                    .catch(function(e) {return reject(e)});
             });
         }
 
@@ -3220,8 +3213,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
-            .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-            .then(function() {return isLoaderReady(packetId);}                      )    //Verify package accepted
+            .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
             .then(function() {return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
@@ -3332,7 +3324,7 @@ function hearFromProp(info) {
     }
 
 
-    
+
 //!!! SendUserApp
     //Check Micro Boot Loader response
 //!!!                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
