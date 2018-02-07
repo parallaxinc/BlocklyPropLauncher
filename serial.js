@@ -2984,11 +2984,13 @@ function listen(engage) {
     }
 }
 
-function resetPropComm() {
-/*Reset propComm object to default values*/
+function resetPropComm(timeout) {
+/*Reset propComm object to default values
+  timeout = period (in ms) for initial timeout
+*/
     Object.assign(propComm, propCommStart);                   //Reset propComm object
     propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
-    setPropCommTimer(0, notice(nePropellerNotFound));         //Default to "Propeller Not Found" error
+    setPropCommTimer(timeout, notice(nePropellerNotFound));   //Default to "Propeller Not Found" error
 }
 
 function setPropCommTimer(timeout, timeoutError) {
@@ -3130,7 +3132,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     return new Promise(function(resolve, reject) {
                         log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         log(notice(nsDownloading), mUser, sock);
-                        prepForMBLResponse();
+                        prepForMBLResponse(//###, notice(neCommunicationLost));
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
@@ -3183,7 +3185,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
 
                         if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
-                            prepForMBLResponse();                                                                  //  Prepare to receive next MBL response
+                            prepForMBLResponse(//!!!, error?);                                                                  //  Prepare to receive next MBL response
                             packetId = next.value.nextId;                                                          //  Ready next Packet ID
                             propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
                             propComm.mblETransId[0] = transmissionId;
@@ -3226,8 +3228,13 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var instPacket = packetGenerator();
         var next;
 
+        //Calculate expected max package delivery time
+        //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] +
+        // 8 MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+        var deliveryTime = 300+((10*(txData.byteLength+20+8))/port.baud)*1000+1;
+
         Promise.resolve()
-            .then(function() {       resetPropComm();}                              )    //Reset propComm object
+            .then(function() {       resetPropComm(deliveryTime);}                  )    //Reset propComm object
             .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
@@ -3299,7 +3306,7 @@ function hearFromProp(info) {
                 if (propComm.version === 1) {
                     //Version matches expected value!  Prep for next stage
 //!!!                    log("passed version", mDeep);  //!!!
-                    //Found Propeller; update timeout for next possible error (if no RAM Checksum received or no Micro Boot Loader response received)
+                    //Found Propeller; update timeout for next possible error (if no RAM Checksum or Micro Boot Loader response received)
                     propComm.timeoutError(notice(neCommunicationLost));
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
