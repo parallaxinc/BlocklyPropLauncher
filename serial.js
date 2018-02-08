@@ -2988,6 +2988,7 @@ function resetPropComm(timeout) {
 /*Reset propComm object to default values
   timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to sgHandshake, creates deferred promise, and creates timeout timer.
 */
+    if (propComm.timeout) {clearTimeout(propComm.timer)}          //Clear old timer, if any
     Object.assign(propComm, propCommStart);                       //Reset propComm object
     if (timeout) {                                                //If timeout provided
         propComm.stage = sgHandshake;                             //Ready for handshake
