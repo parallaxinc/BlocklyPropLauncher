@@ -51,7 +51,7 @@ let mblRespAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loa
 let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader expected responses
 
 const propCommStart = {                              //propCommStart is used to initialize propComm
-    stage        : sgHandshake,                      //Propeller Protocol Stage
+    stage        : sgIdle,                           //Propeller Protocol Stage
     response     : null,                             //Micro Boot Loader response signal (Promise)
     rxCount      : 0,                                //Current count of receive bytes (for stage)
     version      : 0,                                //Propeller firmware version number
@@ -2976,6 +2976,7 @@ function listen(engage) {
    engage = true to add listener; false to remove listener.*/
     if (engage) {
         //Add programming protocol serial receive handler
+        resetPropComm();
         chrome.serial.onReceive.addListener(hearFromProp);
     } else {
         //Remove programming protocol serial receive handler
@@ -2985,11 +2986,14 @@ function listen(engage) {
 
 function resetPropComm(timeout) {
 /*Reset propComm object to default values
-  timeout = period (in ms) for initial timeout
+  timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to sgHandshake, creates deferred promise, and creates timeout timer.
 */
-    Object.assign(propComm, propCommStart);                   //Reset propComm object
-    propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
-    setPropCommTimer(timeout, notice(nePropellerNotFound));   //Default to "Propeller Not Found" error
+    Object.assign(propComm, propCommStart);                       //Reset propComm object
+    if (timeout) {                                                //If timeout provided
+        propComm.stage = sgHandshake;                             //Ready for handshake
+        propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
+        setPropCommTimer(timeout, notice(nePropellerNotFound));   //Default to "Propeller Not Found" error
+    };
 }
 
 function setPropCommTimer(timeout, timeoutError) {
@@ -2997,10 +3001,11 @@ function setPropCommTimer(timeout, timeoutError) {
     timeout = timeout period (in ms)
     timeoutError = string message to issue upon a timeout
 */
-    propComm.timeoutError = timeoutError;
     clearTimeout(propComm.timer);
+    propComm.timeoutError = timeoutError;
+    timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {
-        log("Timed out in " + timeout, mDbug);  //!!!
+        log("Timed out in " + timeout + " ms", mDbug);  //!!!
         propComm.response.reject(Error(propComm.timeoutError));
         propComm.timer = null;
     }, timeout);
@@ -3229,13 +3234,13 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var instPacket = packetGenerator();
         var next;
 
-        //Calculate expected Micro Boot Loader and User Application delivery times
-        //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] +
-        // 8 MBL "ready" bytes [MBL responding])) / initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*100000+1;
+        /* Calculate expected Micro Boot Loader and User Application delivery times
+           = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] +
+             8 MBL "ready" bytes [MBL responding])) / initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] */
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1;
 
-        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*100000+1;
+        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 750 [Rx hardware to OS slack time]
+        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
 
         Promise.resolve()
             .then(function() {       resetPropComm(mblDeliveryTime);}               )    //Reset propComm object
