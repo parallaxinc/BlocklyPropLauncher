@@ -2976,7 +2976,6 @@ function listen(engage) {
    engage = true to add listener; false to remove listener.*/
     if (engage) {
         //Add programming protocol serial receive handler
-        resetPropComm();
         chrome.serial.onReceive.addListener(hearFromProp);
     } else {
         //Remove programming protocol serial receive handler
@@ -2999,8 +2998,9 @@ function setPropCommTimer(timeout, timeoutError) {
     timeoutError = string message to issue upon a timeout
 */
     propComm.timeoutError = timeoutError;
+    clearTimeout(propComm.timer);
     propComm.timer = setTimeout(function() {
-        log("Timed out!", mDbug);  //!!!
+        log("Timed out in " + timeout, mDbug);  //!!!
         propComm.response.reject(Error(propComm.timeoutError));
         propComm.timer = null;
     }, timeout);
@@ -3129,10 +3129,11 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             return new Promise(function(resolve, reject) {
 
                 function sendUA() {
+
                     return new Promise(function(resolve, reject) {
-                        log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
+                        log((totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         log(notice(nsDownloading), mUser, sock);
-                        prepForMBLResponse(//###, notice(neCommunicationLost));
+                        prepForMBLResponse(userDeliveryTime, notice(neCommunicationLost));
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
@@ -3185,7 +3186,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
 
                         if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
-                            prepForMBLResponse(//!!!, error?);                                                                  //  Prepare to receive next MBL response
+                            prepForMBLResponse(userDeliveryTime, notice(neCommunicationLost));                     //  Prepare to receive next MBL response
                             packetId = next.value.nextId;                                                          //  Ready next Packet ID
                             propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
                             propComm.mblETransId[0] = transmissionId;
@@ -3228,23 +3229,26 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var instPacket = packetGenerator();
         var next;
 
-        //Calculate expected max package delivery time
+        //Calculate expected Micro Boot Loader and User Application delivery times
         //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] +
-        // 8 MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-        var deliveryTime = 300+((10*(txData.byteLength+20+8))/port.baud)*1000+1;
+        // 8 MBL "ready" bytes [MBL responding])) / initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*100000+1;
+
+        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
+        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*100000+1;
 
         Promise.resolve()
-            .then(function() {       resetPropComm(deliveryTime);}                  )    //Reset propComm object
+            .then(function() {       resetPropComm(mblDeliveryTime);}               )    //Reset propComm object
             .then(function() {       log("Generating reset signal", mDeep);}        )
             .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
             .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
             .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
             .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
             .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
-            .then(function() {return sendUserApp();}                                )    //Send user application
+            .then(function() {log("Delivering user application packets", mDbug); return sendUserApp();}                                )    //Send user application
             .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
             .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {reject(e)}                                          );   //Catch errors, pass them on
+            .catch(function(e) {clearTimeout(propComm.timer); reject(e);}           );   //Catch errors, pass them on
     });
 }
 
@@ -3307,7 +3311,7 @@ function hearFromProp(info) {
                     //Version matches expected value!  Prep for next stage
 //!!!                    log("passed version", mDeep);  //!!!
                     //Found Propeller; update timeout for next possible error (if no RAM Checksum or Micro Boot Loader response received)
-                    propComm.timeoutError(notice(neCommunicationLost));
+                    propComm.timeoutError = notice(neCommunicationLost);
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
                 } else {
@@ -3363,6 +3367,7 @@ function hearFromProp(info) {
                     propComm.response.resolve();
                 } else {
                     //MBL Response invalid;  Note rejected; Ignore the rest
+                    clearTimeout(propComm.timer);
                     propComm.response.reject(Error(notice(neLoaderFailed)));
                 }
                 //Valid if end of stream, otherwise something's wrong (invalid response)

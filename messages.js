@@ -79,7 +79,7 @@ notices = {
     [neRAMChecksumFailed]          : "RAM checksum failed",
     [neEEPROMVerifyFailed]         : "EEPROM verify failed",
     [neCommunicationLost]          : "Communication lost",    /*No response*/
-    [neLoaderFailed]               : "Loader failed",
+    [neLoaderFailed]               : "Loader failed",         /*Response invalid*/
     [neCommunicationFailed]        : "Communication failed"   /*Response unexpected*/
 };
 
