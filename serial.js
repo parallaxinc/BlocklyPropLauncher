@@ -3101,19 +3101,21 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             return new Promise(function(resolve, reject) {
 
                 function sendMBL() {
-                    setTimeout(function() {
-                        //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
-                        propComm.mblEPacketId[0] = packetId;
-                        propComm.mblETransId[0] = transmissionId;
-                        //Send Micro Boot Loader package
-                        log("Transmitting Micro Boot Loader package", mDeep);
-                        send(cid, txData);
-                        //Wait for response
-                        propComm.response
-                            .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock);})
-                            .then(function() {return resolve()})
-                            .catch(function(e) {return reject(e)});
-                    }, postResetDelay);
+                    return new Promise(function(resolve, reject) {
+                        setTimeout(function() {
+                            //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
+                            propComm.mblEPacketId[0] = packetId;
+                            propComm.mblETransId[0] = transmissionId;
+                            //Send Micro Boot Loader package
+                            log("Transmitting Micro Boot Loader package", mDeep);
+                            send(cid, txData);
+                            //Wait for response
+                            propComm.response
+                                .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock);})
+                                .then(function() {return resolve()})
+                                .catch(function(e) {return reject(e)});
+                        }, postResetDelay);
+                    });
                 };
 
                 Promise.resolve()
@@ -3123,7 +3125,10 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
                     .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
                     .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
-                    .then(function() {sendMBL();}                                           );   //Send whole comm package, including Micro Boot Loader; verify receipt
+                    .then(function() {return sendMBL();}                                    )    //Send whole comm package, including Micro Boot Loader; verify receipt
+                    .then(function() {return resolve();}                                    )
+                    .catch(function() {if (--attempts) {log("RETRYING: PROPELLER NOT FOUND", mDeep); return sendLoader()}}                )
+                    .catch(function(e) {return reject(e);})
             });
         }
 
@@ -3256,6 +3261,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 750 [Rx hardware to OS slack time]
         var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
+
+        //Set for limited retry attemps
+        var attempts = 3;
 
         Promise.resolve()
             .then(function() {return sendLoader();}                                 )    //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
