@@ -30,11 +30,6 @@ const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
 
-// propComm status values
-const stValidating = -1;
-const stInvalid = 0;
-const stValid = 1;
-
 // propComm stage values
 const sgError = -2;
 const sgIdle = -1;
@@ -42,8 +37,6 @@ const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
 const sgMBLResponse = 3;
-//!!! const sgEEProgram = 3;
-//!!! const sgEEChecksum = 4;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
 let propComm = {};                                   //Holds current status
@@ -62,8 +55,6 @@ const propCommStart = {                              //propCommStart is used to 
     mblETransId  : new Int32Array(mblExpdAB, 4, 1),  //Micro Boot Loader expected transmission id (32-bit signed int format)
     timer        : null,                             //Holds current timeout timer
     timeoutError : ""                                //Error to issue at end of next timeout
-//!!!    eeProg    : stValidating,
-//!!!    eeCheck   : stValidating
 };
 
 //Loader type; used for generateLoaderPacket()
@@ -3373,16 +3364,6 @@ function hearFromProp(info) {
         propComm.rxCount = 0;
     }
 
-
-
-//!!! SendUserApp
-    //Check Micro Boot Loader response
-//!!!                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-//!!!                                reject(Error(notice(neCommunicationFailed))); return
-//!!!                            }
-
-
-
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
         while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
@@ -3402,9 +3383,6 @@ function hearFromProp(info) {
                     clearTimeout(propComm.timer);
                     propComm.response.reject(Error(notice(neLoaderFailed)));
                 }
-                //Valid if end of stream, otherwise something's wrong (invalid response)
-//!!!
-                propComm.mblResponse = stream.length === sIdx ? stValid : stInvalid;
             }
         }
     }
