@@ -2997,8 +2997,10 @@ function setPropCommTimer(timeout, timeoutError) {
     propComm.timeoutError = timeoutError;
     timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {
-        log("Timed out in " + timeout + " ms", mDbug);  //!!!
-        propComm.response.reject(Error(propComm.timeoutError));
+//        log("Timed out in " + timeout + " ms", mDbug);
+        clearTimeout(propComm.timer);                             //Clear timer
+        propComm.stage = sgIdle;                                  //Reset propComm stage to Idle (ignore incoming data)
+        propComm.response.reject(Error(propComm.timeoutError));   //Reject with error
         propComm.timer = null;
     }, timeout);
 }
@@ -3307,7 +3309,6 @@ function hearFromProp(info) {
                 //Handshake matches so far...
                 if (propComm.rxCount === rxHandshake.length) {
                     //Entire handshake matches!  Prep for next stage
-//!!!                    log("passed handshake", mDeep);  //!!!
                     propComm.rxCount = 0;
                     propComm.stage = sgVersion;
                     break;
@@ -3332,7 +3333,6 @@ function hearFromProp(info) {
                 //Received all 4 bytes
                 if (propComm.version === 1) {
                     //Version matches expected value!  Prep for next stage
-//!!!                    log("passed version", mDeep);  //!!!
                     //Found Propeller; update timeout for next possible error (if no RAM Checksum or Micro Boot Loader response received)
                     propComm.timeoutError = notice(neCommunicationLost);
                     propComm.rxCount = 0;
@@ -3353,7 +3353,6 @@ function hearFromProp(info) {
         //Received RAM Checksum response?
         if (stream[sIdx++] === 0xFE) {
             //RAM Checksum valid;  Prep for next stage
-//!!!            log("passed RAM checksum", mDeep);  //!!!
             propComm.stage = sgMBLResponse;
         } else {
             //RAM Checksum invalid;  Note rejected; Ignore the rest
@@ -3372,11 +3371,10 @@ function hearFromProp(info) {
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
                 clearTimeout(propComm.timer);
                 propComm.stage = sgIdle;
-//!!!                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);  //!!!
-//!!!                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);  //!!!
+//                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
+//                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
                 if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
                     //MBL Response is perfect;  Note resolved
-//!!!                    log("passed response", mDeep);  //!!!
                     propComm.response.resolve();
                 } else {
                     //MBL Response invalid;  Note rejected; Ignore the rest
