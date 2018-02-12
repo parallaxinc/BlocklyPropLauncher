@@ -3119,22 +3119,22 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 };
 
                 Promise.resolve()
-                    .then(function() {       resetPropComm(mblDeliveryTime);}                         )    //Reset propComm object
-                    .then(function() {       log("Generating reset signal", mDeep);}                  )
-                    .then(function() {return setControl(cid, {dtr: false});}                          )    //Start Propeller Reset Signal
-                    .then(function() {return flush(cid);}                                             )    //Flush transmit/receive buffers (during Propeller reset)
-                    .then(function() {return setControl(cid, {dtr: true});}                           )    //End Propeller Reset
-                    .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);}   )
-                    .then(function() {return sendMBL();}                                              )    //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
-                    .catch(function(e) {                                                                   //Error!
-                        if (noticeCode(e.message) === nePropellerNotFound && --attempts) {                 //  Retry (if "Propeller not found" and more attempts available)
+                    .then(function() {       resetPropComm(mblDeliveryTime);})                        //Reset propComm object
+                    .then(function() {       log("Generating reset signal", mDeep);})
+                    .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
+                    .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
+                    .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
+                    .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
+                    .then(function() {return sendMBL();})                                             //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
+                    .catch(function(e) {                                                              //Error!
+                        if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
-                            return sendLoader();                                                           //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
+                            return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
                         }
-                        return reject(e);                                                                  //  Or if other error (or out of retry attempts), reject with message
-                    }                                                                                 )
-                    .then(function() {return resolve();}                                              )    //Propeller found? Resolve
-                    .catch(function(e) {return reject(e);}                                            )    //Error!  Reject with message
+                        return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
+                    })
+                    .then(function() {return resolve();})                                             //Propeller found? Resolve
+                    .catch(function(e) {return reject(e);})                                           //Error!  Reject with message
             });
         }
 
@@ -3183,7 +3183,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
                 sendUA()                                                                                                 //Send user application packet
                     .then(function() {return propComm.response;})                                                        //Wait for response
-                    .then(function() {if (packetId > 0) {return sendUserApp()}})                                         //More packets? repeat
+                    .then(function() {if (packetId > 0) {return sendUserApp()}})                                         //More packets? repeat (note: sendUserApp does not return execution here (promises continue at next .then/.catch))
                     .then(function() {return resolve()})                                                                 //else, resolve
                     .catch(function(e) {return reject(e)});                                                              //Error? return error message
             });
@@ -3272,12 +3272,15 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var attempts = 3;
 
         Promise.resolve()
-            .then(function() {return sendLoader();}                                 )    //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
-            .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
-            .then(function() {log("Delivering user application packets", mDbug); return sendUserApp();}                                )    //Send user application
-            .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
-            .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {clearTimeout(propComm.timer); reject(e);}           );   //Catch errors, pass them on
+            .then(function() {return sendLoader();})                                     //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
+            .then(function() {return changeBaudrate(cid, finalBaudrate);})               //Bump up to faster finalBaudrate
+            .then(function() {                                                           //Send user application
+                log("Delivering user application packets", mDbug);
+                return sendUserApp();
+            })
+            .then(function() {return finalizeDelivery();})                               //Finalize delivery and launch user application
+            .then(function() {return resolve();})                                        //Success!
+            .catch(function(e) {clearTimeout(propComm.timer); reject(e);});              //Catch errors, pass them on
     });
 }
 
