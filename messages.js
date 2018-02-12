@@ -87,8 +87,8 @@ function notice(noticeId = 0, values = []) {
     /* Notice (message) retriever.  Returns textual message indicated by the noticeId, inserts the optional values into it, and prepends with the noticeId value
        in the form ###-<message>.
      noticeId is the identifier of the notice; ex: nsDownloading.
-     values is an optional array of values to stuff into notice.*/
-    //Retrieve notice; if undefined,
+     values is an optional array of values to stuff into notice, or if noticeId = 0, is a custom message.*/
+    //Retrieve notice; if defined
     nMsg = notices[noticeId];
     //Fill in variables if needed; if notice undefined, use first values element as notice.
     values.forEach(function(x){nMsg = (nMsg) ? nMsg.replace(/%s/, x) : x;});
@@ -96,4 +96,9 @@ function notice(noticeId = 0, values = []) {
     noticeId = "000" + noticeId;
     nMsg = noticeId.substr(noticeId.length-3) + '-' + nMsg;
     return nMsg;
+}
+
+function noticeCode(msg) {
+    /*Extracts and returns notice code from msg formatted in the form ###-<message>.  Returns "000" if none.*/
+    return Number((results = msg.match(/[0-9]+/)) ? results[0] : "000");
 }
