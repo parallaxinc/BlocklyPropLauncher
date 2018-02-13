@@ -2966,12 +2966,11 @@ function listen(engage) {
 /* Engage or disengage serial programming receive listener.
    engage = true to add listener; false to remove listener.*/
     if (engage) {
-        //Add programming protocol serial receive handler
         resetPropComm();
-        chrome.serial.onReceive.addListener(hearFromProp);
+        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Safety: Remove previous listener which may be left over from uncaught promise (rare)
+        chrome.serial.onReceive.addListener(hearFromProp);                                                      //Add programming protocol serial receive handler
     } else {
-        //Remove programming protocol serial receive handler
-        chrome.serial.onReceive.removeListener(hearFromProp);
+        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Remove programming protocol serial receive handler
     }
 }
 
