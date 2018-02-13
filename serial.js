@@ -3184,7 +3184,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         /* Calculate expected Micro Boot Loader and User Application delivery times
            = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
              initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
-        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+500;
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+250;
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 500 [Rx hardware to OS slack time]
         var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
