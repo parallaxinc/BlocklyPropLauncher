@@ -31,7 +31,6 @@ const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
 
 // propComm stage values
-const sgError = -2;
 const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
