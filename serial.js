@@ -882,7 +882,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x09, 0xE2, 0xEA, 0x33, 0x32, 0x00, 0x00, 0x00
      ];*/
     //LargeSpinCodeFlip.spin
-    const bin = [
+    /*const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x86, 0x10, 0x00, 0xC0, 0x7E, 0xA8, 0x7F, 0xD0, 0x79, 0xB0, 0x7F,
      0x70, 0x7A, 0x03, 0x01, 0xC0, 0x79, 0x04, 0x00, 0x15, 0x7A, 0x04, 0x00, 0x70, 0x7A, 0x04, 0x00,
      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -2911,7 +2911,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x38, 0xDF, 0xE8, 0xEC, 0x38, 0x27, 0x6C, 0x38, 0x38, 0xFA, 0xF4, 0xEC, 0x6D, 0x6C, 0x34, 0xFA,
      0x6C, 0x68, 0xF9, 0xF0, 0x0A, 0x06, 0x60, 0x68, 0xF4, 0x6C, 0xEC, 0x61, 0x04, 0x53, 0x68, 0x38,
      0x0A, 0xFC, 0x64, 0x80, 0x38, 0x2D, 0xFC, 0xF0, 0x0A, 0x03, 0x60, 0xE6, 0x61, 0x32, 0x00, 0x00
-     ];
+     ]; */
 
     //Set and/or adjust postResetDelay based on platform
     if (!postResetDelay) {
@@ -2919,20 +2919,21 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         postResetDelay = platform === pfWin ? 60 : 100;
         }
 
-//!!! Temporarily disabled normal operation
-//    if (payload) {
-//        //Extract Propeller Application from payload
-//        var binImage = parseFile(payload);
-//        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
-//    } else {
-        var binImage = buffer2ArrayBuffer(bin);
-//    }
+    let binImage;
+
+    if (payload) {
+        //Extract Propeller Application from payload
+        binImage = parseFile(payload);
+        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
+    } else {
+        binImage = buffer2ArrayBuffer(bin);
+    }
 
     // Look for an existing port
-    var port = findPort(portPath);
-    var cid = port ? port.connId : null;
-    var connect;
-    var originalBaudrate;
+    let port = findPort(portPath);
+    let cid = port ? port.connId : null;
+    let connect;
+    let originalBaudrate;
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
@@ -3012,77 +3013,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
    toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
     return new Promise(function(resolve, reject) {
-
-//!!! Experimental code
-/*
-        //This code creates a deferred promise (resolved or rejected outside of its constructor) and demonstrates that the promise
-        //can be passed to other functions (delayedResult) and even resolved/rejected within them.
-
-        function delayedResult(mess, delay, succeedFail, otherPromise) {
-            console.log("Creating delayed promise for: " + mess);
-            return new Promise(function(resolve, reject) {
-                setTimeout(function() {
-                    console.log(mess);
-                    if (otherPromise) {otherPromise.resolve();}
-                    if (succeedFail) {resolve()} else {reject(Error("Failed"))}
-                }, delay);
-            })
-        }
-
-        //Create new promise that will be resolved by another function at a later time (a deferred promise)
-        let p1 = deferredPromise();
-
-        //Define promise chain of this deferred promise
-        p1
-            .then(function() {console.log("p1 resolved")})
-            .catch(function() {console.log("p1 rejected")});
-
-        //Create another normal-pattern promise chain, that, as a matter of demonstration, passes in the deferred promise in a specific step
-        Promise.resolve()
-            .then(function() {return delayedResult("First", 1000, true);})
-            .then(function() {return delayedResult("Second", 1500, true, p1);})
-            .then(function() {return delayedResult("Third", 2000, false);})
-            .then(function() {return delayedResult("Forth", 2500, true);})
-            .catch(function(e) {console.log(e.message);});
-
-        return
-*/
-/*
-        var p3 = function() {return msgout("test");};
-        var p2 = function() {return msgout("is a", p3);};
-        var p1 = function() {return msgout("This", p2);};
-
-        function msgout(mess, nextp) {
-            return new Promise(function(resolve, reject) {
-                if (mess !== "") {
-                    console.log(mess);
-                    if (nextp) {
-                        resolve(nextp());
-                    } else {
-                        resolve();
-                    }
-                } else {
-                    reject(Error("<empty message>"));
-//                    reject();
-                }
-            })
-        }
-
-        Promise.resolve()
-            .then(p1)
-            .catch(function(e) {console.log(e.message);});
-        return
-*/
-/*
-        Promise.resolve()
-            .then(p1)
-            .then(p2)
-            .then(p3)
-//            .catch(function() {});
-            .catch(function(e) {console.log(e.message);});
-        return;
-*/
-//!!! End Experimental code
 
         function sendLoader() {
         /* Return a promise that generates the reset signal, waits the post-reset delay time, then sends the communication package (Timing Pulses,
