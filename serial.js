@@ -3229,24 +3229,47 @@ function hearFromProp(info) {
     var stream = ab2num(info.data);
     var sIdx = 0;
 
-    // Validate rxHandshake
+    /* Validate rxHandshake
+       To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear
+       at one event, then a few more on the following event, 2) data may "never" match; it may suddenly stop arriving during a partial match, or continuous data may
+       be absolutely unrelated, and 2) a serial port flush does not guarantee pristine data; the handshake may appear buried at the end of non-related serial data
+       streamed in from the previous Propeller App execution, received just after the flush event and just before the reset signal reaches the Propeller.  To combat
+       all this, surprisingly simple techniques are employed.  1) Receive and match handshake as a state machine, 2) use an independent timeout (in this case the
+       propComm.timer event) to abort if necessary, and 3) pattern match using unique rxHandshake attributes.  Item #3 is explained further next.
+
+       (Item #3 Explanation)
+       The 2-bit per byte encoded rxHandshake begins with a unique 3-byte pattern (0xEE,0xCE,0xCE); that pattern does not appear anywhere else within it; however,
+       the first two bytes of that pattern do appear in multiple places.  Using this knowledge, comparisons of a received stream against the rxHandshake, dumping
+       every unmatched byte (and realigning next received byte(s) to 3rd byte of rxHandshake), allows reception of a clean pattern, or an obscured pattern start,
+       or even a truncated matching pattern followed by a restarted full pattern, to be easily found and aligned to match.  In addition, no received data need be
+       retained longer than each individual byte comparison.
+
+       The match technique is as follows (start at first byte of rxHandshake):
+         A) compare two bytes (current byte in stream against current byte in rxHandshake,
+         B) if they match- index to next byte of each and repeat "A",
+            if they don't match- index stream (only if on 3rd byte of rxHandshake), reset to 3rd byte of rxHandshake, and repeat "A".
+
+       Even though this technique sometimes skips a true comparison of the first two bytes of rxHandshake, all remaining 123 bytes are always matched perfectly.
+       Incredibly, in the case of receiving a partial match followed by a full handshake match, it gracefully recovers and re-aligns, even if the start of the full
+       happens to appear perfectly lined up with one of the seven deep places in rxHandshake that the first 2-byte pattern appears (0xEE,0xCE).  Despite potentially
+       ignoring the first 2 bytes of rxHandshake, the chance of a false positive match is 1 in 2^984 (astronomically improbable).
+    */
     if (propComm.stage === sgHandshake) {
         while (sIdx < stream.length && propComm.rxCount < rxHandshake.length) {
             //More data to match against rxHandshake...
-            if (stream[sIdx++] === rxHandshake[propComm.rxCount++]) {
+            if (stream[sIdx] === rxHandshake[propComm.rxCount]) {
                 //Handshake matches so far...
-                if (propComm.rxCount === rxHandshake.length) {
+                sIdx++;
+                if (++propComm.rxCount === rxHandshake.length) {
                     //Entire handshake matches!  Prep for next stage
                     propComm.rxCount = 0;
                     propComm.stage = sgVersion;
                     break;
                 }
             } else {
-                //Handshake failure!  Note rejected; Ignore the rest
-                clearTimeout(propComm.timer);
-                propComm.response.reject(Error(notice(nePropellerNotFound)));
-                propComm.stage = sgIdle;
-                break;
+                //Handshake mismatch; realign and retry
+                sIdx += (propComm.rxCount === 2);               //Match failed; index to next received byte (only if already compared against 3rd rxHandshake byte)
+                propComm.rxCount = 2;                           //Prep to compare with 3rd rxHandshake byte (see "Item #3 Explanation," above)
             }
         }
     }
@@ -3313,24 +3336,6 @@ function hearFromProp(info) {
         }
     }
 }
-
-//TODO Revisit timedPromise and make it work properly for optimized communication
-/*
-function timedPromise(promise, timeout){
-// Takes in a promise and returns it as a promise that rejects in timeout milliseconds if not resolved beforehand
-    var expired = function() {
-        return new Promise(function (resolve, reject) {
-            var id = setTimeout(function() {
-                log("Timed out!", mDbug);
-                clearTimeout(id);
-                reject(Error('Timed out in ' + timeout + ' ms.'));
-            }, timeout);
-        })
-    };
-    // Returns a promise race between passed-in promise and timeout promise
-    return Promise.race([promise(), expired()])
-}
-*/
 
 function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 /*Generate a packet (in txData) containing the portion of the Micro Boot Loader (IP_Loader.spin) indicated by LoaderType.
