@@ -205,6 +205,16 @@ function flush(cid) {
     });
 }
 
+function unPause(cid) {
+/* Return a promise that unpauses the port
+   cid is the open port's connection identifier*/
+    return new Promise(function(resolve) {
+        chrome.serial.setPaused(cid, false, function() {
+            resolve();
+        });
+    });
+}
+
 //TODO Check send callback
 //TODO Promisify and return error object
 function send(cid, data) {
@@ -3030,11 +3040,12 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                             //Send Micro Boot Loader package
                             log("Transmitting Micro Boot Loader package", mDeep);
                             send(cid, txData);
-                            //Wait for response
-                            propComm.response
-                                .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock);})
+                            //Get response
+                            unPause(cid)                                                                     //Unpause port; it may have been auto-paused by incoming data error
+                                .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
+                                .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
-                                .catch(function(e) {return reject(e)});
+                                .catch(function(e) {return reject(e)});                                      //Failed!
                         }, postResetDelay);
                     });
                 };
