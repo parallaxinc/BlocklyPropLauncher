@@ -3099,10 +3099,8 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
                         transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
-
                         propComm.mblEPacketId[0] = packetId-1;
                         propComm.mblETransId[0] = transmissionId;
-
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
@@ -3143,7 +3141,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-
 
                         if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
                             prepForMBLResponse(next.value.recvTime, notice(neCommunicationLost));                  //  Prepare to receive next MBL response
