@@ -30,37 +30,30 @@ const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
 
-// propComm status values
-const stValidating = -1;
-const stInvalid = 0;
-const stValid = 1;
-
 // propComm stage values
-const sgError = -2;
 const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
 const sgMBLResponse = 3;
-//const sgEEProgram = 3;
-//const sgEEChecksum = 4;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
-let propComm = {};                                  //Holds current status
-let mblRespAB = new ArrayBuffer(8);                 //Buffer for Micro Boot Loader responses
+let propComm = {};                                   //Holds current status
+let mblRespAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader actual responses
+let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader expected responses
 
-const propCommStart = {                             //propCommStart is used to initialize propComm
-    stage       : sgHandshake,                      //Propeller Protocol Stage
-    rxCount     : 0,                                //Current count of receive bytes (for stage)
-    handshake   : stValidating,                     //ROM-resident boot loader RxHandshake response validity
-    version     : stValidating,                     //ROM-resident boot loader Propeller version number response validity
-    ramCheck    : stValidating,                     //ROM-resident boot loader RAM Checksum response validity
-    mblResponse : stValidating,                     //Micro Boot Loader response format validity
-    mblRespBuf  : new Uint8Array(mblRespAB),        //Micro Boot Loader responses data (unsigned byte format)
-    mblPacketId : new Int32Array(mblRespAB, 0, 1),  //Micro Boot Loader requested next packet id (32-bit signed int format)
-    mblTransId  : new Int32Array(mblRespAB, 4, 1)   //Micro Boot Loader transmission id (32-bit signed int format)
-//    eeProg    : stValidating,
-//    eeCheck   : stValidating
+const propCommStart = {                              //propCommStart is used to initialize propComm
+    stage        : sgIdle,                           //Propeller Protocol Stage
+    response     : null,                             //Micro Boot Loader response signal (Promise)
+    rxCount      : 0,                                //Current count of receive bytes (for stage)
+    version      : 0,                                //Propeller firmware version number
+    mblRespBuf   : new Uint8Array(mblRespAB),        //Micro Boot Loader response data (unsigned byte format)
+    mblRPacketId : new Int32Array(mblRespAB, 0, 1),  //Micro Boot Loader requested next packet id (32-bit signed int format)
+    mblRTransId  : new Int32Array(mblRespAB, 4, 1),  //Micro Boot Loader response-to transmission id (32-bit signed int format)
+    mblEPacketId : new Int32Array(mblExpdAB, 0, 1),  //Micro Boot Loader expected next packet id (32-bit signed int format)
+    mblETransId  : new Int32Array(mblExpdAB, 4, 1),  //Micro Boot Loader expected transmission id (32-bit signed int format)
+    timer        : null,                             //Holds current timeout timer
+    timeoutError : ""                                //Error to issue at end of next timeout
 };
 
 //Loader type; used for generateLoaderPacket()
@@ -212,6 +205,16 @@ function flush(cid) {
     });
 }
 
+function unPause(cid) {
+/* Return a promise that unpauses the port
+   cid is the open port's connection identifier*/
+    return new Promise(function(resolve) {
+        chrome.serial.setPaused(cid, false, function() {
+            resolve();
+        });
+    });
+}
+
 //TODO Check send callback
 //TODO Promisify and return error object
 function send(cid, data) {
@@ -226,16 +229,6 @@ function send(cid, data) {
     }
     return chrome.serial.send(cid, data, function (sendResult) {
     });
-}
-
-function buffer2ArrayBuffer(buffer) {
-// Convert buffer to ArrayBuffer
-    var buf = new ArrayBuffer(buffer.length);
-    var bufView = new Uint8Array(buf);
-    for (var i = 0; i < buffer.length; i++) {
-        bufView[i] = buffer[i];
-    }
-    return buf;
 }
 
 chrome.serial.onReceive.addListener(function(info) {
@@ -389,6 +382,40 @@ function findPort(cidOrPath) {
     }
 }
 
+/***********************************************************
+ *                     Support Functions                   *
+ ***********************************************************/
+
+function buffer2ArrayBuffer(buffer) {
+// Convert buffer to ArrayBuffer
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
+}
+
+function deferredPromise() {
+/* Create promise with externally-accessible resolve/reject functions
+   Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
+*/
+
+    var res, rej;
+
+    //Create promise and expose its constructor's resolve/reject functions (normally only accessible within the constructor)
+    var promise = new Promise((resolve, reject) => {
+        res = resolve;
+        rej = reject;
+    });
+
+    //Update promise to provide externally-accessible resolve/reject functions
+    promise.resolve = res;
+    promise.reject = rej;
+
+    //Return the enhanced promise (deferred promise)
+    return promise;
+}
 
 /***********************************************************
  *             Propeller Programming Functions             *
@@ -408,13 +435,13 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     //Temporary hard-coded Propeller Application for development testing
     //Blink P26
-    const bin = [
+    /*const bin = [
         0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x61, 0x10, 0x00, 0x30, 0x00, 0x38, 0x00, 0x18, 0x00, 0x3C, 0x00,
         0x20, 0x00, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x38, 0x1A, 0x3D, 0xD6, 0x1C, 0x38, 0x1A, 0x3D,
         0xD4, 0x47, 0x35, 0xC0, 0x37, 0x00, 0xF6, 0x3F, 0x91, 0xEC, 0x23, 0x04, 0x70, 0x32, 0x00, 0x00
-    ];
+    ];*/
     //Clock Demo PABWX (adjusted for P20 through P27)
-    /*    const bin = [
+     /*  const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x01, 0x10, 0x00, 0x1C, 0x02, 0x50, 0x02, 0x3E, 0x00, 0x54, 0x02,
      0xBC, 0x00, 0x04, 0x01, 0x2E, 0x00, 0x00, 0x00, 0x63, 0x00, 0x00, 0x00, 0xA4, 0x00, 0x00, 0x00,
      0xBC, 0x00, 0x28, 0x00, 0x6B, 0x00, 0x6C, 0x00, 0x00, 0x00, 0x6D, 0x00, 0x6E, 0x00, 0x6F, 0x00,
@@ -451,7 +478,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x64, 0xF4, 0x39, 0x01, 0x7D, 0xE4, 0x42, 0xCC, 0x23, 0x32, 0x00, 0x00
      ];*/
     //FloatMathDemoPABWX.spin
-    /*    const bin = [
+    /*const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0xE7, 0x10, 0x00, 0x98, 0x19, 0x8C, 0x50, 0x4C, 0x00, 0x94, 0x50,
      0xC8, 0x00, 0x02, 0x03, 0x3C, 0x00, 0x04, 0x00, 0xC8, 0x00, 0x00, 0x00, 0x98, 0x17, 0xAC, 0x36,
      0x08, 0x14, 0xAC, 0x36, 0xDB, 0x0F, 0x49, 0x40, 0xF3, 0x04, 0xB5, 0x3F, 0xF3, 0x04, 0x35, 0x3F,
@@ -864,7 +891,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x09, 0xE2, 0xEA, 0x33, 0x32, 0x00, 0x00, 0x00
      ];*/
     //LargeSpinCodeFlip.spin
-    /*    const bin = [
+    /*const bin = [
      0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x86, 0x10, 0x00, 0xC0, 0x7E, 0xA8, 0x7F, 0xD0, 0x79, 0xB0, 0x7F,
      0x70, 0x7A, 0x03, 0x01, 0xC0, 0x79, 0x04, 0x00, 0x15, 0x7A, 0x04, 0x00, 0x70, 0x7A, 0x04, 0x00,
      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -2893,7 +2920,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      0x38, 0xDF, 0xE8, 0xEC, 0x38, 0x27, 0x6C, 0x38, 0x38, 0xFA, 0xF4, 0xEC, 0x6D, 0x6C, 0x34, 0xFA,
      0x6C, 0x68, 0xF9, 0xF0, 0x0A, 0x06, 0x60, 0x68, 0xF4, 0x6C, 0xEC, 0x61, 0x04, 0x53, 0x68, 0x38,
      0x0A, 0xFC, 0x64, 0x80, 0x38, 0x2D, 0xFC, 0xF0, 0x0A, 0x03, 0x60, 0xE6, 0x61, 0x32, 0x00, 0x00
-     ];*/
+     ]; */
 
     //Set and/or adjust postResetDelay based on platform
     if (!postResetDelay) {
@@ -2901,19 +2928,21 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         postResetDelay = platform === pfWin ? 60 : 100;
         }
 
+    let binImage;
+
     if (payload) {
         //Extract Propeller Application from payload
-        var binImage = parseFile(payload);
+        binImage = parseFile(payload);
         if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
     } else {
-        var binImage = buffer2ArrayBuffer(bin);
+        binImage = buffer2ArrayBuffer(bin);
     }
 
     // Look for an existing port
-    var port = findPort(portPath);
-    var cid = port ? port.connId : null;
-    var connect;
-    var originalBaudrate;
+    let port = findPort(portPath);
+    let cid = port ? port.connId : null;
+    let connect;
+    let originalBaudrate;
     if (cid) {
         // Connection exists, prep to reuse it
         originalBaudrate = port.baud;
@@ -2947,12 +2976,42 @@ function listen(engage) {
 /* Engage or disengage serial programming receive listener.
    engage = true to add listener; false to remove listener.*/
     if (engage) {
-        //Add programming protocol serial receive handler
-        chrome.serial.onReceive.addListener(hearFromProp);
+        resetPropComm();
+        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Safety: Remove previous listener which may be left over from uncaught promise (rare)
+        chrome.serial.onReceive.addListener(hearFromProp);                                                      //Add programming protocol serial receive handler
     } else {
-        //Remove programming protocol serial receive handler
-        chrome.serial.onReceive.removeListener(hearFromProp);
+        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Remove programming protocol serial receive handler
     }
+}
+
+function resetPropComm(timeout) {
+/*Reset propComm object to default values
+  timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to sgHandshake, creates deferred promise, and creates timeout timer.
+*/
+    if (propComm.timeout) {clearTimeout(propComm.timer)}          //Clear old timer, if any
+    Object.assign(propComm, propCommStart);                       //Reset propComm object
+    if (timeout) {                                                //If timeout provided
+        propComm.stage = sgHandshake;                             //Ready for handshake
+        propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
+        setPropCommTimer(timeout, notice(nePropellerNotFound));   //Default to "Propeller Not Found" error
+    };
+}
+
+function setPropCommTimer(timeout, timeoutError) {
+/*  Set timeout timer for Propeller Communication
+    timeout = timeout period (in ms)
+    timeoutError = string message to issue upon a timeout
+*/
+    clearTimeout(propComm.timer);
+    propComm.timeoutError = timeoutError;
+    timeout = Math.trunc(timeout);
+    propComm.timer = setTimeout(function() {
+//        log("Timed out in " + timeout + " ms", mDbug);
+        clearTimeout(propComm.timer);                             //Clear timer
+        propComm.stage = sgIdle;                                  //Reset propComm stage to Idle (ignore incoming data)
+        propComm.response.reject(Error(propComm.timeoutError));   //Reject with error
+        propComm.timer = null;
+    }, timeout);
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -2964,52 +3023,64 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
     return new Promise(function(resolve, reject) {
 
-        function sendLoader(waittime) {
-        // Return a promise that waits for waittime then sends communication package including loader.
+        function sendLoader() {
+        /* Return a promise that generates the reset signal, waits the post-reset delay time, then sends the communication package (Timing Pulses,
+           Host Handshake, and Micro Boot Loader), then waits for the responding Propeller Handshake, Version, and successful Micro Boot Loader delivery notice.
+           Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
+           Error is "Propeller not found" (generated by hearFromProp) unless handshake received (and proper) and version received; error is more specific thereafter.
+        */
             return new Promise(function(resolve, reject) {
-                log("Waiting " + Math.trunc(waittime) + " ms to deliver Micro Boot Loader package", mDeep);
-                setTimeout(function() {
-                    log("Transmitting package", mDeep);
-                    send(cid, txData);
-                    resolve();
-                }, waittime);
+
+                function sendMBL() {
+                    return new Promise(function(resolve, reject) {
+                        setTimeout(function() {
+                            //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
+                            propComm.mblEPacketId[0] = packetId;
+                            propComm.mblETransId[0] = transmissionId;
+                            //Send Micro Boot Loader package
+                            log("Transmitting Micro Boot Loader package", mDeep);
+                            send(cid, txData);
+                            //Get response
+                            unPause(cid)                                                                     //Unpause port; it may have been auto-paused by incoming data error
+                                .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
+                                .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
+                                .then(function() {return resolve()})
+                                .catch(function(e) {return reject(e)});                                      //Failed!
+                        }, postResetDelay);
+                    });
+                };
+
+                Promise.resolve()
+                    .then(function() {       resetPropComm(mblDeliveryTime);})                        //Reset propComm object
+                    .then(function() {       log("Generating reset signal", mDeep);})
+                    .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
+                    .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
+                    .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
+                    .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
+                    .then(function() {return sendMBL();})                                             //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
+                    .catch(function(e) {                                                              //Error!
+                        if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
+                            log("Propeller not found: retrying...", mDeep);
+                            return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
+                        }
+                        return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
+                    })
+                    .then(function() {return resolve();})                                             //Propeller found? Resolve
+                    .catch(function(e) {return reject(e);})                                           //Error!  Reject with message
             });
         }
 
-        function isLoaderReady(packetId, waittime) {
-        /* Is Micro Boot Loader delivered and Ready?
-        Return a promise that waits for waittime then validates the responding Propeller Handshake, Version, and that the Micro Boot Loader delivery succeeded.
-        Rejects if any error occurs.  Micro Boot Loader must respond with Packet ID (plus Transmission ID) for success (resolve).
-        Error is "Propeller not found" unless handshake received (and proper) and version received; error is more specific thereafter.*/
-
-            return new Promise(function(resolve, reject) {
-                function verifier() {
-                    log("Verifying package delivery", mDeep);
-                    //Check handshake and version
-                    if (propComm.handshake === stValidating || propComm.handshake === stInvalid || propComm.version === stValidating) {reject(Error(notice(nePropellerNotFound))); return;}
-                    //Check for proper version
-                    if (propComm.version !== 1) {reject(Error(notice(neUnknownPropellerVersion, [propComm.version]))); return;}
-                    //Check RAM checksum
-                    if (propComm.ramCheck === stValidating) {reject(Error(notice(neCommunicationLost))); return;}
-                    if (propComm.ramCheck === stInvalid) {reject(Error(notice(neCommunicationFailed))); return;}
-                    //Check Micro Boot Loader Ready Signal
-                    if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {reject(Error(notice(neLoaderFailed))); return;}
-                    log(notice(000, ["Found Propeller"]), mUser+mStat, sock);
-                    resolve();
-                }
-                log("Waiting " + Math.trunc(waittime) + " ms for package delivery", mDeep);
-                setTimeout(verifier, waittime);
-            });
-        }
-
-        function prepForMBLResponse() {
-            // Set propComm to prep for another Micro Boot Loader response.
-            propComm.mblResponse = stValidating;
+        function prepForMBLResponse(timeout, timeoutError) {
+        /* Set propComm to prep for another Micro Boot Loader response.
+           timeout = timeout period (in ms)
+           timeoutError = string message to issue upon a timeout
+        */
+            propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
             propComm.stage = sgMBLResponse;
             propComm.rxCount = 0;
+            setPropCommTimer(timeout, timeoutError);
         }
 
-        //TODO lower waittime
         //TODO catch send() errors
         //TODO add transmitPacket function to auto-retry 3 times if needing to harden against flaky wireless connections
         //TODO determine if txPacketLength and idx can refer to bytes instead of longs to lessen iterative calculations
@@ -3018,15 +3089,18 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             return new Promise(function(resolve, reject) {
 
                 function sendUA() {
+
                     return new Promise(function(resolve, reject) {
-                        log("Delivering user application packet " + (totalPackets-packetId+1) + " of " + totalPackets, mDbug);
+                        log((totalPackets-packetId+1) + " of " + totalPackets, mDbug);
                         log(notice(nsDownloading), mUser, sock);
-                        prepForMBLResponse();
+                        prepForMBLResponse(userDeliveryTime, notice(neCommunicationLost));
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
                         transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
+                        propComm.mblEPacketId[0] = packetId-1;
+                        propComm.mblETransId[0] = transmissionId;
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
@@ -3036,43 +3110,25 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         resolve();
                     });
                 }
-                function loaderAcknowledged(waittime) {
-                /* Did Micro Boot Loader acknowledge the packet?
-                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
-                    return new Promise(function(resolve, reject) {
-                        function verifier() {
-                            log("Verifying loader acknowledgement " + (totalPackets-packetId+0) + " of " + totalPackets, mDeep);
-                            //Check Micro Boot Loader response
-                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error(notice(neCommunicationFailed))); return
-                            }
-                            log("Packet delivered.", mDeep);
-                            resolve();
-                        }
-                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
-                        setTimeout(verifier, waittime);
-                    });
-                }
-                sendUA()
-                    .then(function() {return loaderAcknowledged(600+((10*(txData.byteLength+2+8))/port.baud)*1000+1);})
-                    .then(function() {if (packetId > 0) {return sendUserApp()}})
-                    .then(function() {return resolve()})
-                    .catch(function(e) {return reject(e)});
+
+                sendUA()                                                                                                 //Send user application packet
+                    .then(function() {return propComm.response;})                                                        //Wait for response
+                    .then(function() {if (packetId > 0) {return sendUserApp()}})                                         //More packets? repeat (note: sendUserApp does not return execution here (promises continue at next .then/.catch))
+                    .then(function() {return resolve()})                                                                 //else, resolve
+                    .catch(function(e) {return reject(e)});                                                              //Error? return error message
             });
         }
 
         function* packetGenerator() {
         //Packet specification generator; generates details for the next packet
-            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(nsVerifyingRAM), recvTime: 800, recvErr: notice(neRAMChecksumFailed)};
+            yield {type: ltVerifyRAM, nextId: -checksum, sendLog: notice(nsVerifyingRAM), recvTime: userDeliveryTime, recvErr: notice(neRAMChecksumFailed)};
             if (toEEPROM) {
-                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(nsVerifyingEEPROM), recvTime: 4500, recvErr: notice(neEEPROMVerifyFailed)};
+                yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(nsVerifyingEEPROM), recvTime: userDeliveryTime+4000, recvErr: notice(neEEPROMVerifyFailed)};
             }
-            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: 800, recvErr: notice(neCommunicationLost)};
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: userDeliveryTime, recvErr: notice(neCommunicationLost)};
             yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};
         }
 
-        //TODO lower waittime
         function finalizeDelivery() {
         // Return a promise that sends the final packets (special executable packets) that verifies RAM, programs and verifies EEPROM, and launches user code.
             return new Promise(function(resolve, reject) {
@@ -3081,40 +3137,37 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
                         log(next.value.sendLog, mAll, sock);
-                        prepForMBLResponse();
-                        generateLoaderPacket(next.value.type, packetId);                                           //Generate VerifyRAM executable packet
+
+                        generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
                         transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
-                        send(cid, txData);                                                                         //Transmit packet
-                        packetId = next.value.nextId;                                                              //Ready next Packet ID
-                        resolve(next.value.type !== ltLaunchNow);                                                  //Resolve and indicate if there's more to come
-                    });
-                }
-                function loaderAcknowledged(waittime) {
-                /* Did Micro Boot Loader acknowledge the packet?
-                Return a promise that waits for waittime then validates that the Micro Boot Loader acknowledged the packet.
-                Rejects if error occurs.  Micro Boot Loader must respond with next Packet ID (plus Transmission ID) for success (resolve).*/
-                    return new Promise(function(resolve, reject) {
-                        function verifier() {
-                            log("Verifying loader acknowledgement", mDeep);
-                            //Check Micro Boot Loader response (values checked by value only, not value+type)
-                            if (propComm.mblResponse !== stValid || (propComm.mblPacketId[0]^packetId) + (propComm.mblTransId[0]^transmissionId) !== 0) {
-                                reject(Error(next.value.recvErr)); return;
-                            }
-                            //Resolve and indicate there's more to come
-                            log("Packet accepted.", mDeep);
-                            resolve(true);
+
+                        if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
+                            prepForMBLResponse(next.value.recvTime, notice(neCommunicationLost));                  //  Prepare to receive next MBL response
+                            packetId = next.value.nextId;                                                          //  Ready next Packet ID
+                            propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
+                            propComm.mblETransId[0] = transmissionId;
                         }
-                        log("Waiting " + Math.trunc(waittime) + " ms for acknowledgement", mDeep);
-                        setTimeout(verifier, waittime);
+
+                        send(cid, txData);                                                                         //Transmit packet
+
+                        if (next.value.type !== ltLaunchNow) {                                                     //If not last instruction packet...
+                            propComm.response                                                                      //  When response (promise)...
+                                .then(function() {return sendInstructionPacket()})                                 //    is success; send next packet (if any) and
+                                .then(function() {return resolve()})                                               //      resolve
+                                .catch(function(e) {return  reject(Error(next.value.recvErr))});                   //    is failure; reject (return the specific error)
+                        } else {                                                                                   //Else, last instruction packet sent; success
+                            resolve();                                                                             //  Success; User App Launched!
+                        }
                     });
                 }
 
+                //Set up continuous progress indicator during this phase
+                progress = setInterval(function() {log(notice(nsDownloading), mUser, sock)}, 1000);
+
                 sendInstructionPacket()
-                    .then(function(ack) {if (ack) {return loaderAcknowledged(next.value.recvTime+((10*(txData.byteLength+2+8))/port.baud)*1000+1)}})
-                    .then(function(ack) {if (ack) {return finalizeDelivery()}})
-                    .then(function() {return resolve()})
-                    .catch(function(e) {return reject(e)});
+                    .then(function() {clearInterval(progress); return resolve();})
+                    .catch(function(e) {clearInterval(progress); return reject(e);});
             });
         }
 
@@ -3132,28 +3185,31 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         //Pre-generate communication and loader package (saves time during during initial communication)
         generateLoaderPacket(ltCore, packetId, defaultClockSpeed, defaultClockMode);
 
-        //Calculate expected max package delivery time
-        //=300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + silence bytes [MBL waiting] +
-        // MBL "ready" bytes [MBL responding])) / baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]
-        var deliveryTime = 300+((10*(txData.byteLength+20+8))/port.baud)*1000+1;
-
         //Prep packetGenerator iterator and next object
         var instPacket = packetGenerator();
         var next;
 
+        /* Calculate expected Micro Boot Loader and User Application delivery times
+           = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
+             initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+250;
+
+        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 500 [Rx hardware to OS slack time]
+        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
+
+        //Set for limited retry attemps
+        var attempts = 3;
+
         Promise.resolve()
-            .then(function() {       Object.assign(propComm, propCommStart);}       )    //Reset propComm object
-            .then(function() {       log("Generating reset signal", mDeep);}        )
-            .then(function() {return setControl(cid, {dtr: false});}                )    //Start Propeller Reset Signal
-            .then(function() {return flush(cid);}                                   )    //Flush transmit/receive buffers (during Propeller reset)
-            .then(function() {return setControl(cid, {dtr: true});}                 )    //End Propeller Reset
-            .then(function() {return sendLoader(postResetDelay);}                   )    //After Post-Reset-Delay, send package: Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls
-            .then(function() {return isLoaderReady(packetId, deliveryTime);}        )    //Verify package accepted
-            .then(function() {return changeBaudrate(cid, finalBaudrate);}           )    //Bump up to faster finalBaudrate
-            .then(function() {return sendUserApp();}                                )    //Send user application
-            .then(function() {return finalizeDelivery();}                           )    //Finalize delivery and launch user application
-            .then(function() {return resolve();}                                    )    //Success!
-            .catch(function(e) {reject(e)}                                          );   //Catch errors, pass them on
+            .then(function() {return sendLoader();})                                     //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
+            .then(function() {return changeBaudrate(cid, finalBaudrate);})               //Bump up to faster finalBaudrate
+            .then(function() {                                                           //Send user application
+                log("Delivering user application packets", mDbug);
+                return sendUserApp();
+            })
+            .then(function() {return finalizeDelivery();})                               //Finalize delivery and launch user application
+            .then(function() {return resolve();})                                        //Success!
+            .catch(function(e) {clearTimeout(propComm.timer); reject(e);});              //Catch errors, pass them on
     });
 }
 
@@ -3181,24 +3237,47 @@ function hearFromProp(info) {
     var stream = ab2num(info.data);
     var sIdx = 0;
 
-    // Validate rxHandshake
+    /* Validate rxHandshake
+       To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear
+       at one event, then a few more on the following event, 2) data may "never" match; it may suddenly stop arriving during a partial match, or continuous data may
+       be absolutely unrelated, and 2) a serial port flush does not guarantee pristine data; the handshake may appear buried at the end of non-related serial data
+       streamed in from the previous Propeller App execution, received just after the flush event and just before the reset signal reaches the Propeller.  To combat
+       all this, surprisingly simple techniques are employed.  1) Receive and match handshake as a state machine, 2) use an independent timeout (in this case the
+       propComm.timer event) to abort if necessary, and 3) pattern match using unique rxHandshake attributes.  Item #3 is explained further next.
+
+       (Item #3 Explanation)
+       The 2-bit per byte encoded rxHandshake begins with a unique 3-byte pattern (0xEE,0xCE,0xCE); that pattern does not appear anywhere else within it; however,
+       the first two bytes of that pattern do appear in multiple places.  Using this knowledge, comparisons of a received stream against the rxHandshake, dumping
+       every unmatched byte (and realigning next received byte(s) to 3rd byte of rxHandshake), allows reception of a clean pattern, or an obscured pattern start,
+       or even a truncated matching pattern followed by a restarted full pattern, to be easily found and aligned to match.  In addition, no received data need be
+       retained longer than each individual byte comparison.
+
+       The match technique is as follows (start at first byte of rxHandshake):
+         A) compare two bytes (current byte in stream against current byte in rxHandshake,
+         B) if they match- index to next byte of each and repeat "A",
+            if they don't match- index stream (only if on 3rd byte of rxHandshake), reset to 3rd byte of rxHandshake, and repeat "A".
+
+       Even though this technique sometimes skips a true comparison of the first two bytes of rxHandshake, all remaining 123 bytes are always matched perfectly.
+       Incredibly, in the case of receiving a partial match followed by a full handshake match, it gracefully recovers and re-aligns, even if the start of the full
+       happens to appear perfectly lined up with one of the seven deep places in rxHandshake that the first 2-byte pattern appears (0xEE,0xCE).  Despite potentially
+       ignoring the first 2 bytes of rxHandshake, the chance of a false positive match is 1 in 2^984 (astronomically improbable).
+    */
     if (propComm.stage === sgHandshake) {
         while (sIdx < stream.length && propComm.rxCount < rxHandshake.length) {
             //More data to match against rxHandshake...
-            if (stream[sIdx++] === rxHandshake[propComm.rxCount++]) {
+            if (stream[sIdx] === rxHandshake[propComm.rxCount]) {
                 //Handshake matches so far...
-                if (propComm.rxCount === rxHandshake.length) {
-                    //Entire handshake matches!  Note valid and prep for next stage
-                    propComm.handshake = stValid;
+                sIdx++;
+                if (++propComm.rxCount === rxHandshake.length) {
+                    //Entire handshake matches!  Prep for next stage
                     propComm.rxCount = 0;
                     propComm.stage = sgVersion;
                     break;
                 }
             } else {
-                //Handshake failure!  Ignore the rest
-                propComm.handshake = stInvalid;
-                propComm.stage = sgIdle;
-                break;
+                //Handshake mismatch; realign and retry
+                sIdx += (propComm.rxCount === 2);               //Match failed; index to next received byte (only if already compared against 3rd rxHandshake byte)
+                propComm.rxCount = 2;                           //Prep to compare with 3rd rxHandshake byte (see "Item #3 Explanation," above)
             }
         }
     }
@@ -3213,10 +3292,14 @@ function hearFromProp(info) {
                 //Received all 4 bytes
                 if (propComm.version === 1) {
                     //Version matches expected value!  Prep for next stage
+                    //Found Propeller; update timeout for next possible error (if no RAM Checksum or Micro Boot Loader response received)
+                    propComm.timeoutError = notice(neCommunicationLost);
                     propComm.rxCount = 0;
                     propComm.stage = sgRAMChecksum;
                 } else {
-                    //Unexpected version!  Ignore the rest
+                    //Unexpected version!  Note rejected; Ignore the rest
+                    clearTimeout(propComm.timer);
+                    propComm.response.reject(Error(notice(neUnknownPropellerVersion, [propComm.version])));
                     propComm.stage = sgIdle;
                 }
                 break;
@@ -3227,43 +3310,40 @@ function hearFromProp(info) {
     // Receive RAM Checksum
     if (propComm.stage === sgRAMChecksum && sIdx < stream.length) {
         //Received RAM Checksum response?
-        propComm.ramCheck = stream[sIdx++] === 0xFE ? stValid : stInvalid;
-        //Set next stage according to result
+        if (stream[sIdx++] === 0xFE) {
+            //RAM Checksum valid;  Prep for next stage
+            propComm.stage = sgMBLResponse;
+        } else {
+            //RAM Checksum invalid;  Note rejected; Ignore the rest
+            clearTimeout(propComm.timer);
+            propComm.response.reject(Error(notice(neCommunicationFailed)));
+            propComm.stage = sgIdle;
+        }
         propComm.rxCount = 0;
-        propComm.stage = propComm.ramCheck ? sgMBLResponse : sgIdle;
     }
 
-    // Receive Micro Boot Loader's "Ready" Signal
+    // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
         while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
             propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             //Finish stage when expected response size received
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+                clearTimeout(propComm.timer);
                 propComm.stage = sgIdle;
-                //Valid if end of stream, otherwise something's wrong (invalid response)
-                propComm.mblResponse = stream.length === sIdx ? stValid : stInvalid;
+//                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
+//                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
+                if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
+                    //MBL Response is perfect;  Note resolved
+                    propComm.response.resolve();
+                } else {
+                    //MBL Response invalid;  Note rejected; Ignore the rest
+                    clearTimeout(propComm.timer);
+                    propComm.response.reject(Error(notice(neLoaderFailed)));
+                }
             }
         }
     }
 }
-
-//TODO Revisit timedPromise and make it work properly for optimized communication
-/*
-function timedPromise(promise, timeout){
-// Takes in a promise and returns it as a promise that rejects in timeout milliseconds if not resolved beforehand
-    var expired = function() {
-        return new Promise(function (resolve, reject) {
-            var id = setTimeout(function() {
-                log("Timed out!", mDbug);
-                clearTimeout(id);
-                reject(Error('Timed out in ' + timeout + ' ms.'));
-            }, timeout);
-        })
-    };
-    // Returns a promise race between passed-in promise and timeout promise
-    return Promise.race([promise(), expired()])
-}
-*/
 
 function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 /*Generate a packet (in txData) containing the portion of the Micro Boot Loader (IP_Loader.spin) indicated by LoaderType.
