@@ -115,16 +115,19 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   if(chrome.storage) {
-    chrome.storage.sync.get('s_port', function(result) {
-      $('bpc-port').value = result.s_port || '6009';
-    });
-    
-    chrome.storage.sync.get('s_url', function(result) {
-      $('bpc-url').value = result.s_url || 'localhost';
-    });
+    chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
+    chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
+    chrome.storage.sync.get('sm-0', function(result) {$('sm-0').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-1', function(result) {$('sm-1').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-2', function(result) {$('sm-2').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-3', function(result) {$('sm-3').value = result.s_url || '0';});
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
+    $('sm-0').value = '255';
+    $('sm-1').value = '255';
+    $('sm-2').value = '255';
+    $('sm-3').value = '0';
   }
 
   $('websocket-connect').onclick = function() {
@@ -150,6 +153,16 @@ document.addEventListener('DOMContentLoaded', function() {
     connect_ws($('bpc-port').value, $('bpc-url').value);
   };
 
+  // TODO: re-write this to use onblur and/or onchange to auto-save. 
+  $('save-netmask').onclick = function() {
+    if(chrome.storage) {
+      chrome.storage.sync.set({'sm-0':$('sm-0').value}, function() {});
+      chrome.storage.sync.set({'sm-1':$('sm-1').value}, function() {});
+      chrome.storage.sync.set({'sm-2':$('sm-2').value}, function() {});
+      chrome.storage.sync.set({'sm-3':$('sm-3').value}, function() {});
+    }
+  };
+
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top !== '10px') {
       setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
@@ -164,21 +177,45 @@ document.addEventListener('DOMContentLoaded', function() {
     verboseLogging = $('bpc-trace').checked;
   };
   
-  $('wx-module-tab').onclick = function() {
-    if($('wx-module-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-selected';
-      $('port-path-tab').className = 'tab-unselect';
-      $('wx-module-settings').style.display = 'block';
-      $('port-path-settings').style.display = 'none';
+  $('wx-allow').onclick = function() {
+    var wx_enabled = $('wx-allow').checked;
+    if(wx_enabled) {
+      wx_scanner_interval = setInterval(function() {
+        discover_modules();
+        remove_modules();
+        display_modules();
+      }, 3500);
+    } else {
+      if(wx_scanner_interval) {
+        clearInterval(wx_scanner_interval);
+        $('wx-list').innerHTML = '';
+      }
     }
   };
 
-  $('port-path-tab').onclick = function() {
-    if($('port-path-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-unselect';
-      $('port-path-tab').className = 'tab-selected';
-      $('wx-module-settings').style.display = 'none';
-      $('port-path-settings').style.display = 'block';
+  $('wmt').onclick = function() {
+    if($('wx-module-tab').className === 'tab-unselect tab-right') {
+      $('wx-module-tab').className = 'tab-selected tab-right';
+      $('port-path-tab').className = 'tab-unselect tab-left';
+      $('wx-module-settings').style.visibility = 'visible';
+      $('port-path-settings').style.visibility = 'hidden';
+      $('sep-right').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'hidden';
+      $('cor-left').style.visibility = 'visible';
+      $('cor-right').style.visibility = 'hidden';
+    }
+  };
+
+  $('ppt').onclick = function() {
+    if($('port-path-tab').className === 'tab-unselect tab-left') {
+      $('wx-module-tab').className = 'tab-unselect tab-right';
+      $('port-path-tab').className = 'tab-selected tab-left';
+      $('wx-module-settings').style.visibility = 'hidden';
+      $('port-path-settings').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'visible';
+      $('sep-right').style.visibility = 'hidden';
+      $('cor-right').style.visibility = 'visible';
+      $('cor-left').style.visibility = 'hidden';
     }
   };
 
@@ -285,10 +322,13 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Received Propeller Application for ' + ws_msg.action);
-            setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-//            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
-//            socket.send(JSON.stringify(msg_to_send));
-
+            if((ws_msg.portPath).indexOf('wx-') !== 0) {
+              setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+//              var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
+//              socket.send(JSON.stringify(msg_to_send));
+            } else {
+              // TODO add function to load Propeller using WX/TCP function
+            }
 
               // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
@@ -383,6 +423,10 @@ function sendPortList() {
           pt.push(pl.path);
         }
       });
+      //TODO convert to .forEach?
+      for(v = 0; v < wx_modules.length; v++) {
+        pt.push(wx_modules[v].id);
+      }
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < sockets.length; i++) {
         sockets[i].socket.send(JSON.stringify(msg_to_send));
@@ -401,35 +445,47 @@ function helloClient(sock, baudrate) {
 }
 
 //TODO Check send results and act accordingly?
+//TODO refactor to combine usb and wx-based port code efficiently
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  if (action === "open") {
-    openPort(sock, portPath, baudrate, 'debug')
-      .then(function(id) {var cid = id})
-      .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
-      .catch(function() {
-        log('Unable to connect terminal to ' + portPath);
-        var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-        sock.send(JSON.stringify(msg_to_send));
-      });
-  } else if (action === "close") {
-    // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-    // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-    // Instead, update the connection mode so that serial debug data halts.
-//      closePort(findPortId(portPath));
-    let conn = findPort(portPath);
-    if (conn) {conn.mode = 'none'}
-  } else if (action === "msg") {
-    // Serial message to send to the device
-    // Find port connection id from portPath or socket
-    let cid = findPortId(portPath);
-    if (!cid) {
-      let sIdx = findSocketIdx(sock);
-      if (sIdx > -1) {
-         cid = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx].connId : null;
+  if(portPath.indexOf('wx-') !== 0) {
+    if (action === "open") {
+      openPort(sock, portPath, baudrate, 'debug')
+        .then(function(id) {var cid = id})
+        .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+        .catch(function() {
+          log('Unable to connect terminal to ' + portPath);
+          var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
+          sock.send(JSON.stringify(msg_to_send));
+        });
+    } else if (action === "close") {
+      // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+      // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+      // Instead, update the connection mode so that serial debug data halts.
+  //      closePort(findPortId(portPath));
+      let conn = findPort(portPath);
+      if (conn) {conn.mode = 'none'}
+    } else if (action === "msg") {
+      // Serial message to send to the device
+      // Find port connection id from portPath or socket
+      let cid = findPortId(portPath);
+      if (!cid) {
+        let sIdx = findSocketIdx(sock);
+        if (sIdx > -1) {
+           cid = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx].connId : null;
+        }
+      }
+      if (cid) {
+        send(cid, msg);
       }
     }
-    if (cid) {
-      send(cid, msg);
+  } else {
+    // TODO add WX module debug passthrough functions
+    if (action === 'open') {
+
+    } else if (action === 'close') {
+      
+    } else if (action === 'msg') {
+      
     }
   }
 }

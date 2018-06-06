@@ -8,16 +8,19 @@
     <script src="serial.js"></script>
     <script src="parser.js"></script>
     <script src="index.js"></script>
+    <script src="wx.js"></script>
   </head>
   <body>
     <div id='settings-pane'>
+      <div id="port-path-tab" class="tab-selected tab-left"><a id='ppt'>Connection</a></div>
+      <div id="sep-left" style="position:absolute;top:-1px;left:142px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="27"><path d="M0,0 L13,0 13,27 A6,6,0,0,1,7,21 L7,6 A6,6,0,0,0,0,1 Z" style="stroke-width:0;fill:rgba(0,0,0,.15);"/></svg></div>
+      <div id="sep-right" style="position:absolute;top:-1px;left:154px;visibility:hidden;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="27"><path d="M13,0 L0,0 0,27 A6,6,0,0,0,6,21 L6,6 A6,6,0,0,1,13,1 Z" style="stroke-width:0;fill:rgba(0,0,0,.15);"/></svg></div>
+      <div id="cor-left" style="position:absolute;top:20px;left:0px;"><svg xmlns="http://www.w3.org/2000/svg" width="6" height="6"><path d="M0,0 L5,0 A7,7,0,0,0,0,5 Z" style="stroke-width:0;fill:rgba(0,0,0,.15);"/></svg></div>
+      <div id="cor-right" style="position:absolute;top:20px;left:305px;"><svg xmlns="http://www.w3.org/2000/svg" width="6" height="6"><path d="M5,0 L0,0 A7,7,0,0,1,5,5 Z" style="stroke-width:0;fill:rgba(0,0,0,.15);"/></svg></div>
+      <div id="wx-module-tab" class="tab-unselect tab-right"><a id='wmt'>WX Modules</a></div>
       <table border="0" cellpadding="0" cellspacing="0" width="100%">
-        <tr>
-          <td id="port-path-tab" class="tab-selected" align="center" style="width:50%">Connection</td>
-          <td id="wx-module-tab" class="tab-unselect" align="center">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td>
-        </tr>
         <tr><td colspan="2" class="folder-page">
-          <table border="0" cellpadding="1" cellspacing="0" id="port-path-settings">
+          <table border="0" cellpadding="1" cellspacing="0" id="port-path-settings" class='pane-table'>
             <!--
             <tr>
               <td>Send:</td>
@@ -45,9 +48,28 @@
               <td colspan="3"><div id="log" class="con"></div></td>
             </tr>
           </table>
-          <table id="wx-module-settings" style="display:none; height:324px">
+          <table id="wx-module-settings" border="0" cellpadding="1" cellspacing="0" style="visibility:hidden;" class='pane-table'>
             <tr>
-              <td>This page intentionally left blank.</td>
+              <td colspan="2" style="background-color:#fcc;color:#c00;"><b>WX Modules are not fully supported yet.</b></td>
+            </tr>
+            <tr>
+              <td>Enable WX Modules:</td>
+              <td><input type="checkbox" id="wx-allow"/></td>
+            </tr>
+            <tr>
+              <td>Subnet Mask:</td>
+              <td>
+                <input type="text" id="sm-0" class="con" style="width:18px;" value="255"/>.
+                <input type="text" id="sm-1" class="con" style="width:18px;" value="255"/>.
+                <input type="text" id="sm-2" class="con" style="width:18px;" value="255"/>.
+                <input type="text" id="sm-3" class="con" style="width:18px;" value="0"/>&nbsp;
+                <button id='save-netmask' style="width:24px;">&#x21bb;</button></td>
+            </tr>
+            <tr>
+              <td colspan="2">WX modules:</td>
+            </tr>
+            <tr>
+              <td colspan="2" id="wx-list" class="con"></td>
             </tr>
           </table>
         </td></tr>

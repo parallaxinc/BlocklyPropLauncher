@@ -5,13 +5,19 @@
   "manifest_version": 2,
   "minimum_chrome_version": "45",
   
-  "permissions": ["browser", "serial", "storage"],
+  "permissions": ["browser", "serial", "storage", "system.network"],
 
   "sockets": {
+    "udp": {
+      "create": "*",
+      "send": "*",
+      "bind": "*",
+      "multicastMembership": "",
+      "joinGroup":"*"
+    },
     "tcp": {
       "connect": "*"
     },
-
     "tcpServer": {
       "listen": "*"
     }
