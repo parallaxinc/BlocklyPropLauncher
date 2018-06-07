@@ -65,8 +65,5 @@ typings/
 node_modules/
 release/
 
-# Chrome Store assets
-chromestore/
-
 # Windows thumb files
 Thumbs.db
