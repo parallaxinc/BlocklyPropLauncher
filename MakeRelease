@@ -19,6 +19,7 @@ echo
 ./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   index.js      --output release/index.js        --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray true   --stringArrayEncoding false  --mangle true  --selfDefending true
 ./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   parser.js     --output release/parser.js       --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray false  --stringArrayEncoding false  --mangle true  --selfDefending true
 ./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   serial.js     --output release/serial.js       --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray true   --stringArrayEncoding false  --mangle true  --selfDefending true
+./node_modules/javascript-obfuscator/bin/javascript-obfuscator.js   wx.js         --output release/wx.js           --disableConsoleOutput false  --compact true  --stringArray true  --rotateStringArray false  --stringArrayEncoding false  --mangle true  --selfDefending true
 
 echo STEP 3 of 3: Copying static resources to ./release folder
 echo
