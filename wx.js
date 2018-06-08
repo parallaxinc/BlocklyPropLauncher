@@ -24,7 +24,7 @@ var udp_sock;
 var tcp_sock;
 
 // Initial discovery packet.  4-bytes per module representing the module's IP
-// are appended as modules are found singaling to a module that it does not have
+// are appended as modules are found signaling to a module that it does not have
 // to re-respond.
 var disc_packet = '\0\0\0\0';
 
@@ -103,6 +103,7 @@ function loadPropWX(wxid, action, payload, debug) {
 // TODO add error handling
 function discover_modules() {  
   var local_ip = [];
+  var ni_result;
   chrome.system.network.getNetworkInterfaces(function (ni_result){
     for (z = 0; z < ni_result.length; z++) {
       if (ni_result[z].address.replace(/\./g,'').length === ni_result[z].address.length - 3) {
