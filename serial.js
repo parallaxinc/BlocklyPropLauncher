@@ -24,6 +24,7 @@
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
 let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
+let autoAdjust = 20;                                //Amount to adjust postResetDelay upon each failure
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
@@ -2923,10 +2924,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      ]; */
 
     //Set and/or adjust postResetDelay based on platform
-    if (!postResetDelay) {
-        //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-        postResetDelay = platform === pfWin ? 60 : 100;
-        }
+    //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
+    postResetDelay = platform === pfWin ? 60 : 100;
 
     let binImage;
 
@@ -3061,6 +3060,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
+                            postResetDelay = Math.max(postResetDelay - autoAdjust, 0);                //    Shorten Post Reset Delay upon every attempt (min 0)
                             return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
                         }
                         return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
@@ -3198,7 +3198,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
 
         //Set for limited retry attemps
-        var attempts = 3;
+        var attempts = 6;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
