@@ -2987,7 +2987,7 @@ function resetPropComm(timeout) {
 /*Reset propComm object to default values
   timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to sgHandshake, creates deferred promise, and creates timeout timer.
 */
-    if (propComm.timeout) {clearTimeout(propComm.timer)}          //Clear old timer, if any
+    clearPropCommTimer();                                         //Clear old timer, if any
     Object.assign(propComm, propCommStart);                       //Reset propComm object
     if (timeout) {                                                //If timeout provided
         propComm.stage = sgHandshake;                             //Ready for handshake
@@ -3001,16 +3001,23 @@ function setPropCommTimer(timeout, timeoutError) {
     timeout = timeout period (in ms)
     timeoutError = string message to issue upon a timeout
 */
-    clearTimeout(propComm.timer);
+    clearPropCommTimer();
     propComm.timeoutError = timeoutError;
     timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {
 //        log("Timed out in " + timeout + " ms", mDbug);
-        clearTimeout(propComm.timer);                             //Clear timer
+        clearPropCommTimer();                                     //Clear timer
         propComm.stage = sgIdle;                                  //Reset propComm stage to Idle (ignore incoming data)
         propComm.response.reject(Error(propComm.timeoutError));   //Reject with error
-        propComm.timer = null;
     }, timeout);
+}
+
+function clearPropCommTimer() {
+/*  Clear propComm timer, if it exists*/
+    if (propComm.timer) {
+        clearTimeout(propComm.timer);
+        propComm.timer = null;
+    }
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -3192,7 +3199,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         /* Calculate expected Micro Boot Loader and User Application delivery times
            = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
              initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
-        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+250;
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+500;
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 500 [Rx hardware to OS slack time]
         var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
@@ -3209,7 +3216,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             })
             .then(function() {return finalizeDelivery();})                               //Finalize delivery and launch user application
             .then(function() {return resolve();})                                        //Success!
-            .catch(function(e) {clearTimeout(propComm.timer); reject(e);});              //Catch errors, pass them on
+            .catch(function(e) {clearPropCommTimer(); reject(e);});                      //Catch errors, clear timer, pass errors onward
     });
 }
 
@@ -3298,7 +3305,7 @@ function hearFromProp(info) {
                     propComm.stage = sgRAMChecksum;
                 } else {
                     //Unexpected version!  Note rejected; Ignore the rest
-                    clearTimeout(propComm.timer);
+                    clearPropCommTimer();
                     propComm.response.reject(Error(notice(neUnknownPropellerVersion, [propComm.version])));
                     propComm.stage = sgIdle;
                 }
@@ -3315,7 +3322,7 @@ function hearFromProp(info) {
             propComm.stage = sgMBLResponse;
         } else {
             //RAM Checksum invalid;  Note rejected; Ignore the rest
-            clearTimeout(propComm.timer);
+            clearPropCommTimer();
             propComm.response.reject(Error(notice(neCommunicationFailed)));
             propComm.stage = sgIdle;
         }
@@ -3328,7 +3335,7 @@ function hearFromProp(info) {
             propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             //Finish stage when expected response size received
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
-                clearTimeout(propComm.timer);
+                clearPropCommTimer();
                 propComm.stage = sgIdle;
 //                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
 //                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
@@ -3337,7 +3344,6 @@ function hearFromProp(info) {
                     propComm.response.resolve();
                 } else {
                     //MBL Response invalid;  Note rejected; Ignore the rest
-                    clearTimeout(propComm.timer);
                     propComm.response.reject(Error(notice(neLoaderFailed)));
                 }
             }
