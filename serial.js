@@ -3059,9 +3059,13 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 Promise.resolve()
                     .then(function() {       resetPropComm(mblDeliveryTime);})                        //Reset propComm object
                     .then(function() {       log("Generating reset signal", mDeep);})
+                    .then(function() {return unPause(cid);})                                          //!!! Experimental! Unpause port; it may have been auto-paused by incoming data from previous run
                     .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
+                    .then(function() {return unPause(cid);})                                          //!!! Experimental! Unpause port; it may have been auto-paused by incoming data from previous run
                     .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
+                    .then(function() {return unPause(cid);})                                          //!!! Experimental! Unpause port; it may have been auto-paused by incoming data from previous run
                     .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
+                    .then(function() {return unPause(cid);})                                          //!!! Experimental! Unpause port; it may have been auto-paused by incoming data from previous run
                     .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
                     .then(function() {return sendMBL();})                                             //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
                     .catch(function(e) {                                                              //Error!
