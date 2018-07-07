@@ -59,6 +59,7 @@ function log(text = "", type = mStat, socket = null) {
         let dispText = text !== "." ? '\r' + text : text;
         socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
       }
+      text = Date.now() + ': ' + text;
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
       if (type & mdConsole) {console.log(text)}
   }

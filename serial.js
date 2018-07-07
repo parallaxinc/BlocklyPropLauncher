@@ -3067,7 +3067,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
-                            postResetDelay = Math.max(postResetDelay - autoAdjust, 0);                //    Shorten Post Reset Delay upon every attempt (min 0)
+                            postResetDelay = Math.max(postResetDelay - autoAdjust, 1);                //    Shorten Post Reset Delay upon every attempt (min 0)
                             return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
                         }
                         return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
