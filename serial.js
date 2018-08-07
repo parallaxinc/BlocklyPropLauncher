@@ -2925,7 +2925,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     //Set and/or adjust postResetDelay based on platform
     //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-    postResetDelay = platform === pfWin ? 60 : 1; /*100;*/
+    postResetDelay = platform === pfWin ? 60 : 100;
 
     let binImage;
 
@@ -3039,7 +3039,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
                 function sendMBL() {
                     return new Promise(function(resolve, reject) {
-                        setTimeout(function() {
+//                        setTimeout(function() {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
                             propComm.mblETransId[0] = transmissionId;
@@ -3052,18 +3052,26 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
                                 .catch(function(e) {return reject(e)});                                      //Failed!
-                        }, postResetDelay);
+//                        }, postResetDelay);
                     });
                 };
+
+                let delayStart;                                                                       //Create start of delay holder
 
                 Promise.resolve()
                     .then(function() {       resetPropComm(mblDeliveryTime);})                        //Reset propComm object
                     .then(function() {       log("Generating reset signal", mDeep);})
-                    .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
-                    .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
                     .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
+                    .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
+//                    .then(function() {       delayStart = Date.now();})                               //Mark start of Post-Reset Delay
+//                    .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
+//                    .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
                     .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
                     .then(function() {return sendMBL();})                                             //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
+
+
+
+
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
