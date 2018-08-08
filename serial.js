@@ -24,6 +24,7 @@
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
 let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
+let autoAdjust = 20;                                //Amount to adjust postResetDelay upon each failure
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
@@ -2923,10 +2924,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      ]; */
 
     //Set and/or adjust postResetDelay based on platform
-    if (!postResetDelay) {
-        //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-        postResetDelay = platform === pfWin ? 60 : 100;
-        }
+    //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
+    postResetDelay = platform === pfWin ? 60 : 100;
 
     let binImage;
 
@@ -2988,7 +2987,7 @@ function resetPropComm(timeout) {
 /*Reset propComm object to default values
   timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to sgHandshake, creates deferred promise, and creates timeout timer.
 */
-    if (propComm.timeout) {clearTimeout(propComm.timer)}          //Clear old timer, if any
+    clearPropCommTimer();                                         //Clear old timer, if any
     Object.assign(propComm, propCommStart);                       //Reset propComm object
     if (timeout) {                                                //If timeout provided
         propComm.stage = sgHandshake;                             //Ready for handshake
@@ -3002,16 +3001,23 @@ function setPropCommTimer(timeout, timeoutError) {
     timeout = timeout period (in ms)
     timeoutError = string message to issue upon a timeout
 */
-    clearTimeout(propComm.timer);
+    clearPropCommTimer();
     propComm.timeoutError = timeoutError;
     timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {
 //        log("Timed out in " + timeout + " ms", mDbug);
-        clearTimeout(propComm.timer);                             //Clear timer
+        clearPropCommTimer();                                     //Clear timer
         propComm.stage = sgIdle;                                  //Reset propComm stage to Idle (ignore incoming data)
         propComm.response.reject(Error(propComm.timeoutError));   //Reject with error
-        propComm.timer = null;
     }, timeout);
+}
+
+function clearPropCommTimer() {
+/*  Clear propComm timer, if it exists*/
+    if (propComm.timer) {
+        clearTimeout(propComm.timer);
+        propComm.timer = null;
+    }
 }
 
 function talkToProp(sock, cid, binImage, toEEPROM) {
@@ -3061,6 +3067,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
+                            postResetDelay = Math.max(postResetDelay - autoAdjust, 1);                //    Shorten Post Reset Delay upon every attempt (min 1)
                             return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
                         }
                         return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
@@ -3192,13 +3199,13 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
         /* Calculate expected Micro Boot Loader and User Application delivery times
            = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
              initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
-        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+250;
+        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+500;
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 500 [Rx hardware to OS slack time]
         var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
 
         //Set for limited retry attemps
-        var attempts = 3;
+        var attempts = 6;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
@@ -3209,7 +3216,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             })
             .then(function() {return finalizeDelivery();})                               //Finalize delivery and launch user application
             .then(function() {return resolve();})                                        //Success!
-            .catch(function(e) {clearTimeout(propComm.timer); reject(e);});              //Catch errors, pass them on
+            .catch(function(e) {clearPropCommTimer(); reject(e);});                      //Catch errors, clear timer, pass errors onward
     });
 }
 
@@ -3298,7 +3305,7 @@ function hearFromProp(info) {
                     propComm.stage = sgRAMChecksum;
                 } else {
                     //Unexpected version!  Note rejected; Ignore the rest
-                    clearTimeout(propComm.timer);
+                    clearPropCommTimer();
                     propComm.response.reject(Error(notice(neUnknownPropellerVersion, [propComm.version])));
                     propComm.stage = sgIdle;
                 }
@@ -3315,7 +3322,7 @@ function hearFromProp(info) {
             propComm.stage = sgMBLResponse;
         } else {
             //RAM Checksum invalid;  Note rejected; Ignore the rest
-            clearTimeout(propComm.timer);
+            clearPropCommTimer();
             propComm.response.reject(Error(notice(neCommunicationFailed)));
             propComm.stage = sgIdle;
         }
@@ -3328,7 +3335,7 @@ function hearFromProp(info) {
             propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             //Finish stage when expected response size received
             if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
-                clearTimeout(propComm.timer);
+                clearPropCommTimer();
                 propComm.stage = sgIdle;
 //                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
 //                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
@@ -3337,7 +3344,6 @@ function hearFromProp(info) {
                     propComm.response.resolve();
                 } else {
                     //MBL Response invalid;  Note rejected; Ignore the rest
-                    clearTimeout(propComm.timer);
                     propComm.response.reject(Error(notice(neLoaderFailed)));
                 }
             }
