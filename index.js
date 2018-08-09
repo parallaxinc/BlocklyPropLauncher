@@ -59,9 +59,8 @@ function log(text = "", type = mStat, socket = null) {
           let dispText = text !== "." ? '\r' + text : text;
           socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
       }
-      text = Date.now() + ': ' + text;
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
-      if (type & mdConsole) {console.log(text)}
+      if (type & mdConsole) {console.log(Date.now() + ': ' + text)}
   }
 }
 
@@ -200,7 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
       $('port-path-tab').className = 'tab-unselect tab-left';
       $('wx-module-settings').style.visibility = 'visible';
       $('port-path-settings').style.visibility = 'hidden';
-      $('ws-button-container').style.visibility = 'hidden';
       $('sep-right').style.visibility = 'visible';
       $('sep-left').style.visibility = 'hidden';
       $('cor-left').style.visibility = 'visible';
@@ -214,7 +212,6 @@ document.addEventListener('DOMContentLoaded', function() {
       $('port-path-tab').className = 'tab-selected tab-left';
       $('wx-module-settings').style.visibility = 'hidden';
       $('port-path-settings').style.visibility = 'visible';
-      $('ws-button-container').style.visibility = 'visible';
       $('sep-left').style.visibility = 'visible';
       $('sep-right').style.visibility = 'hidden';
       $('cor-right').style.visibility = 'visible';
@@ -237,15 +234,15 @@ function disconnect() {
 function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = '&#10004; Connected';
-      $('websocket-connect').innerHTML = 'Disconnect';
-      $('ws-button-container').style.visibility = 'visible';
       $('connect-disconnect').className = 'status status-green';
+      $('websocket-connect').disabled = false;
+      $('websocket-connect').innerHTML = 'Disconnect';
       log('BlocklyProp site connected');
   } else {
       $('connect-disconnect').innerHTML = 'Waiting to<br>connect...';
       $('connect-disconnect').className = 'status status-clear';
-      $('ws-button-container').style.visibility = 'hidden';
-      $('websocket-connect').innerHTML = 'Connect';
+      $('websocket-connect').disabled = true;
+      $('websocket-connect').innerHTML = 'Waiting...';
       log('BlocklyProp site disconnected');
   }
 }
