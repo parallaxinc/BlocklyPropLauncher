@@ -56,8 +56,8 @@ function log(text = "", type = mStat, socket = null) {
   if (type & (mcUser | mcStatus | mcVerbose)) {
   // Deliver categorized message to proper destination
       if ((type & mdDisplay) && socket !== null) {
-        let dispText = text !== "." ? '\r' + text : text;
-        socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
+          let dispText = text !== "." ? '\r' + text : text;
+          socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
       }
       text = Date.now() + ': ' + text;
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('port-path-tab').className = 'tab-unselect tab-left';
       $('wx-module-settings').style.visibility = 'visible';
       $('port-path-settings').style.visibility = 'hidden';
+      $('ws-button-container').style.visibility = 'hidden';
       $('sep-right').style.visibility = 'visible';
       $('sep-left').style.visibility = 'hidden';
       $('cor-left').style.visibility = 'visible';
@@ -213,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
       $('port-path-tab').className = 'tab-selected tab-left';
       $('wx-module-settings').style.visibility = 'hidden';
       $('port-path-settings').style.visibility = 'visible';
+      $('ws-button-container').style.visibility = 'visible';
       $('sep-left').style.visibility = 'visible';
       $('sep-right').style.visibility = 'hidden';
       $('cor-right').style.visibility = 'visible';
