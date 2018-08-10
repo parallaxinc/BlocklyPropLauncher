@@ -417,19 +417,27 @@ function sendPortList() {
 // find and send list of serial devices (filtered according to platform and type)
   chrome.serial.getDevices(
     function(ports) {
-      var pt = [];
+      let pt = [];
+      let wn = [];
+      let wln = [];
+      // get wired ports
       ports.forEach(function(pl) {
         if ((pl.path.indexOf(portPattern[platform]) > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
-          pt.push(pl.path);
+          wn.push(pl.path);
         }
       });
+      // sort wired ports
+      wn.sort();
+      // get wireless ports
       //TODO convert to .forEach?
       for(v = 0; v < wx_modules.length; v++) {
         // get module name without leading/trailing whitespace
-        var name = wx_modules[v].name.substr(0,32).replace(/(^\s+|\s+$)/g,'');
+        let name = wx_modules[v].name.substr(0,32).replace(/(^\s+|\s+$)/g,'');
         // add name (if not empty) or id
-        pt.push(name.length !== 0 ? name : wx_modules[v].id);
+        wln.push(name.length !== 0 ? name : wx_modules[v].id);
       }
+      wln.sort();
+      pt = wn.concat(wln);
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < sockets.length; i++) {
         sockets[i].socket.send(JSON.stringify(msg_to_send));
