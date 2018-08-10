@@ -425,7 +425,7 @@ function sendPortList() {
       });
       //TODO convert to .forEach?
       for(v = 0; v < wx_modules.length; v++) {
-        pt.push(wx_modules[v].id);
+        pt.push(wx_modules[v].name.substr(0,32));
       }
       var msg_to_send = {type:'port-list',ports:pt};
       for (var i = 0; i < sockets.length; i++) {
