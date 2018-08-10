@@ -273,7 +273,7 @@ chrome.serial.onReceiveError.addListener(function(info) {
 //    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });
 
-function addPort(cid, socket, connMode, portPath, portBaudrate) {
+function addPort(cid, socket, connMode, portPath, portBaudrate) {  //!!!  Need to add portName, iP, mAC (and life?)
 // Add new serial port record
     let idx = findSocketIdx(socket);
 /*    if (idx = -1) {
@@ -284,6 +284,10 @@ function addPort(cid, socket, connMode, portPath, portBaudrate) {
     ports.push({
         connId    : cid,
         path      : portPath,
+        name      : portName,
+        ip        : iP,
+        mac       : mAC,
+        life      : 0,           //!!!  Need to set to initial value
         socket    : socket,
         socketIdx : idx,
         mode      : connMode,
@@ -296,7 +300,7 @@ function addPort(cid, socket, connMode, portPath, portBaudrate) {
     if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
 }
 
-function updatePort(socket, cid, connMode, portBaudrate) {
+function updatePort(socket, cid, connMode, portBaudrate) {     //!!! Need to update
 // Update port attributes if necessary
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
@@ -329,27 +333,27 @@ function updatePort(socket, cid, connMode, portBaudrate) {
     })
 }
 
-function findPortId(portPath) {
+function findPortId(portPath) {                                    //!!! Need to update
     /* Return id (cid) of serial port associated with portPath
      Returns null if not found*/
     const port = findPort(portPath);
     return port ? port.connId : null;
 }
 
-function findPortPath(id) {
+function findPortPath(id) {                                        //!!! Need to update
     /* Return path of serial port associated with id
      Returns null if not found*/
     const port = findPort(id);
     return port ? port.path : null;
 }
 
-function findPortIdx(id) {
+function findPortIdx(id) {                                         //!!! Need to update
     /* Return index of serial port associated with id
      Returns -1 if not found*/
     return ports.findIndex(function(p) {return p.connId === id});
 }
 
-function deletePort(id) {
+function deletePort(id) {                                          //!!! Need to update
 // Delete serial port associated with id
     let idx = 0;
     while (idx < ports.length && ports[idx].connId !== id) {idx++}
@@ -365,7 +369,7 @@ function deletePort(id) {
     }
 }
 
-function findPort(cidOrPath) {
+function findPort(cidOrPath) {                                     //!!! Need to update
     /* Return port record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
      cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
      Returns null record if not found*/
@@ -3178,8 +3182,6 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
             });
         }
 
-        //Get serial port record
-        var port = findPort(cid);
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;

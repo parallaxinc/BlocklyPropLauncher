@@ -417,7 +417,6 @@ function sendPortList() {
 // find and send list of serial devices (filtered according to platform and type)
   chrome.serial.getDevices(
     function(ports) {
-      let pt = [];
       let wn = [];
       let wln = [];
       // get wired ports
