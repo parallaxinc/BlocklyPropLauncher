@@ -416,13 +416,13 @@ function connect_ws(ws_port, url_path) {
 function sendPortList() {
 // find and send list of serial devices (filtered according to platform and type)
   chrome.serial.getDevices(
-    function(ports) {
+    function(portlist) {
       let wn = [];
       let wln = [];
       // get wired ports
-      ports.forEach(function(pl) {
-        if ((pl.path.indexOf(portPattern[platform]) > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
-          wn.push(pl.path);
+        portlist.forEach(function(port) {
+        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.path.indexOf(' bt ') === -1 && port.path.indexOf('bluetooth') === -1)) {
+          wn.push(port.path);
         }
       });
       // sort wired ports
@@ -436,8 +436,7 @@ function sendPortList() {
         wln.push(name.length !== 0 ? name : wx_modules[v].id);
       }
       wln.sort();
-      pt = wn.concat(wln);
-      var msg_to_send = {type:'port-list',ports:pt};
+      var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
       for (var i = 0; i < sockets.length; i++) {
         sockets[i].socket.send(JSON.stringify(msg_to_send));
         if (chrome.runtime.lastError) {
