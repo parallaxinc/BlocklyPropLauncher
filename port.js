@@ -32,8 +32,20 @@ const serPacket = {
     timer   : null,
 };
 
+function makePortName(cid) {
+    /* Return wireless fabricated name in the form 'wx-#######' using last 6 digits of it's MAC address (cid).*/
+    return 'wx-' + cid.substr(9,16).replace(/\:/g,'');
+}
+
 function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
-// Add new serial port record
+/* Add new wired or wireless port record
+   cid must be a unique identifier (wired serial port connection id or wireless MAC address)
+   socket may be null or may be valid socket to associate with port
+   connMode is the current point of the connection; 'term', 'graph', 'programming'
+   portPath is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
+   ip must be wireless ports IP address, or empty if wired
+   portBaudrate is optional wired serial speed
+
     let idx = findSocketIdx(socket);
     /*    if (idx = -1) {
      log("Adding port at index " + ports.length, mDbug);
@@ -41,15 +53,15 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
      log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
      }*/
     ports.push({
-        connId    : cid,            /*Holds wired serial port's connection id or wireless port's MAC address*/
-        path      : portPath,       /*Wired port path or wireless port name (which may be blank so is treated as wx-######)*/
-        ip        : iP,             /*Wireless port's IP address*/
-        life      : (!iP) ? 1 : 3,  /*Initial life value, 1 for wired, 3 for wireless*/
-        socket    : socket,         /*Socket to browser*/
-        socketIdx : idx,            /*Index of socket in sockets list*/
-        mode      : connMode,       /*The current point of the connection; 'term', 'graph', 'programming'*/
-        baud      : portBaudrate,   /*Wired port's data rate*/
-        packet    : {}              /*Packet buffer for socket*/
+        connId    : cid,                                               /*Holds wired serial port's connection id or wireless port's MAC address*/
+        path      : (!portPath && iP) ? makePortName(cid) : portPath,  /*Wired port path or wireless port's name or fabricated name*/
+        ip        : iP,                                                /*Wireless port's IP address*/
+        life      : (!iP) ? 1 : 3,                                     /*Initial life value, 1 for wired, 3 for wireless*/
+        socket    : socket,                                            /*Socket to browser*/
+        socketIdx : idx,                                               /*Index of socket in sockets list*/
+        mode      : connMode,                                          /*The current point of the connection; 'term', 'graph', 'programming'*/
+        baud      : portBaudrate,                                      /*Wired port's data rate*/
+        packet    : {}                                                 /*Packet buffer for socket*/
     });
     // Give it its own packet buffer
     Object.assign(ports[ports.length-1].packet, serPacket);
@@ -82,23 +94,14 @@ function updatePort(socket, cid, connMode, portPath, portBaudrate) {
             }
             //Update connection mode
             ports[cIdx].mode = connMode;
-            //Update port path
-            ports[cIdx].path = portPath;
+            //Update port path (fabricates name if necessary)
+            ports[cIdx].path = (!portPath && iP) ? makePortName(cid) : portPath;
             //Update baudrate
             changeBaudrate(cid, portBaudrate)
                 .then(function (p) {resolve(p)})
                 .catch(function (e) {reject(e)});
         }
     })
-}
-
-function getPortName(port) {
-/* Return port's path, custom name, fabricated name, or null.
-   port must be a port record.
-   If port does't exist, returns null.
-   If port.path is not empty, returns port.path (which is wired path or wireless custom name).
-   If port.parth is empty, returns wireless fabricated name in the form 'wx-#######' using last 6 digits of it's MAC address.*/
-  return port ? (port.path ? port.path : (port.ip ? 'wx-' + port.connId.substr(9,16).replace(/\:/g,'') : null)) : null;
 }
 
 function findPortId(portPath) {
@@ -151,6 +154,6 @@ function findPort(type, clue) {
     if (type === byID) {
         return findConn(function() {return ports[cn].connId === clue})
     } else {
-        return findConn(function() {return getPortName(ports[cn]) === clue})
+        return findConn(function() {return ports[cn].path === clue})
     }
 }
