@@ -92,6 +92,15 @@ function updatePort(socket, cid, connMode, portPath, portBaudrate) {
     })
 }
 
+function getPortName(port) {
+/* Return port's path, custom name, fabricated name, or null.
+   port must be a port record.
+   If port does't exist, returns null.
+   If port.path is not empty, returns port.path (which is wired path or wireless custom name).
+   If port.parth is empty, returns wireless fabricated name in the form 'wx-#######' using last 6 digits of it's MAC address.*/
+  return port ? (port.path ? port.path : (port.ip ? 'wx-' + port.connId.substr(9,16).replace(/\:/g,'') : null)) : null;
+}
+
 function findPortId(portPath) {
     /* Return id (cid) of wired or wireless port associated with portPath
      Returns null if not found*/
@@ -102,8 +111,7 @@ function findPortId(portPath) {
 function findPortPath(id) {
     /* Return path of wired or wireless port associated with id
      Returns null if not found*/
-    const port = findPort(byID, id);
-    return port ? port.path : null;                //!!! Must make this wireless-aware, and fabricate the wx-name if path (friendly name) is empty
+    return getPortName(findPort(byID, id))
 }
 
 function findPortIdx(id) {
@@ -143,6 +151,6 @@ function findPort(type, clue) {
     if (type === byID) {
         return findConn(function() {return ports[cn].connId === clue})
     } else {
-        return findConn(function() {return ports[cn].path === clue})
+        return findConn(function() {return getPortName(ports[cn]) === clue})
     }
 }
