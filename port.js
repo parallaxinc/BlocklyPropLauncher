@@ -44,7 +44,7 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
    connMode is the current point of the connection; 'term', 'graph', 'programming'
    portPath is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
    ip must be wireless ports IP address, or empty if wired
-   portBaudrate is optional wired serial speed
+   portBaudrate is optional wired serial speed*/
 
     let idx = findSocketIdx(socket);
     /*    if (idx = -1) {
@@ -114,7 +114,8 @@ function findPortId(portPath) {
 function findPortPath(id) {
     /* Return path of wired or wireless port associated with id
      Returns null if not found*/
-    return getPortName(findPort(byID, id))
+    const port = findPort(byID, id);
+    return port ? port.path : null;
 }
 
 function findPortIdx(id) {
