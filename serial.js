@@ -80,7 +80,7 @@ const ltLaunchNow = 3;
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open serial port at portPath with baudrate and connect to sock.
    sock can be null to open serial port without an associated socket
-   portPath is the string path to the serial port
+   portPath is the string path to the wired serial port
    baudrate is optional; defaults to initialBaudrate
    connMode is the current point of the connection; 'term', 'graph', 'programming'
    Resolves with connection id (cid); rejects with Error*/
@@ -89,7 +89,7 @@ function openPort(sock, portPath, baudrate, connMode) {
         var cid = findPortId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-            updatePort(sock, cid, connMode, baudrate)
+            updatePort(sock, cid, connMode, portPath, baudrate)
                 .then(function() {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
@@ -104,7 +104,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create serial port object
-                        addPort(openInfo.connectionId, sock, connMode, portPath, "", "", baudrate);
+                        addPort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {

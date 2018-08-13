@@ -27,7 +27,7 @@ const serPacket = {
     timer   : null,
 };
 
-function addPort(cid, socket, connMode, portPath, iP, mAC, portBaudrate) {
+function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
 // Add new serial port record
     let idx = findSocketIdx(socket);
     /*    if (idx = -1) {
@@ -36,16 +36,15 @@ function addPort(cid, socket, connMode, portPath, iP, mAC, portBaudrate) {
      log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
      }*/
     ports.push({
-        connId    : cid,
-        path      : portPath,
-        ip        : iP,
-        mac       : mAC,
+        connId    : cid,         /*Holds wired serial port's connection id or wireless port's MAC address*/
+        path      : portPath,    /*Wired port path or wireless port name (which may be blank so is treated as wx-######)*/
+        ip        : iP,          /*Wireless port's IP address*/
         life      : 0,           //!!!  Need to set to initial value
-        socket    : socket,
-        socketIdx : idx,
-        mode      : connMode,
-        baud      : portBaudrate,
-        packet    : {}
+        socket    : socket,      /*Socket to browser*/
+        socketIdx : idx,         /*Index of socket in sockets list*/
+        mode      : connMode,    /*The current point of the connection; 'term', 'graph', 'programming'*/
+        baud      : portBaudrate,/*Wired port's data rate*/
+        packet    : {}           /*Packet buffer for socket*/
     });
     // Give it its own packet buffer
     Object.assign(ports[ports.length-1].packet, serPacket);
@@ -53,7 +52,7 @@ function addPort(cid, socket, connMode, portPath, iP, mAC, portBaudrate) {
     if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
 }
 
-function updatePort(socket, cid, connMode, portBaudrate) {     //!!! Need to update
+function updatePort(socket, cid, connMode, portPath, portBaudrate) {
 // Update port attributes if necessary
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
@@ -78,6 +77,8 @@ function updatePort(socket, cid, connMode, portBaudrate) {     //!!! Need to upd
             }
             //Update connection mode
             ports[cIdx].mode = connMode;
+            //Update port path
+            ports[cIdx].path = portPath;
             //Update baudrate
             changeBaudrate(cid, portBaudrate)
                 .then(function (p) {resolve(p)})
@@ -86,43 +87,42 @@ function updatePort(socket, cid, connMode, portBaudrate) {     //!!! Need to upd
     })
 }
 
-function findPortId(portPath) {                                    //!!! Need to update
-    /* Return id (cid) of serial port associated with portPath
+function findPortId(portPath) {
+    /* Return id (cid) of wired or wireless port associated with portPath
      Returns null if not found*/
     const port = findPort(portPath);
     return port ? port.connId : null;
 }
 
-function findPortPath(id) {                                        //!!! Need to update
-    /* Return path of serial port associated with id
+function findPortPath(id) {
+    /* Return path of wired or wireless port associated with id
      Returns null if not found*/
     const port = findPort(id);
     return port ? port.path : null;
 }
 
-function findPortIdx(id) {                                         //!!! Need to update
-    /* Return index of serial port associated with id
+function findPortIdx(id) {
+    /* Return index of wired or wireless port associated with id
      Returns -1 if not found*/
     return ports.findIndex(function(p) {return p.connId === id});
 }
 
-function deletePort(id) {                                          //!!! Need to update
-// Delete serial port associated with id
+function deletePort(id) {
+// Delete wired or wireless port associated with id
     let idx = 0;
     while (idx < ports.length && ports[idx].connId !== id) {idx++}
     if (idx < ports.length) {
         if (ports[idx].socketIdx > -1) {
-            // Clear socket's knowledge of serial port record
+            // Clear socket's knowledge of wired or wireless port record
             sockets[ports[idx].socketIdx].serialIdx = -1;
         }
         // Delete port record and adjust socket's later references down, if any
         ports.splice(idx, 1)
         sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
-
     }
 }
 
-function findPort(cidOrPath) {                                     //!!! Need to update
+function findPort(cidOrPath) {
     /* Return port record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
      cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
      Returns null record if not found*/
@@ -133,7 +133,7 @@ function findPort(cidOrPath) {                                     //!!! Need to
         return cn < ports.length ? ports[cn] : null;
     }
     // Scan for connID or path
-    if (isNumber(cidOrPath)) {
+    if (isNumber(cidOrPath)) {      //!!! May need to enhance this since MAC is a string
         return findConn(function() {return ports[cn].connId === cidOrPath})
     } else {
         return findConn(function() {return ports[cn].path === cidOrPath})
