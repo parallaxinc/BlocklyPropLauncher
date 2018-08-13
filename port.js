@@ -14,6 +14,11 @@
  RELATED INFORMATION DOES NOT CONVEY OR IMPLY ANY RIGHTS TO REPRODUCE, DISCLOSE OR DISTRIBUTE ITS CONTENTS, OR TO MANUFACTURE, USE, OR
  SELL ANYTHING THAT IT MAY DESCRIBE, IN WHOLE OR IN PART.                                                                                */
 
+
+// Find Port identifier types
+const byID = 0;
+const byPath = 1;
+
 // Container for attributes of connected ports (wired or wireless)
 var ports = [];
 
@@ -36,15 +41,15 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
      log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
      }*/
     ports.push({
-        connId    : cid,         /*Holds wired serial port's connection id or wireless port's MAC address*/
-        path      : portPath,    /*Wired port path or wireless port name (which may be blank so is treated as wx-######)*/
-        ip        : iP,          /*Wireless port's IP address*/
-        life      : 0,           //!!!  Need to set to initial value
-        socket    : socket,      /*Socket to browser*/
-        socketIdx : idx,         /*Index of socket in sockets list*/
-        mode      : connMode,    /*The current point of the connection; 'term', 'graph', 'programming'*/
-        baud      : portBaudrate,/*Wired port's data rate*/
-        packet    : {}           /*Packet buffer for socket*/
+        connId    : cid,            /*Holds wired serial port's connection id or wireless port's MAC address*/
+        path      : portPath,       /*Wired port path or wireless port name (which may be blank so is treated as wx-######)*/
+        ip        : iP,             /*Wireless port's IP address*/
+        life      : (!iP) ? 1 : 3,  /*Initial life value, 1 for wired, 3 for wireless*/
+        socket    : socket,         /*Socket to browser*/
+        socketIdx : idx,            /*Index of socket in sockets list*/
+        mode      : connMode,       /*The current point of the connection; 'term', 'graph', 'programming'*/
+        baud      : portBaudrate,   /*Wired port's data rate*/
+        packet    : {}              /*Packet buffer for socket*/
     });
     // Give it its own packet buffer
     Object.assign(ports[ports.length-1].packet, serPacket);
@@ -90,15 +95,15 @@ function updatePort(socket, cid, connMode, portPath, portBaudrate) {
 function findPortId(portPath) {
     /* Return id (cid) of wired or wireless port associated with portPath
      Returns null if not found*/
-    const port = findPort(portPath);
+    const port = findPort(byPath, portPath);
     return port ? port.connId : null;
 }
 
 function findPortPath(id) {
     /* Return path of wired or wireless port associated with id
      Returns null if not found*/
-    const port = findPort(id);
-    return port ? port.path : null;
+    const port = findPort(byID, id);
+    return port ? port.path : null;                //!!! Must make this wireless-aware, and fabricate the wx-name if path (friendly name) is empty
 }
 
 function findPortIdx(id) {
@@ -122,9 +127,11 @@ function deletePort(id) {
     }
 }
 
-function findPort(cidOrPath) {
-    /* Return port record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
-     cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
+function findPort(type, clue) {
+    /* Return port record associated with clue.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
+     type must be byID or byPath
+     If type = byID, clue must be a numeric Connection ID (cid) or an alphanumeric MAC address
+     If type = byPath, clue must be an alphanumeric path (wired/wireless port identifier)
      Returns null record if not found*/
     let cn = 0;
     // Find port record based on scan function
@@ -133,9 +140,9 @@ function findPort(cidOrPath) {
         return cn < ports.length ? ports[cn] : null;
     }
     // Scan for connID or path
-    if (isNumber(cidOrPath)) {      //!!! May need to enhance this since MAC is a string
-        return findConn(function() {return ports[cn].connId === cidOrPath})
+    if (type === byID) {
+        return findConn(function() {return ports[cn].connId === clue})
     } else {
-        return findConn(function() {return ports[cn].path === cidOrPath})
+        return findConn(function() {return ports[cn].path === clue})
     }
 }

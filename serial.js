@@ -122,7 +122,7 @@ function openPort(sock, portPath, baudrate, connMode) {
 function closePort(cid) {
 /* Close the cid port.
    cid is the open port's connection identifier*/
-   let port = findPort(cid);
+   let port = findPort(byID, cid);
    if (port) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
@@ -142,7 +142,7 @@ function changeBaudrate(cid, baudrate) {
    Resolves with cid; rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
-        let port = findPort(cid);
+        let port = findPort(byID, cid);
         if (port) {
             if (port.baud !== baudrate) {
                 // Need to change current baudrate
@@ -171,7 +171,7 @@ function setControl(cid, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + findPort(cid).path + "'s options: " + options])));
+            reject(Error(notice(000, ["Can not set port " + findPortPath(cid) + "'s options: " + options])));
           }
         });
     });
@@ -185,7 +185,7 @@ function flush(cid) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error(notice(000, ["Can not flush port " + findPort(cid).path + "'s transmit/receive buffer"])));
+              reject(Error(notice(000, ["Can not flush port " + findPortPath(cid) + "'s transmit/receive buffer"])));
             }
         });
     });
@@ -219,7 +219,7 @@ function send(cid, data) {
 
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
-    let port = findPort(info.connectionId);
+    let port = findPort(byID, info.connectionId);
     if(port) {
         if (port.mode === 'debug' && port.socket !== null) {
             // send to terminal in broswer tab
@@ -2813,7 +2813,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     }
 
     // Look for an existing port
-    let port = findPort(portPath);
+    let port = findPort(byPath, portPath);
     let cid = port ? port.connId : null;
     let connect;
     let originalBaudrate;
@@ -2836,7 +2836,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
         .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
             listen(false);                                                                                      //Disable listener
-            findPort(cid).mode = (debug !== "none") ? "debug" : "programming";
+            findPort(byID, cid).mode = (debug !== "none") ? "debug" : "programming";
             log(notice(nsDownloadSuccessful), mAll, sock);
             if (sock && debug !== "none") {
                 sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
