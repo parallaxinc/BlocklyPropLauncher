@@ -21,8 +21,6 @@
 //TODO Study .bind for opportunities to save scope context of private functions
 
 // Programming metrics
-const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
-const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
 let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
 let autoAdjust = 20;                                //Amount to adjust postResetDelay upon each failure
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
@@ -63,19 +61,6 @@ const ltVerifyRAM = 0;
 const ltProgramEEPROM = 1;
 const ltReadyToLaunch = 2;
 const ltLaunchNow = 3;
-
-// Container for attributes of connected serial ports
-var ports = [];
-
-// Serial packet handling (for transmissions to browser's terminal)
-const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
-const serPacketMax = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10));   // Size of buffer to hold max bytes receivable in FillTime at max baudrate
-const serPacket = {
-    id      : 0,
-    bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),
-    len     : 0,
-    timer   : null,
-};
 
 /***********************************************************
  *                 Serial Support Functions                *
@@ -119,7 +104,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
                         // No error; create serial port object
-                        addPort(openInfo.connectionId, sock, connMode, portPath, baudrate);
+                        addPort(openInfo.connectionId, sock, connMode, portPath, "", "", baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -272,120 +257,6 @@ chrome.serial.onReceiveError.addListener(function(info) {
     }
 //    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });
-
-function addPort(cid, socket, connMode, portPath, portBaudrate) {  //!!!  Need to add portName, iP, mAC (and life?)
-// Add new serial port record
-    let idx = findSocketIdx(socket);
-/*    if (idx = -1) {
-        log("Adding port at index " + ports.length, mDbug);
-    } else {
-        log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
-    }*/
-    ports.push({
-        connId    : cid,
-        path      : portPath,
-        name      : portName,
-        ip        : iP,
-        mac       : mAC,
-        life      : 0,           //!!!  Need to set to initial value
-        socket    : socket,
-        socketIdx : idx,
-        mode      : connMode,
-        baud      : portBaudrate,
-        packet    : {}
-    });
-    // Give it its own packet buffer
-    Object.assign(ports[ports.length-1].packet, serPacket);
-    // Point existing socket reference to new serial port record
-    if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
-}
-
-function updatePort(socket, cid, connMode, portBaudrate) {     //!!! Need to update
-// Update port attributes if necessary
-// Automatically handles special cases like baudrate changes and sockets<->ports links
-    return new Promise(function(resolve, reject) {
-        let cIdx = findPortIdx(cid);
-//        log("Updating port at index " + cIdx, mDbug);
-        if (cIdx > -1) {
-            //Update sockets<->ports links as necessary
-            let sIdx = (socket) ? findSocketIdx(socket) : -1;
-            if (ports[cIdx].socketIdx !== sIdx) {
-                // newSocket is different; update required
-//                log("  Linking to socket index " + sIdx, mDbug);
-                if (ports[cIdx].socketIdx !== -1) {
-                    // Adjust existing socket's record
-                    sockets[ports[cIdx].socketIdx].serialIdx = -1;
-                }
-                // Update port and socket records
-                ports[cIdx].socket = socket;
-                ports[cIdx].socketIdx = sIdx;
-                if (sIdx > -1) {
-                    sockets[sIdx].serialIdx = cIdx;
-                }
-            }
-            //Update connection mode
-            ports[cIdx].mode = connMode;
-            //Update baudrate
-            changeBaudrate(cid, portBaudrate)
-                .then(function (p) {resolve(p)})
-                .catch(function (e) {reject(e)});
-        }
-    })
-}
-
-function findPortId(portPath) {                                    //!!! Need to update
-    /* Return id (cid) of serial port associated with portPath
-     Returns null if not found*/
-    const port = findPort(portPath);
-    return port ? port.connId : null;
-}
-
-function findPortPath(id) {                                        //!!! Need to update
-    /* Return path of serial port associated with id
-     Returns null if not found*/
-    const port = findPort(id);
-    return port ? port.path : null;
-}
-
-function findPortIdx(id) {                                         //!!! Need to update
-    /* Return index of serial port associated with id
-     Returns -1 if not found*/
-    return ports.findIndex(function(p) {return p.connId === id});
-}
-
-function deletePort(id) {                                          //!!! Need to update
-// Delete serial port associated with id
-    let idx = 0;
-    while (idx < ports.length && ports[idx].connId !== id) {idx++}
-    if (idx < ports.length) {
-        if (ports[idx].socketIdx > -1) {
-            // Clear socket's knowledge of serial port record
-            sockets[ports[idx].socketIdx].serialIdx = -1;
-        }
-        // Delete port record and adjust socket's later references down, if any
-        ports.splice(idx, 1)
-        sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
-
-    }
-}
-
-function findPort(cidOrPath) {                                     //!!! Need to update
-    /* Return port record associated with cidOrPath.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
-     cidOrPath can be a numeric cid (Connection ID) or an alphanumeric path (serial port identifier)
-     Returns null record if not found*/
-    let cn = 0;
-    // Find port record based on scan function
-    function findConn(scan) {
-        while (cn < ports.length && !scan()) {cn++}
-        return cn < ports.length ? ports[cn] : null;
-    }
-    // Scan for connID or path
-    if (isNumber(cidOrPath)) {
-        return findConn(function() {return ports[cn].connId === cidOrPath})
-    } else {
-        return findConn(function() {return ports[cn].path === cidOrPath})
-    }
-}
 
 /***********************************************************
  *                     Support Functions                   *

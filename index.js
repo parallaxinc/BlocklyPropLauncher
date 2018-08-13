@@ -24,6 +24,10 @@ function $(id) {
   return document.getElementById(id);
 }
 
+// Programming metrics
+const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
+const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
+
 // Messaging types
 // These classify messages sent to log() to be routed to one or more destinations (browser dialog, app log, or app/browser console).
 // The intention is that such messages can be later filtered via options set in the app itself to make debugging easier.
