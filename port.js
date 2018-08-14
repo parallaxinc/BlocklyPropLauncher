@@ -41,7 +41,7 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
 /* Add new wired or wireless port record
    cid must be a unique identifier (wired serial port connection id or wireless MAC address)
    socket may be null or may be valid socket to associate with port
-   connMode is the current point of the connection; 'term', 'graph', 'programming'
+   connMode is the current point of the connection; 'debug', 'programming'
    portPath is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
    ip must be wireless ports IP address, or empty if wired
    portBaudrate is optional wired serial speed*/
@@ -59,7 +59,7 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
         life      : (!iP) ? 1 : 3,                                     /*Initial life value, 1 for wired, 3 for wireless*/
         socket    : socket,                                            /*Socket to browser*/
         socketIdx : idx,                                               /*Index of socket in sockets list*/
-        mode      : connMode,                                          /*The current point of the connection; 'term', 'graph', 'programming'*/
+        mode      : connMode,                                          /*The current point of the connection; 'debug', 'programming'*/
         baud      : portBaudrate,                                      /*Wired port's data rate*/
         packet    : {}                                                 /*Packet buffer for socket*/
     });
@@ -69,7 +69,7 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
     if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
 }
 
-function updatePort(socket, cid, connMode, portPath, portBaudrate) {
+function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
 // Update port attributes if necessary
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
@@ -96,6 +96,8 @@ function updatePort(socket, cid, connMode, portPath, portBaudrate) {
             ports[cIdx].mode = connMode;
             //Update port path (fabricates name if necessary)
             ports[cIdx].path = (!portPath && iP) ? makePortName(cid) : portPath;
+            //Update IP address
+            ports[cIdx].ip = iP;
             //Update baudrate
             changeBaudrate(cid, portBaudrate)
                 .then(function (p) {resolve(p)})

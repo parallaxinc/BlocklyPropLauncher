@@ -156,29 +156,38 @@ function display_modules() {
 // isn't removed from the list unless it hasn't been seen after multiple
 // discovery attempts
 document.addEventListener('DOMContentLoaded', function() {
-  var wx_info = {name:'', address:[]};
   chrome.sockets.udp.onReceive.addListener(function (sock_addr) {
-    var wx_info = JSON.parse(ab2str(sock_addr.data));
-    wx_info.address = (sock_addr.remoteAddress).split('.');
-    var w_id = (wx_info['mac address'].trim().toLowerCase()).split(':');
-    wx_info.id = 'wx-' + w_id[3] + w_id[4] + w_id[5];
-    wx_info.present = 3;
+      let ip = sock_addr.remoteAddress;
+      let wx_info = JSON.parse(ab2str(sock_addr.data));
+      let mac = wx_info['mac address'].trim().toLowerCase();
+
+      // Add its IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
+      disc_packet += ip_32bit(ip.split('.'));
+
+      if (!findPort(byID, mac)) {
+          addPort(mac, null, "", wx_info.name, ip, 0)
+      } else {
+          updatePort(mac, null, "", wx_info.name, ip, 0);
+      }
+
+//    wx_info.address = (sock_addr.remoteAddress).split('.');
+//    var w_id = (wx_info['mac address'].trim().toLowerCase()).split(':');
+//    wx_info.id = 'wx-' + w_id[3] + w_id[4] + w_id[5];
+//    wx_info.present = 3;
     
     //console.log(wx_modules);
     
-    var i = false;
-    for(v = 0; v < wx_modules.length; v++) {
-      if(wx_info.id === wx_modules[v].id) {
-        wx_modules[v].present = 3;
-        wx_modules[v].name = wx_info.name;
-        i = true;
-      }
-    }
-    if(!i) {
-      wx_modules.push(wx_info);
-    }
+//    var i = false;
+//    for(v = 0; v < wx_modules.length; v++) {
+//      if(wx_info.id === wx_modules[v].id) {
+//        wx_modules[v].present = 3;
+//        wx_modules[v].name = wx_info.name;
+//        i = true;
+//      }
+//    }
+//    if(!i) {
+//      wx_modules.push(wx_info);
+//    }
 
-    // Add its IP to the packet so it doesn't get rediscovered on every subsequent packet.
-    disc_packet += ip_32bit(wx_info['address']);
   });
 });

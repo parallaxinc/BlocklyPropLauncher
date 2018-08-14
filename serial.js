@@ -82,14 +82,14 @@ function openPort(sock, portPath, baudrate, connMode) {
    sock can be null to open serial port without an associated socket
    portPath is the string path to the wired serial port
    baudrate is optional; defaults to initialBaudrate
-   connMode is the current point of the connection; 'term', 'graph', 'programming'
+   connMode is the current point of the connection; 'debug', 'programming'
    Resolves with connection id (cid); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var cid = findPortId(portPath);
         if (cid) {
             //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-            updatePort(sock, cid, connMode, portPath, baudrate)
+            updatePort(cid, sock, connMode, portPath, "", baudrate)
                 .then(function() {resolve(cid)})
                 .catch(function (e) {reject(e)});
         } else {
