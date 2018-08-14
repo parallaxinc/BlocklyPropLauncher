@@ -99,9 +99,13 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
             //Update IP address
             ports[cIdx].ip = iP;
             //Update baudrate
-            changeBaudrate(cid, portBaudrate)
-                .then(function (p) {resolve(p)})
-                .catch(function (e) {reject(e)});
+            if (portBaudrate > 0) {
+                changeBaudrate(cid, portBaudrate)
+                    .then(function (p) {resolve(p)})
+                    .catch(function (e) {reject(e)});
+            } else {
+                resolve(p);
+            }
         }
     })
 }

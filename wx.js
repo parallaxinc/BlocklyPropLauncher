@@ -138,15 +138,18 @@ function remove_modules() {
   }
 }
 
-// Show available modules in the app UI
+// Show available Wi-Fi modules in the app UI
 function display_modules() {
   var wxl = '';
-  for(v = 0; v < wx_modules.length; v++) {
-    wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + wx_modules[v].id + 
-        '&nbsp;(<a style="text-decoration:none;" href="http://' + wx_modules[v].address.join('.') + 
-        '" target="_blank">' + wx_modules[v].address.join('.') + '</a>)&nbsp;<span class="wx-name">' + 
-        wx_modules[v].name.substr(0,20) + '</span><br>';
-  }
+  ports.forEach(function(p) {
+      if (p.ip) {
+          wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + makePortName(p.connId) +
+              '&nbsp;(<a style="text-decoration:none;" href="http://' + p.ip +
+              '" target="_blank">' + p.ip + '</a>)&nbsp;<span class="wx-name">' +
+              p.path.substr(0,20) + '</span><br>';
+      }
+  })
+
   $('wx-list').innerHTML = wxl;
 }
 
@@ -161,33 +164,14 @@ document.addEventListener('DOMContentLoaded', function() {
       let wx_info = JSON.parse(ab2str(sock_addr.data));
       let mac = wx_info['mac address'].trim().toLowerCase();
 
-      // Add its IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
+      // Add found Wi-Fi Module's IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
       disc_packet += ip_32bit(ip.split('.'));
 
+      // Add or update it's port record
       if (!findPort(byID, mac)) {
           addPort(mac, null, "", wx_info.name, ip, 0)
       } else {
           updatePort(mac, null, "", wx_info.name, ip, 0);
       }
-
-//    wx_info.address = (sock_addr.remoteAddress).split('.');
-//    var w_id = (wx_info['mac address'].trim().toLowerCase()).split(':');
-//    wx_info.id = 'wx-' + w_id[3] + w_id[4] + w_id[5];
-//    wx_info.present = 3;
-    
-    //console.log(wx_modules);
-    
-//    var i = false;
-//    for(v = 0; v < wx_modules.length; v++) {
-//      if(wx_info.id === wx_modules[v].id) {
-//        wx_modules[v].present = 3;
-//        wx_modules[v].name = wx_info.name;
-//        i = true;
-//      }
-//    }
-//    if(!i) {
-//      wx_modules.push(wx_info);
-//    }
-
   });
 });
