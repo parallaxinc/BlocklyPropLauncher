@@ -124,18 +124,12 @@ function discover_modules() {
   });
 }
 
-// Remove modules that haven't been seen for some time from the list (currently takes ~12 seconds)
-function remove_modules() {
-  var rm = [];
-  for(v = 0; v < wx_modules.length; v++) {
-    wx_modules[v].present--;
-    if(wx_modules[v].present < 0) {
-      rm.push(v);
-    }
-  }
-  for(v = 0; v < rm.length; v++) {
-    wx_modules.splice(rm[v], 1);
-  }
+// Age Wi-Fi modules and remove those that haven't been seen for some time from the list (currently takes ~12 seconds)
+function age_modules() {
+  ports.forEach(function(p) {
+    if (p.ip && !--p.life) deletePort(p.connId);
+//    log("Port " + p.path + " life " + p.life, mStat);
+  })
 }
 
 // Show available Wi-Fi modules in the app UI
@@ -149,7 +143,6 @@ function display_modules() {
               p.path.substr(0,20) + '</span><br>';
       }
   })
-
   $('wx-list').innerHTML = wxl;
 }
 

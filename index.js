@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if(wx_enabled) {
       wx_scanner_interval = setInterval(function() {
         discover_modules();
-        remove_modules();
+        age_modules();
         display_modules();
       }, 3500);
     } else {

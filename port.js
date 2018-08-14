@@ -19,6 +19,9 @@
 const byID = 0;
 const byPath = 1;
 
+// Wireless port max lifetime
+const wiFiLife = 3;
+
 // Container for attributes of connected ports (wired or wireless)
 var ports = [];
 
@@ -56,7 +59,7 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
         connId    : cid,                                               /*Holds wired serial port's connection id or wireless port's MAC address*/
         path      : (!portPath && iP) ? makePortName(cid) : portPath,  /*Wired port path or wireless port's name or fabricated name*/
         ip        : iP,                                                /*Wireless port's IP address*/
-        life      : (!iP) ? 1 : 3,                                     /*Initial life value, 1 for wired, 3 for wireless*/
+        life      : (!iP) ? 0 : wiFiLife,                              /*Initial life value, 1 for wired, 3 for wireless*/
         socket    : socket,                                            /*Socket to browser*/
         socketIdx : idx,                                               /*Index of socket in sockets list*/
         mode      : connMode,                                          /*The current point of the connection; 'debug', 'programming'*/
@@ -98,13 +101,13 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
             ports[cIdx].path = (!portPath && iP) ? makePortName(cid) : portPath;
             //Update IP address
             ports[cIdx].ip = iP;
+            //Reset life
+            if (iP) {ports[cIdx].life = wiFiLife;}
             //Update baudrate
             if (portBaudrate > 0) {
                 changeBaudrate(cid, portBaudrate)
                     .then(function (p) {resolve(p)})
                     .catch(function (e) {reject(e)});
-            } else {
-                resolve(p);
             }
         }
     })
