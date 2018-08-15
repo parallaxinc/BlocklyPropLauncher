@@ -19,8 +19,9 @@
 const byID = 0;
 const byPath = 1;
 
-// Wireless port max lifetime
-const wiFiLife = 3;
+// Port's max lifetime
+const wLife = 2;
+const wlLife = 3;
 
 // Container for attributes of connected ports (wired or wireless)
 var ports = [];
@@ -45,10 +46,13 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
    cid must be a unique identifier (wired serial port connection id or wireless MAC address)
    socket may be null or may be valid socket to associate with port
    connMode is the current point of the connection; 'debug', 'programming'
-   portPath is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
+   portPath (required) is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
    ip must be wireless ports IP address, or empty if wired
    portBaudrate is optional wired serial speed*/
-
+    if (!portPath) {
+        //No port path?  If wireless port, craft path from MAC (cid), else abort (return)
+        if (iP && cid) {portPath = makePortName(cid)} else {return}
+    }
     if ((cid && findPort(byID, cid)) || (findPort(byPath, portPath))) {
         // Exists already? Update it
         updatePort(cid, socket, connMode, portPath, iP, portBaudrate);
@@ -62,9 +66,9 @@ function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
          }*/
         ports.push({
             connId    : cid,                                               /*Holds wired serial port's connection id or wireless port's MAC address*/
-            path      : (!portPath && iP) ? makePortName(cid) : portPath,  /*Wired port path or wireless port's name or fabricated name*/
+            path      : portPath,                                          /*Wired port path, or wireless port's custom name, or fabricated name*/
             ip        : iP,                                                /*Wireless port's IP address*/
-            life      : (!iP) ? 0 : wiFiLife,                              /*Initial life value, 1 for wired, 3 for wireless*/
+            life      : (!iP) ? wLife : wlLife,                            /*Initial life value; wired and wireless*/
             socket    : socket,                                            /*Socket to browser*/
             socketIdx : idx,                                               /*Index of socket in sockets list*/
             mode      : connMode,                                          /*The current point of the connection; 'debug', 'programming'*/
@@ -82,6 +86,10 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
 // Update port attributes if necessary
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
+        if (!portPath) {
+            //No port path?  If wireless port, craft path from MAC (cid), else abort (reject)
+            if (iP && cid) {portPath = makePortName(cid)} else {reject("portPath required!"); return}
+        }
         let cIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
 //        log("Updating port at index " + cIdx, mDbug);
         if (cIdx > -1) {
@@ -101,14 +109,11 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
                     sockets[sIdx].serialIdx = cIdx;
                 }
             }
-            //Update connection mode
+            //Update other attributes
             ports[cIdx].mode = connMode;
-            //Update port path (fabricates name if necessary)
-            ports[cIdx].path = (!portPath && iP) ? makePortName(cid) : portPath;
-            //Update IP address
+            ports[cIdx].path = portPath;
             ports[cIdx].ip = iP;
-            //Reset life
-            if (iP) {ports[cIdx].life = wiFiLife;}
+            ports[cIdx].life = (!iP) ? wLife : wlLife;
             //Update baudrate
             if (portBaudrate > 0) {
                 changeBaudrate(cid, portBaudrate)

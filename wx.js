@@ -18,30 +18,29 @@
 // TODO Error checking/reporting, especially in socket functions
 // TODO Connect to the rest of the system - add to port list, add program loading functionality, add debugging functionality
 
-// Container for the active UDSP socket used for discovery broadcasts
+// Container for the active UDP socket used for discovery broadcasts
 var udp_sock;
 
 var tcp_sock;
 
-// Initial discovery packet.  4-bytes per module representing the module's IP
-// are appended as modules are found signaling to a module that it does not have
-// to re-respond.
+// Initial discovery packet.  4-bytes per module representing the module's IP are appended as Wi-Fi modules are found
+// signaling to a module that it does not have to re-respond.
 var disc_packet = '\0\0\0\0';
 
 // Holder for the interval for discovering modules
 var wx_scanner_interval = null;
 
+function calcBroadcastAddr(mip) {
 // Calculate a broadcast IP from a given address and subnet mask
-function calc_broadcast_addr(mip) {
   return ((parseInt(mip[0]) | (~parseInt($('sm-0').value))) & 0xFF).toString(10) + '.' +
          ((parseInt(mip[1]) | (~parseInt($('sm-1').value))) & 0xFF).toString(10) + '.' +
          ((parseInt(mip[2]) | (~parseInt($('sm-2').value))) & 0xFF).toString(10) + '.' +
          ((parseInt(mip[3]) | (~parseInt($('sm-3').value))) & 0xFF).toString(10);
 }
 
+function ip32bit(mip) {
 // convert an IP address to a single 32-bit (4-byte) chunk
-function ip_32bit(mip) {
-  return String.fromCharCode(parseInt(mip[0])) + 
+  return String.fromCharCode(parseInt(mip[0])) +
          String.fromCharCode(parseInt(mip[1])) + 
          String.fromCharCode(parseInt(mip[2])) + 
          String.fromCharCode(parseInt(mip[3]));
@@ -87,12 +86,12 @@ function loadPropWX(wxid, action, payload, debug) {
 }
 */
 
-// Determine the IP address of each available network connection
-// Send a discovery packet via UDP to a network's broadcast address
 // TODO add error handling
-function discover_modules() {  
+function discoverWirelessPorts() {
+// Determine the IP address of each available network connection
   var local_ip = [];
   var ni_result;
+  //Get network interfaces
   chrome.system.network.getNetworkInterfaces(function (ni_result){
     for (z = 0; z < ni_result.length; z++) {
       if (ni_result[z].address.replace(/\./g,'').length === ni_result[z].address.length - 3) {
@@ -100,12 +99,13 @@ function discover_modules() {
         local_ip.push(a);
       }
     }
+    // Send discovery packet(s) via UDP to each network's broadcast address
     var t_time = 0;
     for(var y = 0; y < local_ip.length; y++) {
       for(var t = 100; t < 450; t += 100) {
         setTimeout(function(b_to) {
           chrome.sockets.udp.send(udp_sock, str2ab(disc_packet), b_to, 32420, function (res) {});
-        }, t + (y + 1) * 350, calc_broadcast_addr(local_ip[y]));
+        }, t + (y + 1) * 350, calcBroadcastAddr(local_ip[y]));
         t_time = t + (y + 1) * 350 + 500;
       }
     }
@@ -113,16 +113,16 @@ function discover_modules() {
   });
 }
 
-// Age Wi-Fi modules and remove those that haven't been seen for some time from the list (currently takes ~12 seconds)
-function age_modules() {
+function ageWirelessPorts() {
+// Age Wi-Fi modules and remove those that haven't been seen for some time from the list
   ports.forEach(function(p) {
-    if (p.ip && !--p.life) deletePort(p.connId);
+    if (p.ip && !--p.life) deletePort(byID, p.connId);
 //    log("Port " + p.path + " life " + p.life, mStat);
   })
 }
 
+function displayWirelessPorts() {
 // Show available Wi-Fi modules in the app UI
-function display_modules() {
   var wxl = '';
   ports.forEach(function(p) {
       if (p.ip) {
@@ -135,20 +135,18 @@ function display_modules() {
   $('wx-list').innerHTML = wxl;
 }
 
-// UDP listener for discovering modules
-// When a module is discovered, it is either added to the list, or if already in
-// the list, it's "count" is reset.  The "count" serves to ensure that a module
-// isn't removed from the list unless it hasn't been seen after multiple
-// discovery attempts
 document.addEventListener('DOMContentLoaded', function() {
+/* UDP listener for discovering Wi-Fi modules
+   When a Wi-Fi module is discovered, it is added to the ports list, or updated (if already exists) by resetting it's life.
+   It's life value helps keep it in the list unless it hasn't been seen after multiple discovery attempts*/
   chrome.sockets.udp.onReceive.addListener(function (sock_addr) {
       let ip = sock_addr.remoteAddress;
       let wx_info = JSON.parse(ab2str(sock_addr.data));
       let mac = wx_info['mac address'].trim().toLowerCase();
 
       // Add found Wi-Fi Module's IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
-      disc_packet += ip_32bit(ip.split('.'));
-      // Add (or update) it's port record
-      addPort(mac, null, "", wx_info.name, ip, 0);
+      disc_packet += ip32bit(ip.split('.'));
+      // Add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
+      addPort(mac, null, "", wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), ip, 0);
   });
 });

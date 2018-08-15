@@ -127,7 +127,7 @@ function closePort(cid) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
                log("Closed port " + port.path + " (id " + cid + ")", mStat);
-               deletePort(cid);
+               deletePort(byID, cid);
            } else {
                log("Could not close port " + port.path + " (id " + cid + ")", mStat);
            }
@@ -201,6 +201,15 @@ function unPause(cid) {
     });
 }
 
+function ageWiredPorts() {
+// Age wired ports and remove those that haven't been seen for some time from the list
+    ports.forEach(function(p) {
+        if (!p.ip && !--p.life) deletePort(byPath, p.path);
+//        log("Port " + p.path + " life " + p.life, mStat);
+    })
+}
+
+
 //TODO Check send callback
 //TODO Promisify and return error object
 function send(cid, data) {
@@ -253,7 +262,7 @@ chrome.serial.onReceiveError.addListener(function(info) {
     switch (info.error) {
         case "disconnected":
         case "device_lost" :
-        case "system_error": deletePort(info.connectionId);
+        case "system_error": deletePort(byID, info.connectionId);
     }
 //    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
 });

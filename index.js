@@ -185,9 +185,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var wx_enabled = $('wx-allow').checked;
     if(wx_enabled) {
       wx_scanner_interval = setInterval(function() {
-        discover_modules();
-        age_modules();
-        display_modules();
+        discoverWirelessPorts();
+        ageWirelessPorts();
+        displayWirelessPorts();
       }, 3500);
     } else {
       if(wx_scanner_interval) {
@@ -423,25 +423,23 @@ function sendPortList() {
     function(portlist) {
       let wn = [];
       let wln = [];
-      // add/update wired ports
+      // update wired ports
       portlist.forEach(function(port) {
-        //todo: Set bt and bluetooth to look in description instead of path (probably won't work otherwise)
+        //TODO Set bt and bluetooth to look in description instead of path (probably won't work otherwise)
         if ((port.path.indexOf(portPattern[platform]) === 0) && (port.path.indexOf(' bt ') === -1 && port.path.indexOf('bluetooth') === -1)) {
           addPort(null, null, "", port.path, null, 0);
         }
       });
-      
-      // sort wired ports
-      wn.sort();
-      // get wireless ports
-      //TODO convert to .forEach?
-      for(v = 0; v < wx_modules.length; v++) {
-        // get module name without leading/trailing whitespace
-        let name = wx_modules[v].name.substr(0,32).replace(/(^\s+|\s+$)/g,'');
-        // add name (if not empty) or id
-        wln.push(name.length !== 0 ? name : wx_modules[v].id);
-      }
-      wln.sort();
+      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (scanned at different interval)
+
+      // gather separated and sorted ports lists (wired names and wireless names)
+      ports.forEach(function(p) {
+        if (!p.ip) {wn.push(p.path)} else {wln.push(p.path)}
+        wn.sort();
+        wln.sort();
+      });
+
+      // report back to editor
       var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
       for (var i = 0; i < sockets.length; i++) {
         sockets[i].socket.send(JSON.stringify(msg_to_send));
