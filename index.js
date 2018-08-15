@@ -425,8 +425,7 @@ function sendPortList() {
       let wln = [];
       // update wired ports
       portlist.forEach(function(port) {
-        //TODO Set bt and bluetooth to look in description instead of path (probably won't work otherwise)
-        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.path.indexOf(' bt ') === -1 && port.path.indexOf('bluetooth') === -1)) {
+        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
           addPort(null, null, "", port.path, null, 0);
         }
       });
