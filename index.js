@@ -277,7 +277,7 @@ function deleteSocket(socketOrIdx) {
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
 //  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
-    // Clear USB's knowledge of socket connection record
+    // Clear port's knowledge of socket connection record
     if (sockets[idx].serialIdx > -1) {
 //      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
       ports[sockets[idx].serialIdx].socket = null;
@@ -429,9 +429,9 @@ function sendPortList() {
           addPort(null, null, "", port.path, null, 0);
         }
       });
-      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (scanned at different interval)
+      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
 
-      // gather separated and sorted ports lists (wired names and wireless names)
+      // gather separated and sorted port lists (wired names and wireless names)
       ports.forEach(function(p) {
         if (!p.ip) {wn.push(p.path)} else {wln.push(p.path)}
         wn.sort();

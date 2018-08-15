@@ -87,33 +87,34 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
 // Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
         if (!portPath) {
-            //No port path?  If wireless port, craft path from MAC (cid), else abort (reject)
+            // No port path?  If wireless port, craft path from MAC (cid), else abort (reject)
             if (iP && cid) {portPath = makePortName(cid)} else {reject("portPath required!"); return}
         }
-        let cIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
-//        log("Updating port at index " + cIdx, mDbug);
-        if (cIdx > -1) {
-            //Update sockets<->ports links as necessary
+        let pIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
+//        log("Updating port at index " + pIdx, mDbug);
+        if (pIdx > -1) {
+            // Update most attributes
+            ports[pIdx].connId = cid;
+            ports[pIdx].path = portPath;
+            ports[pIdx].ip = iP;
+            ports[pIdx].life = (!iP) ? wLife : wlLife;
+            ports[pIdx].mode = connMode;
+            // Update sockets<->ports links as necessary
             let sIdx = (socket) ? findSocketIdx(socket) : -1;
-            if (ports[cIdx].socketIdx !== sIdx) {
+            if (ports[pIdx].socketIdx !== sIdx) {
                 // newSocket is different; update required
 //                log("  Linking to socket index " + sIdx, mDbug);
-                if (ports[cIdx].socketIdx !== -1) {
+                if (ports[pIdx].socketIdx !== -1) {
                     // Adjust existing socket's record
-                    sockets[ports[cIdx].socketIdx].serialIdx = -1;
+                    sockets[ports[pIdx].socketIdx].serialIdx = -1;
                 }
                 // Update port and socket records
-                ports[cIdx].socket = socket;
-                ports[cIdx].socketIdx = sIdx;
+                ports[pIdx].socket = socket;
+                ports[pIdx].socketIdx = sIdx;
                 if (sIdx > -1) {
-                    sockets[sIdx].serialIdx = cIdx;
+                    sockets[sIdx].serialIdx = pIdx;
                 }
             }
-            //Update other attributes
-            ports[cIdx].mode = connMode;
-            ports[cIdx].path = portPath;
-            ports[cIdx].ip = iP;
-            ports[cIdx].life = (!iP) ? wLife : wlLife;
             //Update baudrate
             if (portBaudrate > 0) {
                 changeBaudrate(cid, portBaudrate)

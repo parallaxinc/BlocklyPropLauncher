@@ -103,8 +103,8 @@ function openPort(sock, portPath, baudrate, connMode) {
                 },
                 function (openInfo) {
                     if (!chrome.runtime.lastError) {
-                        // No error; create serial port object
-                        addPort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
+                        // No error; update serial port object
+                        updatePort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
                         log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                         resolve(openInfo.connectionId);
                     } else {
@@ -127,7 +127,8 @@ function closePort(cid) {
        chrome.serial.disconnect(cid, function (closeResult) {
            if (closeResult) {
                log("Closed port " + port.path + " (id " + cid + ")", mStat);
-               deletePort(byID, cid);
+               // Clear cid to indicate port is closed
+               updatePort(null, port.socket, port.connMode, port.path, port.iP, port.baud);
            } else {
                log("Could not close port " + port.path + " (id " + cid + ")", mStat);
            }
