@@ -31,9 +31,6 @@ var disc_packet = '\0\0\0\0';
 // Holder for the interval for discovering modules
 var wx_scanner_interval = null;
 
-// This is where the info about each module is stored
-var wx_modules = [];
-
 // Calculate a broadcast IP from a given address and subnet mask
 function calc_broadcast_addr(mip) {
   return ((parseInt(mip[0]) | (~parseInt($('sm-0').value))) & 0xFF).toString(10) + '.' +
@@ -67,14 +64,6 @@ chrome.sockets.tcp.create(function (s_info) {
   chrome.sockets.tcp.setKeepAlive(tcp_sock, true, function (res) {});
 });
 */
-
-function findIpByWXid(wxid) {
-  for(v = 0; v < wx_modules.length; v++) {
-    if(wx_modules.id === wxid) {
-      return wx_modules[v].address.join('.');
-    }
-  }
-}
 
 /*
 // NOT FUNCTIONAL!!!!!
@@ -159,12 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Add found Wi-Fi Module's IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
       disc_packet += ip_32bit(ip.split('.'));
-
-      // Add or update it's port record
-      if (!findPort(byID, mac)) {
-          addPort(mac, null, "", wx_info.name, ip, 0)
-      } else {
-          updatePort(mac, null, "", wx_info.name, ip, 0);
-      }
+      // Add (or update) it's port record
+      addPort(mac, null, "", wx_info.name, ip, 0);
   });
 });

@@ -418,17 +418,19 @@ function connect_ws(ws_port, url_path) {
 
 
 function sendPortList() {
-// find and send list of serial devices (filtered according to platform and type)
+// find and send list of communication ports (filtered according to platform and type)
   chrome.serial.getDevices(
     function(portlist) {
       let wn = [];
       let wln = [];
-      // get wired ports
-        portlist.forEach(function(port) {
+      // add/update wired ports
+      portlist.forEach(function(port) {
+        //todo: Set bt and bluetooth to look in description instead of path (probably won't work otherwise)
         if ((port.path.indexOf(portPattern[platform]) === 0) && (port.path.indexOf(' bt ') === -1 && port.path.indexOf('bluetooth') === -1)) {
-          wn.push(port.path);
+          addPort(null, null, "", port.path, null, 0);
         }
       });
+      
       // sort wired ports
       wn.sort();
       // get wireless ports
