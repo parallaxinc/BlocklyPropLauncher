@@ -41,50 +41,46 @@ function makePortName(cid) {
     return 'wx-' + cid.substr(9,16).replace(/\:/g,'');
 }
 
-function addPort(cid, socket, connMode, portPath, iP, portBaudrate) {
+function addPort(cid, portPath, iP) {
 /* Add new wired or wireless port record (automatically updates existing port if necessary)
+   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address
+   portPath [required unless cid & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
+   iP [optional ("")] is the wireless port's IP address; empty ("") if wired*/
+    if (!portPath) {
+        //No port path?  If wireless port, craft path from MAC (cid), else abort (return)
+        if (iP && cid) {portPath = makePortName(cid)} else {return}
+    }
+    // Look for existing port
+    let port = (cid) ? findPort(byID, cid) : findPort(byPath, portPath);
+    if (port) {
+        // Exists already? Update it's (portPath or iP)
+        updatePort(port.connId, port.socket, port.mode, portPath, iP, port.baud);
+    } else {
+        // else, add it
+        ports.push({
+            connId    : cid,                         /*[null+] Holds wired serial port's connection id (if open), null (if closed), or wireless port's MAC address*/
+            path      : portPath,                    /*[<>""]  Wired port path, or wireless port's custom name, or fabricated name; never empty*/
+            ip        : iP,                          /*[""+]   Wireless port's IP address; */
+            life      : (!iP) ? wLife : wlLife,      /*[>=0]   Initial life value; wired and wireless*/
+            socket    : null,                        /*[null+] Socket to browser*/
+            socketIdx : -1,                          /*[>=-1]  Index of socket in sockets list*/
+            mode      : "",                          /*[""+]   Intention of the connection; '', 'debug', or 'programming'*/
+            baud      : 0,                           /*[>=0]   Wired port's data rate*/
+            packet    : {}                           /*Packet buffer for socket*/
+        });
+        // Give it its own packet buffer
+        Object.assign(ports[ports.length-1].packet, serPacket);
+    }
+}
+
+function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
+/* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
    cid must be a unique identifier (wired serial port connection id or wireless MAC address)
    socket may be null or may be valid socket to associate with port
    connMode is the current point of the connection; 'debug', 'programming'
    portPath (required) is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
    ip must be wireless ports IP address, or empty if wired
    portBaudrate is optional wired serial speed*/
-    if (!portPath) {
-        //No port path?  If wireless port, craft path from MAC (cid), else abort (return)
-        if (iP && cid) {portPath = makePortName(cid)} else {return}
-    }
-    if ((cid && findPort(byID, cid)) || (findPort(byPath, portPath))) {
-        // Exists already? Update it
-        updatePort(cid, socket, connMode, portPath, iP, portBaudrate);
-    } else {
-        // else, add it
-        let idx = findSocketIdx(socket);
-        /*    if (idx = -1) {
-         log("Adding port at index " + ports.length, mDbug);
-         } else {
-         log("Adding port at index " + sockets.length + " referencing socket at index " + idx, mDbug);
-         }*/
-        ports.push({
-            connId    : cid,                                               /*Holds wired serial port's connection id or wireless port's MAC address*/
-            path      : portPath,                                          /*Wired port path, or wireless port's custom name, or fabricated name*/
-            ip        : iP,                                                /*Wireless port's IP address*/
-            life      : (!iP) ? wLife : wlLife,                            /*Initial life value; wired and wireless*/
-            socket    : socket,                                            /*Socket to browser*/
-            socketIdx : idx,                                               /*Index of socket in sockets list*/
-            mode      : connMode,                                          /*The current point of the connection; 'debug', 'programming'*/
-            baud      : portBaudrate,                                      /*Wired port's data rate*/
-            packet    : {}                                                 /*Packet buffer for socket*/
-        });
-        // Give it its own packet buffer
-        Object.assign(ports[ports.length-1].packet, serPacket);
-        // Point existing socket reference to new serial port record
-        if (idx > -1) {sockets[idx].serialIdx = ports.length-1}
-    }
-}
-
-function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
-// Update port attributes if necessary
-// Automatically handles special cases like baudrate changes and sockets<->ports links
     return new Promise(function(resolve, reject) {
         if (!portPath) {
             // No port path?  If wireless port, craft path from MAC (cid), else abort (reject)

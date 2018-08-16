@@ -426,7 +426,7 @@ function sendPortList() {
       // update wired ports
       portlist.forEach(function(port) {
         if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
-          addPort(null, null, "", port.path, null, 0);
+          addPort(null, port.path, "");
         }
       });
       ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
