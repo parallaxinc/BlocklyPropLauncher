@@ -42,9 +42,10 @@ function makePortName(cid) {
 }
 
 function addPort(cid, portPath, iP) {
-/* Add new wired or wireless port record (automatically updates existing port if necessary)
-   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address
-   portPath [required unless cid & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
+/* Add new wired or wireless port record (automatically updates existing port if necessary).
+   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address.
+   portPath [required unless cid (mac) & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is
+   fabricated from cid (MAC address)
    iP [optional ("")] is the wireless port's IP address; empty ("") if wired*/
     if (!portPath) {
         //No port path?  If wireless port, craft path from MAC (cid), else abort (return)
@@ -57,6 +58,7 @@ function addPort(cid, portPath, iP) {
         updatePort(port.connId, port.socket, port.mode, portPath, iP, port.baud);
     } else {
         // else, add it
+        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
         ports.push({
             connId    : cid,                         /*[null+] Holds wired serial port's connection id (if open), null (if closed), or wireless port's MAC address*/
             path      : portPath,                    /*[<>""]  Wired port path, or wireless port's custom name, or fabricated name; never empty*/
@@ -75,19 +77,23 @@ function addPort(cid, portPath, iP) {
 
 function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
 /* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
-   cid must be a unique identifier (wired serial port connection id or wireless MAC address)
+   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address
    socket may be null or may be valid socket to associate with port
    connMode is the current point of the connection; 'debug', 'programming'
-   portPath (required) is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is fabricated from cid (MAC address)
-   ip must be wireless ports IP address, or empty if wired
+   portPath [required unless cid (mac) & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is
+   fabricated from cid (MAC address).
+   iP [optional ("")] is the wireless port's IP address; empty ("") if wired
    portBaudrate is optional wired serial speed*/
     return new Promise(function(resolve, reject) {
         if (!portPath) {
             // No port path?  If wireless port, craft path from MAC (cid), else abort (reject)
             if (iP && cid) {portPath = makePortName(cid)} else {reject("portPath required!"); return}
         }
+        // Find port record by cid (if non-null) or portPath.  If non-null cid finds no match, it's an updated cid; we'll match by portPath instead.
+        // This is important because cid and portPath can be a mix of new, existing, or newly null/empty, but not simultaneously new or null/empty.
         let pIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
-//        log("Updating port at index " + pIdx, mDbug);
+        if (pIdx = -1) {pIdx = findPortIdx(byPath, portPath)}
+        log("Updating port (" + cid + ", " + socket + ", " + connMode + ", " + portPath + ", " + iP + ", " + portBaudrate + ')', mDbug);
         if (pIdx > -1) {
             // Update most attributes
             ports[pIdx].connId = cid;
@@ -149,6 +155,7 @@ function deletePort(type, clue) {
 // Delete wired or wireless port associated with clue
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
+        log("Deleting port: " + ports[idx].path, mDbug);
         if (ports[idx].socketIdx > -1) {
             // Clear socket's knowledge of wired or wireless port record
             sockets[ports[idx].socketIdx].serialIdx = -1;

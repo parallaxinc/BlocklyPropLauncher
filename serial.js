@@ -206,7 +206,6 @@ function ageWiredPorts() {
 // Age wired ports and remove those that haven't been seen for some time from the list
     ports.forEach(function(p) {
         if (!p.ip && !--p.life) deletePort(byPath, p.path);
-//        log("Port " + p.path + " life " + p.life, mStat);
     })
 }
 

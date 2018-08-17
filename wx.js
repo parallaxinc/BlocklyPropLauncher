@@ -117,7 +117,6 @@ function ageWirelessPorts() {
 // Age Wi-Fi modules and remove those that haven't been seen for some time from the list
   ports.forEach(function(p) {
     if (p.ip && !--p.life) deletePort(byID, p.connId);
-//    log("Port " + p.path + " life " + p.life, mStat);
   })
 }
 
