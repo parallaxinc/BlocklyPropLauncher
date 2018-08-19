@@ -18,10 +18,13 @@
 // TODO Error checking/reporting, especially in socket functions
 // TODO Connect to the rest of the system - add to port list, add program loading functionality, add debugging functionality
 
+// Wi-Fi Module Firmware Versions Supported
+WXVer = ["v1.0"];
+
 // Container for the active UDP socket used for discovery broadcasts
 var udp_sock;
 
-var tcp_sock;
+//!!! var tcp_sock;
 
 // Initial discovery packet.  4-bytes per module representing the module's IP are appended as Wi-Fi modules are found
 // signaling to a module that it does not have to re-respond.
@@ -123,7 +126,7 @@ function formatResponse(response) {
 /*Return response formatted as an object of multiple elements (lines), each element's content is split into notable values, often key/value pairs*/
     //Lowercase all, split lines, then split headers from values, then split status line components (protocol/version, response code, response text)
     response = response.toLowerCase().split("\r\n");
-    response.forEach(function(l,i) {this[i] = l.split(": ")},response);
+    response.forEach(function(l,i, r) {r[i] = l.split(": ")});
     if (response.length) {response[0] = response[0].toString().split(" ")}
     return response;
 }
@@ -151,14 +154,15 @@ function isValidWiFiVersion(response) {
     if ((idx > -1) && (response.length > idx+2)) {
         let version = response[idx+2].toString().split(" ");
         if (version.length > 3) {
-            if ((version[0] === "v1.0") &&
-                (version[1].slice(0,1) === '(') && (version[1].toString().some(function(c) {c === '-'})) &&
-                (version[2].toString().some(function(c) {c === ':'})) &&
+            if ((WXVer.some(function(v) {return version[0] === v})) &&
+                (version[1].slice(0,1) === '(') && (version[1].includes('-')) &&
+                (version[2].includes(':')) &&
                 (version[3].slice(-1) === ')')) {
                 valid = true;
             }
         }
     }
+    return valid;
 }
 
 /*
