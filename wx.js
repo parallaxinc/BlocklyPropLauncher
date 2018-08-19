@@ -132,7 +132,8 @@ function formatResponse(response) {
 }
 
 function isWiFiModule(response) {
-/*Returns true if response is from a recognized Wi-Fi Module type*/
+/*Returns true if response is from a recognized Wi-Fi Module type.
+  Must formatResponse() first.*/
     let valid = false;
     if (response.length > 1) {
         if (response[0].length > 1) {
@@ -149,6 +150,9 @@ function isWiFiModule(response) {
 }
 
 function isValidWiFiVersion(response) {
+/*Returns true if Wi-Fi Module is running a recognized version of firmware
+ Must formatResponse() first.*/
+
     let valid = false;
     let idx = response.findIndex(function(item) {return item[0] === "content-length"})
     if ((idx > -1) && (response.length > idx+2)) {
@@ -163,6 +167,16 @@ function isValidWiFiVersion(response) {
         }
     }
     return valid;
+}
+
+function getResultCode(response) {
+/* Return result code.
+   Returns 204 (No Content) if code not found.*/
+    if ((response.length) && (response[0].length > 1)) {
+        return parseInt(response[0][1], 10);
+    } else {
+        return 204; //Error: No Content
+    }
 }
 
 /*
@@ -180,25 +194,38 @@ function isValidWiFiVersion(response) {
      chrome.sockets.tcp.create(function (s_info) {
 
          let tcp_sock = s_info.socketId;
+         let cleanup = false;
 
          function httpResponse(info) {
-//             log(String.fromCharCode.apply(null, new Uint8Array(info.data)), mDbug);
+             log(String.fromCharCode.apply(null, new Uint8Array(info.data)), mDbug);
              let result = formatResponse(String.fromCharCode.apply(null, new Uint8Array(info.data)));
-             if (isWiFiModule(result) && isValidWiFiVersion(result)) {log("Success!", mDbug)} else {log("Failure!", mDbug)}
-
-
-             chrome.sockets.tcp.disconnect(tcp_sock);
-             chrome.sockets.tcp.onReceive.removeListener(httpResponse);
+             if (isWiFiModule(result) && isValidWiFiVersion(result)) {
+                 log("Success!", mDbug);
+                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 4\r\n\r\n1234";
+                 chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
+             } else {
+                 log("Failure!", mDbug);
+                 cleanup = true;
+             }
+             if (cleanup) {
+                 chrome.sockets.tcp.disconnect(tcp_sock);
+                 chrome.sockets.tcp.onReceive.removeListener(httpResponse);
+             }
          };
 
          chrome.sockets.tcp.onReceive.addListener(httpResponse);
 
          log("getting...", mDbug);
 
-         chrome.sockets.tcp.connect(tcp_sock, "192.168.1.103", 80, function () {
-             var postStr = "GET /wx/setting?name=version HTTP/1.1\r\n\r\n";
-             chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function () {
-             });
+         chrome.sockets.tcp.connect(tcp_sock, "192.168.1.103", 80, function() {
+             chrome.sockets.tcp.setKeepAlive(tcp_sock, true, 0, function(res) {log("Keep alive: " + res, mDbug)});
+
+//             var getStr = "GET /wx/setting?name=version HTTP/1.1\r\n\r\n";
+//             chrome.sockets.tcp.send(tcp_sock, str2ab(getStr), function() {});
+
+             var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 4\r\n\r\n1234";
+             chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
+
          });
      });
  }
