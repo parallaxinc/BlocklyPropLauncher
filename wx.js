@@ -55,37 +55,6 @@ chrome.sockets.udp.create(function (s_info) {
   });
 });
 
-/*
-// Possibly unecessary?  Maybe able to use another open socket?  
-// Or should we didicate one to the WX module?
-chrome.sockets.tcp.create(function (s_info) {
-  tcp_sock = s_info.socketId;
-  chrome.sockets.tcp.setKeepAlive(tcp_sock, true, function (res) {});
-});
-*/
-
-/*
-// NOT FUNCTIONAL!!!!!
-function loadPropWX(wxid, action, payload, debug) {
-  chrome.sockets.tcp.connect(tcp_sock, findIpByWXid(wxid), 80, function() {
-    if (payload) {
-        //Extract Propeller Application from payload
-        var binImage = parseFile(payload);
-        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
-    } else {
-        var binImage = buffer2ArrayBuffer(bin);
-    }
-    
-    var postStr = "POST /propeller/load?baud-rate=115200 HTTP/1.1\r\nContent-Length: " + binImage.byteLength  + "\r\n\r\n";
-    
-    chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {
-      chrome.sockets.tcp.send(tcp_sock, binImage, function() {
-      });
-    });
-  });
-}
-*/
-
 // TODO add error handling
 function discoverWirelessPorts() {
 // Determine the IP address of each available network connection
@@ -149,3 +118,103 @@ document.addEventListener('DOMContentLoaded', function() {
       addPort(mac, wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), ip);
   });
 });
+
+function formatResponse(response) {
+/*Return response formatted as an object of multiple elements (lines), each element's content is split into notable values, often key/value pairs*/
+    //Lowercase all, split lines, then split headers from values, then split status line components (protocol/version, response code, response text)
+    response = response.toLowerCase().split("\r\n");
+    response.forEach(function(l,i) {this[i] = l.split(": ")},response);
+    if (response.length) {response[0] = response[0].toString().split(" ")}
+    return response;
+}
+
+function isWiFiModule(response) {
+/*Returns true if response is from a recognized Wi-Fi Module type*/
+    let valid = false;
+    if (response.length > 1) {
+        if (response[0].length > 1) {
+            if (response[0][0] === "http/1.1") {
+                if (response[1].length > 1) {
+                    if ((response[1][0] === "server") & response[1][1].indexOf("esp8266-httpd/") === 0) {
+                        valid = true;
+                    }
+                }
+            }
+        }
+    }
+    return valid;
+}
+
+function isValidWiFiVersion(response) {
+    let valid = false;
+    let idx = response.findIndex(function(item) {return item[0] === "content-length"})
+    if ((idx > -1) && (response.length > idx+2)) {
+        let version = response[idx+2].toString().split(" ");
+        if (version.length > 3) {
+            if ((version[0] === "v1.0") &&
+                (version[1].slice(0,1) === '(') && (version[1].toString().some(function(c) {c === '-'})) &&
+                (version[2].toString().some(function(c) {c === ':'})) &&
+                (version[3].slice(-1) === ')')) {
+                valid = true;
+            }
+        }
+    }
+}
+
+/*
+ // Possibly unecessary?  Maybe able to use another open socket?
+ // Or should we didicate one to the WX module?
+ chrome.sockets.tcp.create(function (s_info) {
+ tcp_sock = s_info.socketId;
+ chrome.sockets.tcp.setKeepAlive(tcp_sock, true, function (res) {});
+ });
+ */
+
+
+ function loadPropellerWX(port, action, payload, debug) {
+
+     chrome.sockets.tcp.create(function (s_info) {
+
+         let tcp_sock = s_info.socketId;
+
+         function httpResponse(info) {
+//             log(String.fromCharCode.apply(null, new Uint8Array(info.data)), mDbug);
+             let result = formatResponse(String.fromCharCode.apply(null, new Uint8Array(info.data)));
+             if (isWiFiModule(result) && isValidWiFiVersion(result)) {log("Success!", mDbug)} else {log("Failure!", mDbug)}
+
+
+             chrome.sockets.tcp.disconnect(tcp_sock);
+             chrome.sockets.tcp.onReceive.removeListener(httpResponse);
+         };
+
+         chrome.sockets.tcp.onReceive.addListener(httpResponse);
+
+         log("getting...", mDbug);
+
+         chrome.sockets.tcp.connect(tcp_sock, "192.168.1.103", 80, function () {
+             var postStr = "GET /wx/setting?name=version HTTP/1.1\r\n\r\n";
+             chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function () {
+             });
+         });
+     });
+ }
+
+     /*
+     chrome.sockets.tcp.connect(tcp_sock, findIpByWXid(wxid), 80, function() {
+ if (payload) {
+ //Extract Propeller Application from payload
+ var binImage = parseFile(payload);
+ if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
+ } else {
+ var binImage = buffer2ArrayBuffer(bin);
+ }
+
+ var postStr = "POST /propeller/load?baud-rate=115200 HTTP/1.1\r\nContent-Length: " + binImage.byteLength  + "\r\n\r\n";
+
+ chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {
+ chrome.sockets.tcp.send(tcp_sock, binImage, function() {
+ });
+ });
+ });
+ }
+ */

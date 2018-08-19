@@ -58,7 +58,7 @@ function addPort(cid, portPath, iP) {
         updatePort(port.connId, port.socket, port.mode, portPath, iP, port.baud);
     } else {
         // else, add it
-        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
+//!!!        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
         ports.push({
             connId    : cid,                         /*[null+] Holds wired serial port's connection id (if open), null (if closed), or wireless port's MAC address*/
             path      : portPath,                    /*[<>""]  Wired port path, or wireless port's custom name, or fabricated name; never empty*/
@@ -93,7 +93,7 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
         // This is important because cid and portPath can be a mix of new, existing, or newly null/empty, but not simultaneously new or null/empty.
         let pIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
         if (pIdx = -1) {pIdx = findPortIdx(byPath, portPath)}
-        log("Updating port (" + cid + ", " + socket + ", " + connMode + ", " + portPath + ", " + iP + ", " + portBaudrate + ')', mDbug);
+//!!!        log("Updating port (" + cid + ", " + socket + ", " + connMode + ", " + portPath + ", " + iP + ", " + portBaudrate + ')', mDbug);
         if (pIdx > -1) {
             // Update most attributes
             ports[pIdx].connId = cid;
@@ -151,21 +151,6 @@ function findPortIdx(type, clue) {
     }
 }
 
-function deletePort(type, clue) {
-// Delete wired or wireless port associated with clue
-    let idx = findPortIdx(type, clue);
-    if (idx > -1) {
-        log("Deleting port: " + ports[idx].path, mDbug);
-        if (ports[idx].socketIdx > -1) {
-            // Clear socket's knowledge of wired or wireless port record
-            sockets[ports[idx].socketIdx].serialIdx = -1;
-        }
-        // Delete port record and adjust socket's later references down, if any
-        ports.splice(idx, 1)
-        sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
-    }
-}
-
 function findPort(type, clue) {
     /* Return port record associated with clue.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
      type must be byID or byPath
@@ -184,4 +169,31 @@ function findPort(type, clue) {
     } else {
         return findConn(function() {return ports[cn].path === clue})
     }
+}
+
+function deletePort(type, clue) {
+// Delete wired or wireless port associated with clue
+    let idx = findPortIdx(type, clue);
+    if (idx > -1) {
+        log("Deleting port: " + ports[idx].path, mDbug);
+        if (ports[idx].socketIdx > -1) {
+            // Clear socket's knowledge of wired or wireless port record
+            sockets[ports[idx].socketIdx].serialIdx = -1;
+        }
+        // Delete port record and adjust socket's later references down, if any
+        ports.splice(idx, 1)
+        sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
+    }
+}
+
+function isWiredPort(path) {
+// Returns true if path is a known wired port, false otherwise.
+    let port = findPort(byPath, path);
+    return port && !port.ip;
+}
+
+function isWirelessPort(path) {
+// Returns true if path is a known wireless port, false otherwise.
+    let port = findPort(byPath, path);
+    return port && port.ip;
 }

@@ -326,12 +326,10 @@ function connect_ws(ws_port, url_path) {
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Received Propeller Application for ' + ws_msg.action);
-            if((ws_msg.portPath).indexOf('wx-') !== 0) {
+            if (isWiredPort(ws_msg.portPath)) {
               setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-//              var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
-//              socket.send(JSON.stringify(msg_to_send));
-            } else {
-              // TODO add function to load Propeller using WX/TCP function
+            } else if (isWirelessPort(ws_msg.portPath)) {
+              setTimeout(function() {loadPropellerWX(ws_msg.portPath, null, null, null)}, 10);
             }
 
               // open or close the serial port for terminal/debug
