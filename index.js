@@ -330,6 +330,8 @@ function connect_ws(ws_port, url_path) {
               setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
             } else if (isWirelessPort(ws_msg.portPath)) {
               setTimeout(function() {loadPropellerWX(ws_msg.portPath, null, null, null)}, 10);
+            } else {
+              //TODO Display error; port ws_msg.portPath not found
             }
 
               // open or close the serial port for terminal/debug
