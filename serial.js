@@ -3494,7 +3494,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
             txView.set(timingPulses, txLength + encodedLoader.byteLength);
         } else /*loaderType === ltCore*/ {
             //[ltUnEncCore] Prepare unencoded loader packet (for wireless downloads)
-            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
+            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
 
             txData = new ArrayBuffer(postStr.byteLength+patchedLoader.byteLength);
             txView = new Uint8Array(txData);

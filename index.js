@@ -118,6 +118,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  if ($('wx-allow').checked) {
+    enableWX();
+  }
+
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
@@ -184,16 +188,9 @@ document.addEventListener('DOMContentLoaded', function() {
   $('wx-allow').onclick = function() {
     var wx_enabled = $('wx-allow').checked;
     if(wx_enabled) {
-      wx_scanner_interval = setInterval(function() {
-        discoverWirelessPorts();
-        ageWirelessPorts();
-        displayWirelessPorts();
-      }, 3500);
+      enableWX();
     } else {
-      if(wx_scanner_interval) {
-        clearInterval(wx_scanner_interval);
-        $('wx-list').innerHTML = '';
-      }
+      disableWX();
     }
   };
 
@@ -416,6 +413,20 @@ function connect_ws(ws_port, url_path) {
   //});
 }
 
+function enableWX() {
+    wx_scanner_interval = setInterval(function() {
+        discoverWirelessPorts();
+        ageWirelessPorts();
+        displayWirelessPorts();
+    }, 3500);
+}
+
+function disableWX() {
+    if(wx_scanner_interval) {
+        clearInterval(wx_scanner_interval);
+        $('wx-list').innerHTML = '';
+    }
+}
 
 function sendPortList() {
 // find and send list of communication ports (filtered according to platform and type)
