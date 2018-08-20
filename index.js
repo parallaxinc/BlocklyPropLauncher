@@ -64,7 +64,7 @@ function log(text = "", type = mStat, socket = null) {
           socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
       }
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
-      if (type & mdConsole) {console.log(Date.now() + ': ' + text)}
+      if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
   }
 }
 
