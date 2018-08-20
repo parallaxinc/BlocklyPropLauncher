@@ -227,12 +227,12 @@ function getResultCode(response) {
 //             chrome.sockets.tcp.send(tcp_sock, str2ab(getStr), function() {});
 
                  //Generate loader package (in txData)
-//             let packetId = 1; //!!!
-//             generateLoaderPacket(ltUnEncCore, packetId, defaultClockSpeed, defaultClockMode);
-//             chrome.sockets.tcp.send(tcp_sock, txData, function() {});
+             let packetId = 1; //!!!
+             generateLoaderPacket(ltUnEncCore, packetId, defaultClockSpeed, defaultClockMode);
+             chrome.sockets.tcp.send(tcp_sock, txData, function() {});
 
-                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 48\r\n\r\n\x00\xB4\xC4\x04\x6F\x61\x10\x00\x30\x00\x38\x00\x18\x00\x3C\x00\x20\x00\x02\x00\x08\x00\x00\x00\x38\x1A\x3D\xD6\x1C\x38\x1A\x3D\xD4\x47\x35\xC0\x37\x00\xF6\x3F\x91\xEC\x23\x04\x70\x32\x00\x00";
-                 chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
+//                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 48\r\n\r\n\x00\xB4\xC4\x04\x6F\x61\x10\x00\x30\x00\x38\x00\x18\x00\x3C\x00\x20\x00\x02\x00\x08\x00\x00\x00\x38\x1A\x3D\xD6\x1C\x38\x1A\x3D\xD4\x47\x35\xC0\x37\x00\xF6\x3F\x91\xEC\x23\x04\x70\x32\x00\x00";
+//                 chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
 
              });
          }

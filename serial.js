@@ -3498,7 +3498,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 
             txData = new ArrayBuffer(postStr.byteLength+patchedLoader.byteLength);
             txView = new Uint8Array(txData);
-            txView.set(postStr, 0);
+            txView.set(new Uint8Array(postStr), 0);
             txView.set(patchedLoader, postStr.byteLength);
         }
     } else {
