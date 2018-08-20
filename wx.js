@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let wx_info = JSON.parse(ab2str(sock_addr.data));
       let mac = wx_info['mac address'].trim().toLowerCase();
 
-      // Add found Wi-Fi Module's IP to the packet to prevent reqponses to subsequent packets.    //!!! Need to reconsider this global operation
+      // Add found Wi-Fi Module's IP to the packet to prevent responses to subsequent packets.    //!!! Need to reconsider this global operation
       disc_packet += ip32bit(ip.split('.'));
       // Add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
       addPort(mac, wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), ip);
@@ -139,7 +139,7 @@ function isWiFiModule(response) {
         if (response[0].length > 1) {
             if (response[0][0] === "http/1.1") {
                 if (response[1].length > 1) {
-                    if ((response[1][0] === "server") & response[1][1].indexOf("esp8266-httpd/") === 0) {
+                    if ((response[1][0] === "server") && response[1][1].indexOf("esp8266-httpd/") === 0) {
                         valid = true;
                     }
                 }
@@ -169,7 +169,7 @@ function isValidWiFiVersion(response) {
     return valid;
 }
 
-function getResultCode(response) {
+function resultCode(response) {
 /* Return result code.
    Returns 204 (No Content) if code not found.*/
     if ((response.length) && (response[0].length > 1)) {
@@ -201,8 +201,8 @@ function getResultCode(response) {
              let result = formatResponse(String.fromCharCode.apply(null, new Uint8Array(info.data)));
              if (isWiFiModule(result) && isValidWiFiVersion(result)) {
                  log("Success!", mDbug);
-                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 4\r\n\r\n1234";
-                 chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
+//                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 4\r\n\r\n1234";
+//                 chrome.sockets.tcp.send(tcp_sock, str2ab(postStr), function() {});
              } else {
                  log("Failure!", mDbug);
                  cleanup = true;
