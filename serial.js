@@ -56,11 +56,12 @@ const propCommStart = {                              //propCommStart is used to 
 };
 
 //Loader type; used for generateLoaderPacket()
-const ltCore = -1;
-const ltVerifyRAM = 0;
-const ltProgramEEPROM = 1;
-const ltReadyToLaunch = 2;
-const ltLaunchNow = 3;
+const ltUnEncCore = -2;                              //Generate unencoded core (used for Wireless WX-Module downloads)
+const ltCore = -1;                                   //Generate encoded core (used for wired downloads)
+const ltVerifyRAM = 0;                               //Generate Verify RAM executable packet
+const ltProgramEEPROM = 1;                           //Generate Program EEPROM executable packet
+const ltReadyToLaunch = 2;                           //Generate Ready To Launch executable packet
+const ltLaunchNow = 3;                               //Generate Launch Now executable packet
 
 /***********************************************************
  *                 Serial Support Functions                *
@@ -3235,26 +3236,29 @@ function hearFromProp(info) {
 
 function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
 /*Generate a packet (in txData) containing the portion of the Micro Boot Loader (IP_Loader.spin) indicated by LoaderType.
- Initial call should use loaderType of ltCore and later calls use other loaderTypes; details described below.
- If loaderType is ltCore...
-   * target application's total packet count must be included in packetID.
-   * target application's system clock speed must be included in clockSpeed.
-   * target application's system clock mode must be included in clockMode.
-   * generated packet contains the Propeller handshake, timing templates, and core code from the Micro Boot Loader (IP_Loader.spin),
-     with optimal encoding (3, 4, or 5 bits per byte; 7 to 11 bytes per long).
+ Initial call should use loaderType of ltCore (for wired downloads) or ltUnEncCore (for wireless downloads) and later calls use other loaderTypes.
+ If loaderType is ltCore or ltUnEncCore...
+   * Target application's total packet count must be included in packetID.
+   * Target application's system clock speed must be included in clockSpeed.
+   * Target application's system clock mode must be included in clockMode.
+   * If ltCore- generated packet contains the Propeller handshake, timing templates, and patched core code from the Micro Boot Loader
+     (IP_Loader.spin), with optimal encoding (3, 4, or 5 bits per byte; 7 to 11 bytes per long).
      - Optimal encoding means, for every 5 contiguous bits in Propeller Application Image (LSB first) 3, 4, or 5 bits will be translated
        to a byte.  The process uses a translation array (for speed)- input up to 5 bits and the bit count (ie: indexed into the pDSTx array)
        and output a byte containing the first 3, 4, or 5 bits of the input encoded into the Propeller download stream format plus the number
        of bits actually encoded.  If less than 5 bits were translated, the remaining bits lead the next 5-bit translation unit input to the
        translation process.
+   * If ltUnEncCore- generated packet contains HTTP POST request plus the patched core code from the Micro Boot Loader (IP_Loader.spin).
+     No encoding performed.  No Propeller handshake or timing templates need be included since the wireless device (Wi-Fi Module) takes care
+     of that automatically.
  If loaderType is not ltCore...
    * packetIds should be less than 0 for this type of packet in order to work with the Micro Boot Loader core.
    * clockSpeed and clockMode are omitted.
-   * generated packet is a snippet of loader code aligned to be executable from inside the Core's packet buffer.  This snippet is in raw
-     form (not encoded) and should be transmitted as such.
+   * generated packet is a snippet of loader code aligned to be executable from inside the Core's packet buffer.  This snippet is in unencoded
+     form and should be transmitted as such.
 
- Propeller Download Stream Translator array.  Index into this array with the "Binary Value" (usually 5 bits) to translate,
- the incoming bit size (again, usually 5), and the desired data element to retrieve (0 = translation, 1 = translated bit count.
+ Propeller Download Stream Translator array- for encoding raw images.  Index into this array with the "Binary Value" (usually 5 bits) to
+ translate the incoming bit size (again, usually 5), and the desired data element to retrieve (0 = translation, 1 = translated bit count.
  A portion of the array is not applicable (unused "[0,0]") including the first column (0 bits input).
 
        Propeller Download Stream Translator (pDSTx) Usage:
@@ -3438,8 +3442,8 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
     //Packet workspace
     var packet = new ArrayBuffer(5120);
 
-    if (loaderType === ltCore) {
-        //Generate specially-prepared stream of Micro Boot Loader's core (with handshake, timing templates, and host-initialized timing
+    if ((loaderType === ltCore) || (loaderType === ltUnEncCore)) {
+        //Generate patched stream of Micro Boot Loader's core
 
         //Prepare Loader Image with patched clock metrics and host-initialized values in little-endian form (regardless of platform)
         patchedLoader.set(rawLoaderImage, 0);                                                  //Copy raw loader image for adjustments and processing
@@ -3464,29 +3468,39 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         }
         bootChecksum.setUint8(0, 0x100 - (checksum & 0xFF));
 
-        //Generate Micro Boot Loader Download Stream from patchedLoader
-        var bCount = 0;
-        var loaderEncodedSize = 0;
-        while (bCount < patchedLoader.byteLength * 8) {                                         //For all bits in data stream...
-            var bitsIn = Math.min(5, patchedLoader.byteLength * 8 - bCount);                    //  Determine number of bits in current unit to translate; usually 5 bits
-            var bValue = ( (patchedLoader[Math.trunc(bCount / 8)] >>> (bCount % 8)) +           //  Extract next translation unit (contiguous bits, LSB first; usually 5 bits)
-                (patchedLoader[Math.trunc(bCount / 8) + 1] << (8 - (bCount % 8))) ) & pwr2m1[bitsIn];
-            encodedLoader[loaderEncodedSize++] = pDSTx[bValue][bitsIn][0];                      //  Translate unit to encoded byte
-            bCount += pDSTx[bValue][bitsIn][1];                                                 //  Increment bit index (usually 3, 4, or 5 bits, but can be 1 or 2 at end of stream)
+        if (loaderType === ltCore) {
+            //[ltCore] Generate Encoded Micro Boot Loader Download Stream from patchedLoader (for wired downloads)
+            var bCount = 0;
+            var loaderEncodedSize = 0;
+            while (bCount < patchedLoader.byteLength * 8) {                                     //For all bits in data stream...
+                var bitsIn = Math.min(5, patchedLoader.byteLength * 8 - bCount);                //  Determine number of bits in current unit to translate; usually 5 bits
+                var bValue = ( (patchedLoader[Math.trunc(bCount / 8)] >>> (bCount % 8)) +       //  Extract next translation unit (contiguous bits, LSB first; usually 5 bits)
+                    (patchedLoader[Math.trunc(bCount / 8) + 1] << (8 - (bCount % 8))) ) & pwr2m1[bitsIn];
+                encodedLoader[loaderEncodedSize++] = pDSTx[bValue][bitsIn][0];                  //  Translate unit to encoded byte
+                bCount += pDSTx[bValue][bitsIn][1];                                             //  Increment bit index (usually 3, 4, or 5 bits, but can be 1 or 2 at end of stream)
+            }
+            //Prepare encoded loader packet
+            //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
+            txData = new ArrayBuffer(txHandshake.length + 11 + encodedLoader.byteLength + timingPulses.length);
+            txView = new Uint8Array(txData);
+            txView.set(txHandshake, 0);
+            var txLength = txHandshake.length;
+            var rawSize = rawLoaderImage.length / 4;
+            for (idx = 0; idx < 11; idx++) {
+                txView[txLength++] = 0x92 | (idx < 10 ? 0x00 : 0x60) | rawSize & 1 | (rawSize & 2) << 2 | (rawSize & 4) << 4;
+                rawSize = rawSize >>> 3;
+            }
+            txView.set(encodedLoader, txLength);
+            txView.set(timingPulses, txLength + encodedLoader.byteLength);
+        } else /*loaderType === ltCore*/ {
+            //[ltUnEncCore] Prepare unencoded loader packet (for wireless downloads)
+            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
+
+            txData = new ArrayBuffer(postStr.byteLength+patchedLoader.byteLength);
+            txView = new Uint8Array(txData);
+            txView.set(postStr, 0);
+            txView.set(patchedLoader, postStr.byteLength);
         }
-        //Prepare loader packet
-        //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
-        txData = new ArrayBuffer(txHandshake.length + 11 + encodedLoader.byteLength + timingPulses.length);
-        txView = new Uint8Array(txData);
-        txView.set(txHandshake, 0);
-        var txLength = txHandshake.length;
-        var rawSize = rawLoaderImage.length / 4;
-        for (idx = 0; idx < 11; idx++) {
-            txView[txLength++] = 0x92 | (idx < 10 ? 0x00 : 0x60) | rawSize & 1 | (rawSize & 2) << 2 | (rawSize & 4) << 4;
-            rawSize = rawSize >>> 3;
-        }
-        txView.set(encodedLoader, txLength);
-        txView.set(timingPulses, txLength + encodedLoader.byteLength);
     } else {
         //Generate special loader's executable packet according to loaderType (> ltCore)
         txData = new ArrayBuffer(2 * 4 + exeSnippet[loaderType].length);                        //Set txData size for header plus executable packet
@@ -3494,5 +3508,4 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                              //Store Packet ID (skip over Transmission ID field; it will be filled at time of transmission)
         txView.set(exeSnippet[loaderType], 8);                                                  //Copy the executable packet code into it
     }
-
 }
