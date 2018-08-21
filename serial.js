@@ -56,8 +56,8 @@ const propCommStart = {                              //propCommStart is used to 
 };
 
 //Loader type; used for generateLoaderPacket()
-const ltUnEncCore = -2;                              //Generate unencoded core (used for Wireless WX-Module downloads)
-const ltCore = -1;                                   //Generate encoded core (used for wired downloads)
+const ltUnEncCore = -2;                              //Generate unencoded core (used only for Wireless WX-Module downloads)
+const ltCore = -1;                                   //Generate encoded core (used only for wired downloads)
 const ltVerifyRAM = 0;                               //Generate Verify RAM executable packet
 const ltProgramEEPROM = 1;                           //Generate Program EEPROM executable packet
 const ltReadyToLaunch = 2;                           //Generate Ready To Launch executable packet
@@ -287,10 +287,10 @@ function deferredPromise() {
    Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
 */
 
-    var res, rej;
+    let res, rej;
 
     //Create promise and expose its constructor's resolve/reject functions (normally only accessible within the constructor)
-    var promise = new Promise((resolve, reject) => {
+    let promise = new Promise((resolve, reject) => {
         res = resolve;
         rej = reject;
     });
