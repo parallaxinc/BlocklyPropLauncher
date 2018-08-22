@@ -513,8 +513,8 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   }
 }
 
-// Convert ArrayBuffer to String
 var ab2str = function(buf) {
+// Convert ArrayBuffer to String
   var bufView = new Uint8Array(buf);
   var unis = [];
   for (var i = 0; i < bufView.length; i++) {
@@ -523,8 +523,21 @@ var ab2str = function(buf) {
   return String.fromCharCode.apply(null, unis);
 };
 
-// Convert ArrayBuffer to Number Array
+var str2ab = function(str, len = null) {
+// Convert str to array buffer, optionally of size len
+    if (!len) {
+        len = str.length;
+    }
+    var buf = new ArrayBuffer(len);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < Math.min(len, str.length); i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+};
+
 var ab2num = function(buf) {
+// Convert ArrayBuffer to Number Array
   var bufView = new Uint8Array(buf);
   var unis = [];
   for (var i = 0; i < bufView.length; i++) {
@@ -533,19 +546,16 @@ var ab2num = function(buf) {
   return unis;
 };
 
-// Converts String to ArrayBuffer.
-var str2ab = function(str, len = null) {
-// Convert str to array buffer, optionally of size len
-  if (!len) {
-    len = str.length;
-  }
-  var buf = new ArrayBuffer(len);
-  var bufView = new Uint8Array(buf);
-  for (var i = 0; i < Math.min(len, str.length); i++) {
-    bufView[i] = str.charCodeAt(i);
-  }
-  return buf;
-};
+function buf2ab(buffer) {
+// Convert buffer to ArrayBuffer
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
+}
+
 
 var str2buf = function(str) {
 // Convert str to buffer

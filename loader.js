@@ -61,16 +61,6 @@ const ltLaunchNow = 3;                               //Generate Launch Now execu
  *                     Support Functions                   *
  ***********************************************************/
 
-function buffer2ArrayBuffer(buffer) {
-// Convert buffer to ArrayBuffer
-    var buf = new ArrayBuffer(buffer.length);
-    var bufView = new Uint8Array(buf);
-    for (var i = 0; i < buffer.length; i++) {
-        bufView[i] = buffer[i];
-    }
-    return buf;
-}
-
 function deferredPromise() {
     /* Create promise with externally-accessible resolve/reject functions
      Credit: http://lea.verou.me/2016/12/resolve-promises-externally-with-this-one-weird-trick/
@@ -2608,7 +2598,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         binImage = parseFile(payload);
         if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
     } else {
-        binImage = buffer2ArrayBuffer(bin);
+        binImage = buf2ab(bin);
     }
 
     // Look for an existing port

@@ -178,7 +178,7 @@ function send(cid, data) {
     if (typeof data === 'string') {
         data = str2ab(data);
     } else {
-        if (data instanceof ArrayBuffer === false) {data = buffer2ArrayBuffer(data);}
+        if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
     }
     return chrome.serial.send(cid, data, function (sendResult) {
     });

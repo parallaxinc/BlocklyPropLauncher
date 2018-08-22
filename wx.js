@@ -246,7 +246,7 @@ function resultCode(response) {
  var binImage = parseFile(payload);
  if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
  } else {
- var binImage = buffer2ArrayBuffer(bin);
+ var binImage = buf2ab(bin);
  }
 
  var postStr = "POST /propeller/load?baud-rate=115200 HTTP/1.1\r\nContent-Length: " + binImage.byteLength  + "\r\n\r\n";
