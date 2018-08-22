@@ -179,16 +179,6 @@ function resultCode(response) {
     }
 }
 
-/*
- // Possibly unecessary?  Maybe able to use another open socket?
- // Or should we didicate one to the WX module?
- chrome.sockets.tcp.create(function (s_info) {
- tcp_sock = s_info.socketId;
- chrome.sockets.tcp.setKeepAlive(tcp_sock, true, function (res) {});
- });
- */
-
-
  function loadPropellerWX(portPath, action, payload, debug) {
 
      chrome.sockets.tcp.create(function (s_info) {

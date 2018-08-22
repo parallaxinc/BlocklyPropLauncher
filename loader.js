@@ -2601,6 +2601,16 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         binImage = buf2ab(bin);
     }
 
+/*
+ if (isWiredPort(ws_msg.portPath)) {
+ setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
+ } else if (isWirelessPort(ws_msg.portPath)) {
+ setTimeout(function() {loadPropellerWX(ws_msg.portPath, null, null, null)}, 10);
+ } else {
+ //TODO Display error; port ws_msg.portPath not found
+ }
+*/
+
     // Look for an existing port
     let port = findPort(byPath, portPath);
     let cid = port ? port.connId : null;
