@@ -546,7 +546,7 @@ var ab2num = function(buf) {
   return unis;
 };
 
-function buf2ab(buffer) {
+var buf2ab = function (buffer) {
 // Convert buffer to ArrayBuffer
     var buf = new ArrayBuffer(buffer.length);
     var bufView = new Uint8Array(buf);
@@ -554,8 +554,7 @@ function buf2ab(buffer) {
         bufView[i] = buffer[i];
     }
     return buf;
-}
-
+};
 
 var str2buf = function(str) {
 // Convert str to buffer
