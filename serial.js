@@ -16,22 +16,13 @@
 
 
 //TODO Study effects of sudden USB port disappearance and try to handle gracefully
-//TODO Enhance to protect against (or support) downloading to multiple active ports (cids) simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
+//TODO Enhance to protect against (or support) downloading to multiple active ports simultaneously (involves loadPropeller, talkToProp, and hearFromProp)
 //TODO Revisit promisify and see if it will clean up code significantly
 //TODO Study .bind for opportunities to save scope context of private functions
 
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
-
-//TODO Determine if there's a need to flush port upon opening from a browser terminal command (Note serialJustOpened removed)
-//        if(serialJustOpened === info.connectionId) {
-//          chrome.serial.flush(serialJustOpened, function(result) {
-//            if(result === true) {
-//              serialJustOpened = null;
-//            }
-//          });
-//        } else {
 
 //TODO Consider returning error object
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
@@ -41,120 +32,123 @@ function openPort(sock, portPath, baudrate, connMode) {
    portPath is the string path to the wired serial port
    baudrate is optional; defaults to initialBaudrate
    connMode is the current point of the connection; 'debug', 'programming'
-   Resolves with connection id (cid); rejects with Error*/
+   Resolves (with nothing); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        var cid = findPortId(portPath);
-        if (cid) {
-            //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-            updatePort(cid, sock, connMode, portPath, "", baudrate)
-                .then(function() {resolve(cid)})
-                .catch(function (e) {reject(e)});
-        } else {
-            //Not already open; attempt to open it
-            chrome.serial.connect(portPath, {
-                    'bitrate': baudrate,
-                    'dataBits': 'eight',
-                    'parityBit': 'no',
-                    'stopBits': 'one',
-                    'ctsFlowControl': false
-                },
-                function (openInfo) {
-                    if (!chrome.runtime.lastError) {
-                        // No error; update serial port object
-                        updatePort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
-                        log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
-                        resolve(openInfo.connectionId);
-                    } else {
-                        // Error
-                        reject(Error(notice(neCanNotOpenPort, [portPath])));
+        var port = findPort(byPath, portPath);
+        if (port) {
+            if (port.connId) {
+                //Already open; ensure correct baudrate, socket, and connMode, then resolve.
+                updatePort(port.connId, sock, connMode, portPath, "", baudrate)
+                    .then(function() {resolve()})
+                    .catch(function (e) {reject(e)});
+            } else {
+                //Not already open; attempt to open it
+                chrome.serial.connect(portPath, {
+                        'bitrate': baudrate,
+                        'dataBits': 'eight',
+                        'parityBit': 'no',
+                        'stopBits': 'one',
+                        'ctsFlowControl': false
+                    },
+                    function (openInfo) {
+                        if (!chrome.runtime.lastError) {
+                            // No error; update serial port object
+                            updatePort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
+                            log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
+                            resolve();
+                        } else {
+                            // Error
+                            reject(Error(notice(neCanNotOpenPort, [portPath])));
+                        }
                     }
-                }
-            );
+                );
+            }
+        } else {
+            // Error; port record not found
+            reject(Error(notice(neCanNotFindPort, [portPath])));
         }
     });
 }
 
 //TODO Promisify closePort()
 //TODO Consider returning error object
-function closePort(cid) {
-/* Close the cid port.
-   cid is the open port's connection identifier*/
-   let port = findPort(byID, cid);
-   if (port) {
-       chrome.serial.disconnect(cid, function (closeResult) {
+function closePort(port) {
+/* Close the port.
+   port is the port object*/
+   if (port && port.connId) {
+       chrome.serial.disconnect(port.connId, function (closeResult) {
            if (closeResult) {
-               log("Closed port " + port.path + " (id " + cid + ")", mStat);
-               // Clear cid to indicate port is closed
+               log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
+               // Clear connection id to indicate port is closed
                updatePort(null, port.socket, port.connMode, port.path, port.iP, port.baud);
            } else {
-               log("Could not close port " + port.path + " (id " + cid + ")", mStat);
+               log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
            }
        });
    }
 }
 
-function changeBaudrate(cid, baudrate) {
-/* Return a promise that changes the cid port's baudrate.
-   cid is the open port's connection identifier
+function changeBaudrate(port, baudrate) {
+/* Return a promise that changes the port's baudrate.
+   port is the open port's object
    baudrate is optional; defaults to finalBaudrate
-   Resolves with cid; rejects with Error*/
+   Resolves (with nothing); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
-        let port = findPort(byID, cid);
         if (port) {
             if (port.baud !== baudrate) {
                 // Need to change current baudrate
                 log("Changing " + port.path + " to " + baudrate + " baud", mDbug);
-                chrome.serial.update(cid, {'bitrate': baudrate}, function (updateResult) {
+                chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
                         port.baud = baudrate;
-                        resolve(cid);
+                        resolve();
                     } else {
                         reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
                     }
                 });
             } else {
                 // Port is already set to baudrate
-                resolve(cid);
+                resolve();
             }
         }
     });
 }
 
-function setControl(cid, options) {
+function setControl(port, options) {
 /* Return a promise that sets/clears the control option(s).
-   cid is the open port's connection identifier*/
+   port is the open port's object*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.setControlSignals(cid, options, function(controlResult) {
+        chrome.serial.setControlSignals(port.connId, options, function(controlResult) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + findPortPath(cid) + "'s options: " + options])));
+            reject(Error(notice(000, ["Can not set port " + port.path + "'s options: " + options])));
           }
         });
     });
 }
 
-function flush(cid) {
+function flush(port) {
 /* Return a promise that empties the transmit and receive buffers
-   cid is the open port's connection identifier*/
+   port is the open port's object*/
     return new Promise(function(resolve, reject) {
-        chrome.serial.flush(cid, function(flushResult) {
+        chrome.serial.flush(port.connId, function(flushResult) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error(notice(000, ["Can not flush port " + findPortPath(cid) + "'s transmit/receive buffer"])));
+              reject(Error(notice(000, ["Can not flush port " + port.path + "'s transmit/receive buffer"])));
             }
         });
     });
 }
 
-function unPause(cid) {
+function unPause(port) {
 /* Return a promise that unpauses the port
-   cid is the open port's connection identifier*/
+   port is the open port's object*/
     return new Promise(function(resolve) {
-        chrome.serial.setPaused(cid, false, function() {
+        chrome.serial.setPaused(port.connId, false, function() {
             resolve();
         });
     });
@@ -170,9 +164,9 @@ function ageWiredPorts() {
 
 //TODO Check send callback
 //TODO Promisify and return error object
-function send(cid, data) {
-/* Transmit data on port cid
-   cid is the open port's connection identifier*/
+function send(port, data) {
+/* Transmit data on port
+   port is the open port's object*/
 
     // Convert data from string or buffer to an ArrayBuffer
     if (typeof data === 'string') {
@@ -180,16 +174,16 @@ function send(cid, data) {
     } else {
         if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
     }
-    return chrome.serial.send(cid, data, function (sendResult) {
+    return chrome.serial.send(port.connId, data, function (sendResult) {
     });
 }
 
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
     let port = findPort(byID, info.connectionId);
-    if(port) {
+    if (port) {
         if (port.mode === 'debug' && port.socket !== null) {
-            // send to terminal in broswer tab
+            // send to terminal in browser tab
             let offset = 0;
             do {
                 let byteCount = Math.min(info.data.byteLength-offset, serPacketMax-port.packet.len);

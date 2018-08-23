@@ -86,7 +86,7 @@ function deferredPromise() {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
-//TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port cid
+//TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port
 //TODO Remove hard-coded example applications
 //TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
 //TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
@@ -124,36 +124,40 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
     // Look for an existing port
     let port = findPort(byPath, portPath);
-    let cid = port ? port.connId : null;
-    let connect;
-    let originalBaudrate;
-    if (cid) {
-        // Connection exists, prep to reuse it
-        originalBaudrate = port.baud;
-        port.mode = "programming";
-        connect = function() {return changeBaudrate(cid, initialBaudrate)}
+    if (port) {
+        // Port found
+        let connect;
+        let originalBaudrate;
+        if (port && port.connId) {
+            // Connection exists, prep to reuse it
+            originalBaudrate = port.baud;
+            port.mode = "programming";
+            connect = function() {return changeBaudrate(port, initialBaudrate)}
+        } else {
+            // No connection yet, prep to create one
+            originalBaudrate = initialBaudrate;
+            connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
+        }
+        // Use connection to download application to the Propeller
+        connect()
+            .then(function() {listen(true)})                                                                        //Enable listener
+            .then(function() {log(notice(000, ["Scanning port " + portPath]), mUser, sock)})                        //Notify what port we're using
+            .then(function() {return talkToProp(sock, port, binImage, action === 'EEPROM')})                        //Download user application to RAM or EEPROM
+            .then(function() {return changeBaudrate(port, originalBaudrate)})                                       //Restore original baudrate
+            .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
+                listen(false);                                                                                      //Disable listener
+                port.mode = (debug !== "none") ? "debug" : "programming";
+                log(notice(nsDownloadSuccessful), mAll, sock);
+                if (sock && debug !== "none") {
+                    sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
+                    sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
+                }
+            })                                                                                                      //Error? Disable listener and display error
+            .catch(function(e) {listen(false); log(e.message, mAll, sock); log(notice(neDownloadFailed), mAll, sock); if (port.connId) {changeBaudrate(port, originalBaudrate)}});
     } else {
-        // No connection yet, prep to create one
-        originalBaudrate = initialBaudrate;
-        connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
+        // Port not found
+        log(notice(neCanNotFindPort, [portPath]), mAll, sock);
     }
-    // Use connection to download application to the Propeller
-    connect()
-        .then(function(id) {cid = id})                                                                          //Save cid from connection (whether new or existing)
-        .then(function() {listen(true)})                                                                        //Enable listener
-        .then(function() {log(notice(000, ["Scanning port " + findPortPath(cid)]), mUser, sock)})               //Notify what port we're using
-        .then(function() {return talkToProp(sock, cid, binImage, action === 'EEPROM')})                         //Download user application to RAM or EEPROM
-        .then(function() {return changeBaudrate(cid, originalBaudrate)})                                        //Restore original baudrate
-        .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
-            listen(false);                                                                                      //Disable listener
-            findPort(byID, cid).mode = (debug !== "none") ? "debug" : "programming";
-            log(notice(nsDownloadSuccessful), mAll, sock);
-            if (sock && debug !== "none") {
-                sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
-                sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
-            }
-        })                                                                                                      //Error? Disable listener and display error
-        .catch(function(e) {listen(false); log(e.message, mAll, sock); log(notice(neDownloadFailed), mAll, sock); if (cid) {changeBaudrate(cid, originalBaudrate)}});
 }
 
 function listen(engage) {
@@ -205,10 +209,10 @@ function clearPropCommTimer() {
     }
 }
 
-function talkToProp(sock, cid, binImage, toEEPROM) {
+function talkToProp(sock, port, binImage, toEEPROM) {
     /* Return promise to deliver Propeller Application (binImage) to Propeller
      sock is the websocket to direct mUser messages at
-     cid is the open port's connection identifier
+     port is the open port's object
      binImage must be an ArrayBuffer
      toEEPROM is false to program RAM only, true to program RAM+EEPROM*/
 
@@ -230,9 +234,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                             propComm.mblETransId[0] = transmissionId;
                             //Send Micro Boot Loader package
                             log("Transmitting Micro Boot Loader package", mDeep);
-                            send(cid, txData);
+                            send(port, txData);
                             //Get response
-                            unPause(cid)                                                                     //Unpause port; it may have been auto-paused by incoming data error
+                            unPause(port)                                                                    //Unpause port; it may have been auto-paused by incoming data error
                                 .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
@@ -244,9 +248,9 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                 Promise.resolve()
                     .then(function() {       resetPropComm(mblDeliveryTime);})                        //Reset propComm object
                     .then(function() {       log("Generating reset signal", mDeep);})
-                    .then(function() {return setControl(cid, {dtr: false});})                         //Start Propeller Reset Signal
-                    .then(function() {return flush(cid);})                                            //Flush transmit/receive buffers (during Propeller reset)
-                    .then(function() {return setControl(cid, {dtr: true});})                          //End Propeller Reset
+                    .then(function() {return setControl(port, {dtr: false});})                        //Start Propeller Reset Signal
+                    .then(function() {return flush(port);})                                           //Flush transmit/receive buffers (during Propeller reset)
+                    .then(function() {return setControl(port, {dtr: true});})                         //End Propeller Reset
                     .then(function() {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);})
                     .then(function() {return sendMBL();})                                             //Wait post-reset-delay and send whole comm package, including Micro Boot Loader; verify receipt
                     .catch(function(e) {                                                              //Error!
@@ -296,7 +300,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
-                        send(cid, txData);                                                                               //Transmit packet
+                        send(port, txData);                                                                              //Transmit packet
                         pIdx += txPacketLength - 2;                                                                      //Increment image index
                         packetId--;                                                                                      //Decrement Packet ID (to next packet)
                         resolve();
@@ -341,7 +345,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
                             propComm.mblETransId[0] = transmissionId;
                         }
 
-                        send(cid, txData);                                                                         //Transmit packet
+                        send(port, txData);                                                                        //Transmit packet
 
                         if (next.value.type !== ltLaunchNow) {                                                     //If not last instruction packet...
                             propComm.response                                                                      //  When response (promise)...
@@ -392,7 +396,7 @@ function talkToProp(sock, cid, binImage, toEEPROM) {
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Reset propeller, wait for Post-Reset-Delay, send package (Calibration Pulses+Handshake through Micro Boot Loader application+RAM Checksum Polls) and verify acceptance
-            .then(function() {return changeBaudrate(cid, finalBaudrate);})               //Bump up to faster finalBaudrate
+            .then(function() {return changeBaudrate(port, finalBaudrate);})              //Bump up to faster finalBaudrate
             .then(function() {                                                           //Send user application
                 log("Delivering user application packets", mDbug);
                 return sendUserApp();

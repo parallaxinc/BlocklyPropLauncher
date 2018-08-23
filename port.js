@@ -36,9 +36,9 @@ const serPacket = {
     timer   : null,
 };
 
-function makePortName(cid) {
-    /* Return wireless fabricated name in the form 'wx-#######' using last 6 digits of it's MAC address (cid).*/
-    return 'wx-' + cid.substr(9,16).replace(/\:/g,'');
+function makePortName(mac) {
+    /* Return wireless fabricated name in the form 'wx-#######' using last 6 digits of it's MAC address.*/
+    return 'wx-' + mac.substr(9,16).replace(/\:/g,'');
 }
 
 function addPort(cid, portPath, iP) {
@@ -119,19 +119,12 @@ function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
             }
             //Update baudrate
             if (portBaudrate > 0) {
-                changeBaudrate(cid, portBaudrate)
+                changeBaudrate(ports[pIdx], portBaudrate)
                     .then(function (p) {resolve(p)})
                     .catch(function (e) {reject(e)});
             }
         }
     })
-}
-
-function findPortId(portPath) {
-    /* Return id (cid) of wired or wireless port associated with portPath
-     Returns null if not found*/
-    const port = findPort(byPath, portPath);
-    return port ? port.connId : null;
 }
 
 function findPortPath(id) {

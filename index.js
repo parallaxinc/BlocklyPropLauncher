@@ -466,7 +466,6 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   if(portPath.indexOf('wx-') !== 0) {
     if (action === "open") {
       openPort(sock, portPath, baudrate, 'debug')
-        .then(function(id) {var cid = id})
         .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
         .catch(function() {
           log('Unable to connect terminal to ' + portPath);
@@ -474,24 +473,23 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
           sock.send(JSON.stringify(msg_to_send));
         });
     } else if (action === "close") {
-      // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-      // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-      // Instead, update the connection mode so that serial debug data halts.
-  //      closePort(findPortId(portPath));
-      let conn = findPort(byPath, portPath);
-      if (conn) {conn.mode = 'none'}
+      /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+         lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+         Instead, update the connection mode so that serial debug data halts.*/
+      let port = findPort(byPath, portPath);
+      if (port) {port.mode = 'none'}
     } else if (action === "msg") {
       // Serial message to send to the device
-      // Find port connection id from portPath or socket
-      let cid = findPortId(portPath);
-      if (!cid) {
+      // Find port from portPath or socket
+      let port = findPort(byPath, portPath);
+      if (!port) {
         let sIdx = findSocketIdx(sock);
         if (sIdx > -1) {
-           cid = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx].connId : null;
+           port = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx] : null;
         }
       }
-      if (cid) {
-        send(cid, msg);
+      if (port && port.connId) {
+        send(port, msg);
       }
     }
   } else {
