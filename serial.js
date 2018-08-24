@@ -157,10 +157,9 @@ function unPause(port) {
 function ageWiredPorts() {
 // Age wired ports and remove those that haven't been seen for some time from the list
     ports.forEach(function(p) {
-        if (!p.ip && !--p.life) deletePort(byPath, p.path);
+        if (port.isWired && !--p.life) deletePort(byPath, p.path);
     })
 }
-
 
 //TODO Check send callback
 //TODO Promisify and return error object

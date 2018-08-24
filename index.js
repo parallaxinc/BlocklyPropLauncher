@@ -436,7 +436,7 @@ function sendPortList() {
       ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
 
       // gather separated and sorted port lists (wired names and wireless names)
-      ports.forEach(function(p) {if (!p.ip) {wn.push(p.path)} else {wln.push(p.path)}});
+      ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
       wn.sort();
       wln.sort();
 
@@ -461,44 +461,43 @@ function helloClient(sock, baudrate) {
 //TODO Check send results and act accordingly?
 //TODO refactor to combine usb and wx-based port code efficiently
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  if(portPath.indexOf('wx-') !== 0) {
-    if (action === "open") {
-      openPort(sock, portPath, baudrate, 'debug')
-        .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
-        .catch(function() {
-          log('Unable to connect terminal to ' + portPath);
-          var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-          sock.send(JSON.stringify(msg_to_send));
-        });
-    } else if (action === "close") {
-      /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-         lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-         Instead, update the connection mode so that serial debug data halts.*/
-      let port = findPort(byPath, portPath);
-      if (port) {port.mode = 'none'}
-    } else if (action === "msg") {
-      // Serial message to send to the device
-      // Find port from portPath or socket
-      let port = findPort(byPath, portPath);
-      if (!port) {
-        let sIdx = findSocketIdx(sock);
-        if (sIdx > -1) {
-           port = (sockets[sIdx].portIdx > -1) ? ports[sockets[sIdx].portIdx] : null;
-        }
-      }
-      if (port && port.connId) {
-        send(port, msg);
-      }
-    }
-  } else {
-    // TODO add WX module debug passthrough functions
-    if (action === 'open') {
+  // Find port from portPath
+  let port = findPort(byPath, portPath);
+  if (port) {
+      if(port.isWired) {
+          if (action === "open") {
+              // Open port for terminal use
+              openPort(sock, portPath, baudrate, 'debug')
+                  .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+                  .catch(function() {
+                      log('Unable to connect terminal to ' + portPath);
+                      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
+                      sock.send(JSON.stringify(msg_to_send));
+                  });
+          } else if (action === "close") {
+              /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+                 lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+                 Instead, update the connection mode so that serial debug data halts.*/
+              port.mode = 'none';
+          } else if (action === "msg") {
+              // Serial message to send to the device
+              if (port.connId) {
+                  send(port, msg);
+              }
+          }
+      } else {
+          // TODO add WX module debug passthrough functions
+          if (action === 'open') {
 
-    } else if (action === 'close') {
-      
-    } else if (action === 'msg') {
-      
-    }
+          } else if (action === 'close') {
+
+          } else if (action === 'msg') {
+
+          }
+      }
+  } else {
+      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a valid serial port.'};
+      sock.send(JSON.stringify(msg_to_send));
   }
 }
 

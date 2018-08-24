@@ -88,7 +88,7 @@ function discoverWirelessPorts() {
 function ageWirelessPorts() {
 // Age Wi-Fi modules and remove those that haven't been seen for some time from the list
   ports.forEach(function(p) {
-    if (p.ip && !--p.life) deletePort(byID, p.connId);
+    if (p.isWireless && !--p.life) deletePort(byID, p.connId);
   })
 }
 
@@ -96,7 +96,7 @@ function displayWirelessPorts() {
 // Show available Wi-Fi modules in the app UI
   var wxl = '';
   ports.forEach(function(p) {
-      if (p.ip) {
+      if (p.isWireless) {
           wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + makePortName(p.connId) +
               '&nbsp;(<a style="text-decoration:none;" href="http://' + p.ip +
               '" target="_blank">' + p.ip + '</a>)&nbsp;<span class="wx-name">' +
