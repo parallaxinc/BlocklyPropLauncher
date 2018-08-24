@@ -430,17 +430,15 @@ function sendPortList() {
       // update wired ports
       portlist.forEach(function(port) {
         if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
-          addPort({path: path});
+          addPort({path: port.path});
         }
       });
       ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
 
       // gather separated and sorted port lists (wired names and wireless names)
-      ports.forEach(function(p) {
-        if (!p.ip) {wn.push(p.path)} else {wln.push(p.path)}
-        wn.sort();
-        wln.sort();
-      });
+      ports.forEach(function(p) {if (!p.ip) {wn.push(p.path)} else {wln.push(p.path)}});
+      wn.sort();
+      wln.sort();
 
       // report back to editor
       var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
