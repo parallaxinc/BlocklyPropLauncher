@@ -41,21 +41,24 @@ function makePortName(mac) {
     return 'wx-' + mac.substr(9,16).replace(/\:/g,'');
 }
 
-function addPort(cid, portPath, iP) {
+function addPort(alist) {
 /* Add new wired or wireless port record (automatically updates existing port if necessary).
-   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address.
-   portPath [required unless cid (mac) & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is
-   fabricated from cid (MAC address)
-   iP [optional ("")] is the wireless port's IP address; empty ("") if wired*/
-    if (!portPath) {
+   alist: [required] one or more attributes of port to add.  Possible attributes are:
+     connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
+     socket: active socket to associate with port; may be null
+     mode: the current point of the connection; 'debug', 'programming'
+     path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from cid (MAC address)
+     ip: the wireless port's IP address; empty ("") if wired
+     baud: wired serial speed*/
+    if (!alist.path) {
         //No port path?  If wireless port, craft path from MAC (cid), else abort (return)
-        if (iP && cid) {portPath = makePortName(cid)} else {return}
+        if (exists("ip", alist) && exists("connId", alist)) {alist.path = makePortName(alist.connId)} else {return}
     }
     // Look for existing port
-    let port = (cid) ? findPort(byID, cid) : findPort(byPath, portPath);
+    let port = (exists("connId", alist) && alist.connId) ? findPort(byID, alist.connId) : findPort(byPath, alist.path);
     if (port) {
         // Exists already? Update it's (portPath or iP)
-        updatePort(port.connId, port.socket, port.mode, portPath, iP, port.baud);
+        updatePort(port, alist);
     } else {
         // else, add it
 //!!!        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
@@ -75,56 +78,57 @@ function addPort(cid, portPath, iP) {
     }
 }
 
-function updatePort(cid, socket, connMode, portPath, iP, portBaudrate) {
+function updatePort(port, alist) {
 /* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
-   cid [optional (null) unless portPath = ""] is a unique identifier for the wired serial port connection id or wireless MAC address
-   socket may be null or may be valid socket to associate with port
-   connMode is the current point of the connection; 'debug', 'programming'
-   portPath [required unless cid (mac) & iP provided] is the string path to the wired serial port, or custom name of wireless port.  If empty, wireless name is
-   fabricated from cid (MAC address).
-   iP [optional ("")] is the wireless port's IP address; empty ("") if wired
-   portBaudrate is optional wired serial speed*/
+   port: [required] port object to update
+   alist: [required] one or more attributes of port to update.  Possible attributes are:
+     connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
+     socket: active socket to associate with port; may be null
+     mode: the current point of the connection; 'debug', 'programming'
+     path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from cid (MAC address)
+     ip: the wireless port's IP address; empty ("") if wired
+     baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
-        if (!portPath) {
-            // No port path?  If wireless port, craft path from MAC (cid), else abort (reject)
-            if (iP && cid) {portPath = makePortName(cid)} else {reject("portPath required!"); return}
+        if (exists("path", alist) && !alist.path) {
+            // Empty port path?  If wireless port, craft path from MAC (cid), else abort (reject)
+            if (port.ip && port.connId) {alist.path = makePortName(port.connId)} else {reject("path required!"); return}
         }
-        // Find port record by cid (if non-null) or portPath.  If non-null cid finds no match, it's an updated cid; we'll match by portPath instead.
-        // This is important because cid and portPath can be a mix of new, existing, or newly null/empty, but not simultaneously new or null/empty.
-        let pIdx = (cid) ? findPortIdx(byID, cid) : findPortIdx(byPath, portPath);
-        if (pIdx = -1) {pIdx = findPortIdx(byPath, portPath)}
-//!!!        log("Updating port (" + cid + ", " + socket + ", " + connMode + ", " + portPath + ", " + iP + ", " + portBaudrate + ')', mDbug);
-        if (pIdx > -1) {
-            // Update most attributes
-            ports[pIdx].connId = cid;
-            ports[pIdx].path = portPath;
-            ports[pIdx].ip = iP;
-            ports[pIdx].life = (!iP) ? wLife : wlLife;
-            ports[pIdx].mode = connMode;
-            // Update sockets<->ports links as necessary
-            let sIdx = (socket) ? findSocketIdx(socket) : -1;
-            if (ports[pIdx].socketIdx !== sIdx) {
-                // newSocket is different; update required
-//                log("  Linking to socket index " + sIdx, mDbug);
-                if (ports[pIdx].socketIdx !== -1) {
-                    // Adjust existing socket's record
-                    sockets[ports[pIdx].socketIdx].serialIdx = -1;
-                }
-                // Update port and socket records
-                ports[pIdx].socket = socket;
-                ports[pIdx].socketIdx = sIdx;
-                if (sIdx > -1) {
-                    sockets[sIdx].serialIdx = pIdx;
-                }
-            }
-            //Update baudrate
-            if (portBaudrate > 0) {
-                changeBaudrate(ports[pIdx], portBaudrate)
-                    .then(function (p) {resolve(p)})
-                    .catch(function (e) {reject(e)});
-            }
+//!!!        log("Updating port '" + port.path + "' with " + alist, mDbug);
+        // Update most attributes
+        setAttr(port, "connId", alist);
+        setAttr(port, "path", alist);
+        setAttr(port, "ip", alist);
+        port.life = (!port.ip) ? wLife : wlLife;
+        setAttr(port, "mode", alist);
+        // Update sockets<->ports links as necessary
+        let sIdx = (exists("socket", alist)) ? findSocketIdx(alist["socket"]) : -1;
+        if (port.socketIdx !== sIdx) {
+            // newSocket is different; update required
+//            log("  Linking to socket index " + sIdx, mDbug);
+            // Adjust existing socket's record
+            if (port.socketIdx !== -1) {sockets[port.socketIdx].serialIdx = -1}
+            // Update port and socket records
+            port.socket = socket;
+            port.socketIdx = sIdx;
+            if (sIdx > -1) {sockets[sIdx].serialIdx = findPortIdx(byPath, port.path)}
+        }
+        //Update baudrate
+        if (exists("baud", alist)) {
+            changeBaudrate(port, alist.baud)
+                .then(function() {resolve()})
+                .catch(function(e) {reject(e)});
         }
     })
+}
+
+function setAttr(attr, src, dst) {
+/*Set dst.attr = src.attr if, and only if, src.attr is defined; otherwise, leave dst.attr as-is*/
+    if (exists(attr, src)) {dst[attr] = src[attr]}
+}
+
+function exists(attr, src) {
+/*Returns true if attr exists in src*/
+  return src.hasOwnProperty(attr);
 }
 
 function findPortPath(id) {
