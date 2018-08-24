@@ -43,8 +43,9 @@ function makePortName(mac) {
 
 function addPort(alist) {
 /* Add new wired or wireless port record (automatically updates existing port if necessary).
-   alist: [required] one or more attributes of port to add.  Possible attributes are:
-     path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from cid (MAC address)
+   alist: [required] one or more attributes of port to add.  The only valid attributes for an addPort() operation are:
+     path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") if connId and ip provided,
+           and a wireless name will be fabricated from connId (MAC address)
      connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
      ip: the wireless port's IP address; empty ("") if wired*/
 
@@ -86,7 +87,7 @@ function updatePort(port, alist) {
 /* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
    port: [required] port object to update
    alist: [required] one or more attributes of port to update.  Unchanging attributes can be omitted.  Possible attributes are:
-     path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from cid (MAC address)
+     path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from connId (MAC address)
      connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
      socket: active socket to associate with port; may be null
      mode: the current point of the connection; 'debug', 'programming'
@@ -94,9 +95,9 @@ function updatePort(port, alist) {
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
 
-        function set(attr, src, dst) {
-            /*Set existing dst.attr = src.attr if, and only if, src.attr is defined; otherwise, leave dst.attr as-is*/
-            if (exists(attr, src)) {dst[attr] = src[attr]}
+        function set(attr) {
+            /*Set existing port.attr = alist.attr if, and only if, alist.attr is defined; otherwise, leave port.attr as-is*/
+            if (exists(attr, alist)) {port[attr] = alist[attr]}
         }
 
         if (exists("path", alist) && !alist.path) {
@@ -104,25 +105,24 @@ function updatePort(port, alist) {
             if (port.ip && port.connId) {alist.path = makePortName(port.connId)} else {reject("path required!"); return}
         }
 //!!!        log("Updating port '" + port.path + "' with " + alist, mDbug);
-        // Update most attributes
-        set(port, "connId", alist);
-        set(port, "path", alist);
-        set(port, "ip", alist);
+        // Apply updates (if necessary) as well as special handling
+        set("path");
+        set("connId");
+        set("ip");
         port.life = (!port.ip) ? wLife : wlLife;
-        set(port, "mode", alist);
         // Update sockets<->ports links as necessary
-        let sIdx = (exists("socket", alist)) ? findSocketIdx(alist["socket"]) : -1;
-        if (port.socketIdx !== sIdx) {
-            // newSocket is different; update required
-//            log("  Linking to socket index " + sIdx, mDbug);
-            // Adjust existing socket's record
-            if (port.socketIdx !== -1) {sockets[port.socketIdx].serialIdx = -1}
-            // Update port and socket records
-            port.socket = socket;
-            port.socketIdx = sIdx;
-            if (sIdx > -1) {sockets[sIdx].serialIdx = findPortIdx(byPath, port.path)}
+        if (exists("socket", alist)) {
+            let sIdx = findSocketIdx(alist.socket);
+            if (port.socketIdx !== sIdx) {
+                // new socket is different; adjust existing socket's record (if any), then apply new socket details to port
+//                log("  Linking to socket index " + sIdx, mDbug);
+                if (port.socketIdx !== -1) {sockets[port.socketIdx].serialIdx = -1}
+                port.socket = alist.socket;
+                port.socketIdx = sIdx;
+                if (sIdx > -1) {sockets[sIdx].serialIdx = findPortIdx(byPath, port.path)}
+            }
         }
-        //Update baudrate
+        set("mode");
         if (exists("baud", alist)) {
             changeBaudrate(port, alist.baud)
                 .then(function() {resolve()})

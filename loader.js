@@ -128,7 +128,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         // Port found
         let connect;
         let originalBaudrate;
-        if (port && port.connId) {
+        if (port.connId) {
             // Connection exists, prep to reuse it
             originalBaudrate = port.baud;
             port.mode = "programming";

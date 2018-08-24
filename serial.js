@@ -39,7 +39,7 @@ function openPort(sock, portPath, baudrate, connMode) {
         if (port) {
             if (port.connId) {
                 //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-                updatePort(port.connId, sock, connMode, portPath, "", baudrate)
+                updatePort(port, {socket: sock, mode: connMode, baud: baudrate})
                     .then(function() {resolve()})
                     .catch(function (e) {reject(e)});
             } else {
@@ -54,7 +54,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                     function (openInfo) {
                         if (!chrome.runtime.lastError) {
                             // No error; update serial port object
-                            updatePort(openInfo.connectionId, sock, connMode, portPath, "", baudrate);
+                            updatePort(port, {connId: openInfo.connectionId, socket: sock, mode: connMode, baud: baudrate});
                             log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                             resolve();
                         } else {
@@ -81,7 +81,7 @@ function closePort(port) {
            if (closeResult) {
                log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
                // Clear connection id to indicate port is closed
-               updatePort(null, port.socket, port.connMode, port.path, port.iP, port.baud);
+               updatePort(port, {connId: null});
            } else {
                log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
            }
