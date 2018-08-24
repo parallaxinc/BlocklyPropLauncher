@@ -275,10 +275,10 @@ function deleteSocket(socketOrIdx) {
 //  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
     // Clear port's knowledge of socket connection record
-    if (sockets[idx].serialIdx > -1) {
-//      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
-      ports[sockets[idx].serialIdx].socket = null;
-      ports[sockets[idx].serialIdx].socketIdx = -1;
+    if (sockets[idx].portIdx > -1) {
+//      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
+      ports[sockets[idx].portIdx].socket = null;
+      ports[sockets[idx].portIdx].socketIdx = -1;
     }
     // Delete socket connection record and adjust ports' later references down, if any
     sockets.splice(idx, 1);
@@ -309,7 +309,7 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
 //      log("Adding socket at index " + sockets.length, mDbug);
-      sockets.push({socket:socket, serialIdx:-1});
+      sockets.push({socket:socket, portIdx:-1});
       
       //Listen for ports
       if(portListener === null) {
@@ -483,7 +483,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       if (!port) {
         let sIdx = findSocketIdx(sock);
         if (sIdx > -1) {
-           port = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx] : null;
+           port = (sockets[sIdx].portIdx > -1) ? ports[sockets[sIdx].portIdx] : null;
         }
       }
       if (port && port.connId) {

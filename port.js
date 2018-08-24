@@ -116,10 +116,10 @@ function updatePort(port, alist) {
             if (port.socketIdx !== sIdx) {
                 // new socket is different; adjust existing socket's record (if any), then apply new socket details to port
 //                log("  Linking to socket index " + sIdx, mDbug);
-                if (port.socketIdx !== -1) {sockets[port.socketIdx].serialIdx = -1}
+                if (port.socketIdx !== -1) {sockets[port.socketIdx].portIdx = -1}
                 port.socket = alist.socket;
                 port.socketIdx = sIdx;
-                if (sIdx > -1) {sockets[sIdx].serialIdx = findPortIdx(byPath, port.path)}
+                if (sIdx > -1) {sockets[sIdx].portIdx = findPortIdx(byPath, port.path)}
             }
         }
         set("mode");
@@ -180,11 +180,11 @@ function deletePort(type, clue) {
         log("Deleting port: " + ports[idx].path, mDbug);
         if (ports[idx].socketIdx > -1) {
             // Clear socket's knowledge of wired or wireless port record
-            sockets[ports[idx].socketIdx].serialIdx = -1;
+            sockets[ports[idx].socketIdx].portIdx = -1;
         }
         // Delete port record and adjust socket's later references down, if any
         ports.splice(idx, 1)
-        sockets.forEach(function(v) {if (v.serialIdx > idx) {v.serialIdx--}});
+        sockets.forEach(function(v) {if (v.portIdx > idx) {v.portIdx--}});
     }
 }
 
