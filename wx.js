@@ -97,7 +97,7 @@ function displayWirelessPorts() {
   var wxl = '';
   ports.forEach(function(p) {
       if (p.isWireless) {
-          wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + makePortName(p.connId) +
+          wxl += '&nbsp;&nbsp;&#x1f4f6;&nbsp;' + makePortName(p.mac) +
               '&nbsp;(<a style="text-decoration:none;" href="http://' + p.ip +
               '" target="_blank">' + p.ip + '</a>)&nbsp;<span class="wx-name">' +
               p.path.substr(0,20) + '</span><br>';
