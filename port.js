@@ -16,8 +16,9 @@
 
 
 // Find Port identifier types
-const byID = 0;
-const byPath = 1;
+const byID = "connId";
+const byMAC = "mac";
+const byPath = "path";
 
 // Port's max lifetime
 const wLife = 2;
@@ -44,10 +45,10 @@ function makePortName(mac) {
 function addPort(alist) {
 /* Add new wired or wireless port record (automatically updates existing port if necessary).
    alist: [required] one or more attributes of port to add.  The only valid attributes for an addPort() operation are:
-     path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") if connId and ip provided,
-           and a wireless name will be fabricated from connId (MAC address)
-     connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
-     ip: the wireless port's IP address; empty ("") if wired*/
+     path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") if mac and ip provided,
+           and a wireless name will be fabricated from the MAC address
+     mac: [omitted if wired] the wireless port's MAC address
+     ip: [omitted if wired] the wireless port's IP address*/
 
     function get(attr, src, empty) {
         /*Return src.attr (if it exists and is truthy) or returns empty value if not*/
@@ -56,11 +57,11 @@ function addPort(alist) {
 
     if (!exists("path", alist)) {return}
     if (!alist.path) {
-        //Empty port path?  If wireless port details provided, craft path from MAC (cid), else abort (return)
-        if (get("ip", alist, "") && get("connId", alist, "")) {alist.path = makePortName(alist.connId)} else {return}
+        //Empty port path?  If wireless port details provided, craft path from mac, else abort (return)
+        if (get("ip", alist, "") && get("mac", alist, "")) {alist.path = makePortName(alist.mac)} else {return}
     }
-    // Look for existing port (connId used for wireless ports since path may have changed since last discovery)
-    let port = (get("connId", alist, "")) ? findPort(byID, alist.connId) : findPort(byPath, alist.path);
+    // Look for existing port (mac used for wireless ports since path may have changed since last discovery)
+    let port = (get("mac", alist, "")) ? findPort(byMAC, alist.mac) : findPort(byPath, alist.path);
     if (port) {
         // Exists already? Update it's (portPath or iP)
         updatePort(port, alist);
@@ -69,7 +70,8 @@ function addPort(alist) {
 //!!!        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
         ports.push({
             path       : alist.path,                                   /*[<>""] Wired port path, or wireless port's custom name, or fabricated name; never empty*/
-            connId     : get("connId", alist, null),                   /*[null+] Holds wired serial port's connection id (if open), null (if closed), or wireless port's MAC address*/
+            connId     : get("connId", alist, null),                   /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
+            mac        : get("mac", alist, ""),                        /*[""+] Holds wireless port's MAC address*/
             ip         : get("ip", alist, ""),                         /*[""+] Wireless port's IP address; */
             life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
             socket     : null,                                         /*[null+] Socket to browser*/
@@ -89,11 +91,11 @@ function updatePort(port, alist) {
 /* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
    port: [required] port object to update
    alist: [required] one or more attributes of port to update.  Unchanging attributes can be omitted.  Possible attributes are:
-     path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from connId (MAC address)
-     connId: unique identifier for the wired serial port connection id or wireless MAC address; can be null unless path = ""
+     path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from the MAC address
+     connId: unique identifier for the wired serial port connection id
+     ip: the wireless port's IP address
      socket: active socket to associate with port; may be null
-     mode: the current point of the connection; 'debug', 'programming'
-     ip: the wireless port's IP address; empty ("") if wired
+     mode: the current point of the connection; "", "debug", "programming"
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
 
@@ -103,8 +105,8 @@ function updatePort(port, alist) {
         }
 
         if (exists("path", alist) && !alist.path) {
-            // Empty port path?  If wireless port, craft path from MAC (cid), else abort (reject)
-            if (port.isWireless && port.connId) {alist.path = makePortName(port.connId)} else {reject(Error("path required!")); return}
+            // Empty port path?  If wireless port, craft path from mac, else abort (reject)
+            if (port.isWireless && port.mac) {alist.path = makePortName(port.mac)} else {reject(Error("path required!")); return}
         }
 //!!!        log("Updating port '" + port.path + "' with " + alist, mDbug);
         // Apply updates (if necessary) as well as special handling
@@ -139,37 +141,38 @@ function exists(attr, src) {
 }
 
 function findPortIdx(type, clue) {
-    /* Return index of wired or wireless port associated with clue
-     Returns -1 if not found*/
-    if (type === byID) {
-        return ports.findIndex(function(p) {return p.connId === clue})
-    } else {
-        return ports.findIndex(function(p) {return p.path === clue})
-    }
+/* Return index of wired or wireless port associated with clue
+   type / clue pairs must be:
+     byID / numeric Connection ID (cid)
+     byMAC / alphanumeric MAC address
+     byPath / alphanumeric path (wired/wireless port identifier)
+   Returns -1 if not found*/
+    return ports.findIndex(function(p) {return p[type] === clue});
 }
 
 function findPort(type, clue) {
-    /* Return port record associated with clue.  This allows caller to directly retrieve any member of the record (provided caller safely checks for null)
-     type must be byID or byPath
-     If type = byID, clue must be a numeric Connection ID (cid) or an alphanumeric MAC address
-     If type = byPath, clue must be an alphanumeric path (wired/wireless port identifier)
-     Returns null record if not found*/
+/* Return port record associated with clue.  This allows caller to later directly retrieve any member of the record (provided caller safely checks for null)
+   type / clue pairs must be:
+     byID / numeric Connection ID (cid)
+     byMAC / alphanumeric MAC address
+     byPath / alphanumeric path (wired/wireless port identifier)
+   Returns null if not found*/
     let cn = 0;
     // Find port record based on scan function
     function findConn(scan) {
         while (cn < ports.length && !scan()) {cn++}
         return cn < ports.length ? ports[cn] : null;
     }
-    // Scan for ID or path
-    if (type === byID) {
-        return findConn(function() {return ports[cn].connId === clue})
-    } else {
-        return findConn(function() {return ports[cn].path === clue})
-    }
+    // Scan for ID, MAC, or path
+        return findConn(function() {return ports[cn][type] === clue})
 }
 
 function deletePort(type, clue) {
-// Delete wired or wireless port associated with clue
+/* Delete wired or wireless port associated with clue
+   type / clue pairs must be:
+     byID / numeric Connection ID (cid)
+     byMAC / alphanumeric MAC address
+     byPath / alphanumeric path (wired/wireless port identifier)*/
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
         log("Deleting port: " + ports[idx].path, mDbug);

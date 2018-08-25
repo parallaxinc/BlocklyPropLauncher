@@ -88,7 +88,7 @@ function discoverWirelessPorts() {
 function ageWirelessPorts() {
 // Age Wi-Fi modules and remove those that haven't been seen for some time from the list
   ports.forEach(function(p) {
-    if (p.isWireless && !--p.life) deletePort(byID, p.connId);
+    if (p.isWireless && !--p.life) deletePort(byMAC, p.mac);
   })
 }
 
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Add found Wi-Fi Module's IP to the packet to prevent responses to subsequent packets.    //!!! Need to reconsider this global operation
       disc_packet += ip32bit(ip.split('.'));
       // Add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
-      addPort({connId: mac, path: wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), ip: ip});
+      addPort({path: wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), mac: mac, ip: ip});
   });
 });
 
