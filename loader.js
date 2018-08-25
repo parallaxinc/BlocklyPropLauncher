@@ -86,14 +86,13 @@ function deferredPromise() {
  *             Propeller Programming Functions             *
  ***********************************************************/
 
+//TODO Determine why port not found error message is not getting back to the UI
 //TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port
 //TODO Remove hard-coded example applications
-//TODO Baudrate restore "may" occur before LaunchNow packet has been transmitted; look into this and protect against problem if found to be so
-//TODO Need to notify of success or failure.  This had better be done with a promise as it must not preempt the UI.
 function loadPropeller(sock, portPath, action, payload, debug) {
-    /* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
-     sock may be null (for development purposes)
-     portPath is serial port's pathname
+/* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
+     sock may be null (if for development purposes)
+     portPath is wired or wireless port's pathname
      action is 'RAM' or 'EEPROM'
      payload is base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image
      debug is true if a terminal is intended to connect to the Propeller after download; false otherwise*/
@@ -112,31 +111,23 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         binImage = buf2ab(bin);
     }
 
-/*
- if (isWiredPort(ws_msg.portPath)) {
- setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
- } else if (isWirelessPort(ws_msg.portPath)) {
- setTimeout(function() {loadPropellerWX(ws_msg.portPath, null, null, null)}, 10);
- } else {
- //TODO Display error; port ws_msg.portPath not found
- }
-*/
-
     // Look for an existing port
     let port = findPort(byPath, portPath);
     if (port) {
         // Port found
         let connect;
         let originalBaudrate;
-        if (port.connId) {
-            // Connection exists, prep to reuse it
-            originalBaudrate = port.baud;
-            port.mode = "programming";
-            connect = function() {return changeBaudrate(port, initialBaudrate)}
-        } else {
-            // No connection yet, prep to create one
-            originalBaudrate = initialBaudrate;
-            connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
+        if (port.isWired) {
+            if (port.connId) {
+                // Connection exists, prep to reuse it
+                originalBaudrate = port.baud;
+                port.mode = "programming";
+                connect = function() {return changeBaudrate(port, initialBaudrate)}
+            } else {
+                // No connection yet, prep to create one
+                originalBaudrate = initialBaudrate;
+                connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
+            }
         }
         // Use connection to download application to the Propeller
         connect()
