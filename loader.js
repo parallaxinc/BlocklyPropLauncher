@@ -37,6 +37,7 @@ let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loa
 
 const propCommStart = {                              //propCommStart is used to initialize propComm
     stage        : sgIdle,                           //Propeller Protocol Stage
+    pSocket      : null,                             //Socket to Propeller (if wireless connection)
     response     : null,                             //Micro Boot Loader response signal (Promise)
     rxCount      : 0,                                //Current count of receive bytes (for stage)
     version      : 0,                                //Propeller firmware version number
@@ -133,12 +134,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         }
         // Use connection to download application to the Propeller
         connect()
-            .then(function() {listen(true)})                                                                        //Enable listener
+            .then(function() {listen(port, true)})                                                                  //Enable listener
             .then(function() {log(notice(000, ["Scanning port " + portPath]), mUser, sock)})                        //Notify what port we're using
             .then(function() {return talkToProp(sock, port, binImage, action === 'EEPROM')})                        //Download user application to RAM or EEPROM
             .then(function() {return changeBaudrate(port, originalBaudrate)})                                       //Restore original baudrate
             .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
-                listen(false);                                                                                      //Disable listener
+                listen(port, false);                                                                                //Disable listener
                 port.mode = (debug !== "none") ? "debug" : "programming";
                 log(notice(nsDownloadSuccessful), mAll, sock);
                 if (sock && debug !== "none") {
@@ -146,36 +147,52 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
                 }
             })                                                                                                      //Error? Disable listener and display error
-            .catch(function(e) {listen(false); log(e.message, mAll, sock); log(notice(neDownloadFailed), mAll, sock); if (port.connId) {changeBaudrate(port, originalBaudrate)}});
+            .catch(function(e) {
+                listen(port, false);
+                log(e.message, mAll, sock);
+                log(notice(neDownloadFailed), mAll, sock);
+                if (port.connId) {changeBaudrate(port, originalBaudrate)}
+            });
     } else {
         // Port not found
         log(notice(neCanNotFindPort, [portPath]), mAll, sock);
     }
 }
 
-function listen(engage) {
-    /* Engage or disengage serial programming receive listener.
-     engage = true to add listener; false to remove listener.*/
+function listen(port, engage) {
+    /* Engage or disengage asynchronous programming receive listener.
+    port = the port to listen to.
+    engage = true to add listener; false to remove listener.*/
     if (engage) {
         resetPropComm();
-        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Safety: Remove previous listener which may be left over from uncaught promise (rare)
-        chrome.serial.onReceive.addListener(hearFromProp);                                                      //Add programming protocol serial receive handler
+        chrome.serial.onReceive.removeListener(hearFromProp);                    //Safety: previous listener may be left over from uncaught promise (rare)
+        chrome.sockets.tcp.onReceive.removeListener(hearFromProp);
+        if (port.isWired) {
+            chrome.serial.onReceive.addListener(hearFromProp);
+        } else {
+            chrome.sockets.tcp.onReceive.addListener(hearFromProp);
+        }
     } else {
-        chrome.serial.onReceive.removeListener(hearFromProp);                                                   //Remove programming protocol serial receive handler
+        if (port.isWired) {
+            chrome.serial.onReceive.removeListener(hearFromProp);
+        } else {
+            chrome.sockets.tcp.onReceive.removeListener(hearFromProp);
+        }
     }
 }
 
-function resetPropComm(timeout, wired) {
+function resetPropComm(port, timeout) {
     /*Reset propComm object to default values
-     timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired), creates deferred promise, and creates timeout timer.
-     wired = [should be provided with timeout] true for wired, false for wireless.
+     port = [optional] the port that PropComm is associated with.
+     timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired/wireless), creates deferred promise, and creates timeout timer.
      */
-    clearPropCommTimer();                                         //Clear old timer, if any
-    Object.assign(propComm, propCommStart);                       //Reset propComm object
-    if (timeout) {                                                //If timeout provided
-        propComm.stage = (wired) ? sgHandshake : sgMBLResponse;     //Ready for handshake
-        propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
-        setPropCommTimer(timeout, notice(nePropellerNotFound));   //Default to "Propeller Not Found" error
+    clearPropCommTimer();                                                //Clear old timer, if any
+    Object.assign(propComm, propCommStart);                              //Reset propComm object
+    if (timeout) {                                                       //If timeout provided
+        propComm.stage = (port.isWired) ? sgHandshake : sgMBLResponse;   //Ready for handshake
+        propComm.pSocket = port.pSocket;                                 //Remember wireless Propeller socket (if any)
+        propComm.response = deferredPromise();                           //Create new deferred promise for micro boot loader response
+        setPropCommTimer(timeout, notice(nePropellerNotFound));          //Default to "Propeller Not Found" error
     };
 }
 
@@ -244,7 +261,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                 };
 
                 Promise.resolve()
-                    .then(function() {                   resetPropComm(mblDeliveryTime, port.isWired);})                  //Reset propComm object
+                    .then(function() {                   resetPropComm(port, mblDeliveryTime);})                          //Reset propComm object
                     .then(function() {if (port.isWired) {log("Generating reset signal", mDeep);}})                        //If wired...
                     .then(function() {if (port.isWired) {return setControl(port, {dtr: false});}})                        //    Start Propeller Reset Signal
                     .then(function() {if (port.isWired) {return flush(port);}})                                           //    Flush transmit/receive buffers (during Propeller reset)
@@ -406,7 +423,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
 
 function hearFromProp(info) {
-// Receive Propeller's responses during programming.  Parse responses for expected stages.
+/* Receive Propeller's responses during programming.  Parse responses for expected stages.
+   This function is called asynchronously whenever data arrives*/
     const rxHandshake = [
         0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
         0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
@@ -417,6 +435,8 @@ function hearFromProp(info) {
         0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
+
+    if (info.hasOwnProperty())
 
     log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
     // Exit immediately if we're not programming

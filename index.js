@@ -277,12 +277,12 @@ function deleteSocket(socketOrIdx) {
     // Clear port's knowledge of socket connection record
     if (sockets[idx].portIdx > -1) {
 //      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
-      ports[sockets[idx].portIdx].socket = null;
-      ports[sockets[idx].portIdx].socketIdx = -1;
+      ports[sockets[idx].portIdx].bSocket = null;
+      ports[sockets[idx].portIdx].bSocketIdx = -1;
     }
     // Delete socket connection record and adjust ports' later references down, if any
     sockets.splice(idx, 1);
-    ports.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
+    ports.forEach(function(v) {if (v.bSocketIdx > idx) {v.bSocketIdx--}});
   }
 }
 

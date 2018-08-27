@@ -74,8 +74,9 @@ function addPort(alist) {
             mac        : get("mac", alist, ""),                        /*[""+] Holds wireless port's MAC address*/
             ip         : get("ip", alist, ""),                         /*[""+] Wireless port's IP address; */
             life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
-            socket     : null,                                         /*[null+] Socket to browser*/
-            socketIdx  : -1,                                           /*[>=-1] Index of socket in sockets list*/
+            bSocket    : null,                                         /*[null+] Socket to browser (persistent)*/
+            bSocketIdx : -1,                                           /*[>=-1] Index of browser socket in sockets list*/
+            pSocket    : null,                                         /*[null+] Socket to Propeller (not persistent)*/
             mode       : "",                                           /*[""+] Intention of the connection; "", "debug", or "programming"*/
             baud       : 0,                                            /*[>=0] Wired port's data rate*/
             packet     : {},                                           /*[...] Packet buffer for socket*/
@@ -94,7 +95,8 @@ function updatePort(port, alist) {
      path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from the MAC address
      connId: unique identifier for the wired serial port connection id
      ip: the wireless port's IP address
-     socket: active socket to associate with port; may be null
+     bSocket: active socket to browser to associate with port; may be null
+     pSocket: active socket to Propeller associated with port; may be null
      mode: the current point of the connection; "", "debug", "programming"
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
@@ -115,17 +117,18 @@ function updatePort(port, alist) {
         set("ip");
         port.life = (port.isWired) ? wLife : wlLife;
         // Update sockets<->ports links as necessary
-        if (exists("socket", alist)) {
-            let sIdx = findSocketIdx(alist.socket);
-            if (port.socketIdx !== sIdx) {
-                // new socket is different; adjust existing socket's record (if any), then apply new socket details to port
-//                log("  Linking to socket index " + sIdx, mDbug);
-                if (port.socketIdx !== -1) {sockets[port.socketIdx].portIdx = -1}
-                port.socket = alist.socket;
-                port.socketIdx = sIdx;
+        if (exists("bSocket", alist)) {
+            let sIdx = findSocketIdx(alist.bSocket);
+            if (port.bSocketIdx !== sIdx) {
+                // new browser socket is different; adjust existing browser socket's record (if any), then apply new browser socket details to port
+//                log("  Linking to browser socket index " + sIdx, mDbug);
+                if (port.bSocketIdx !== -1) {sockets[port.bSocketIdx].portIdx = -1}
+                port.bSocket = alist.bSocket;
+                port.bSocketIdx = sIdx;
                 if (sIdx > -1) {sockets[sIdx].portIdx = findPortIdx(byPath, port.path)}
             }
         }
+        set("pSocket");
         set("mode");
         if (exists("baud", alist)) {
             changeBaudrate(port, alist.baud)
@@ -176,9 +179,9 @@ function deletePort(type, clue) {
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
         log("Deleting port: " + ports[idx].path, mDbug);
-        if (ports[idx].socketIdx > -1) {
+        if (ports[idx].bSocketIdx > -1) {
             // Clear socket's knowledge of wired or wireless port record
-            sockets[ports[idx].socketIdx].portIdx = -1;
+            sockets[ports[idx].bSocketIdx].portIdx = -1;
         }
         // Delete port record and adjust socket's later references down, if any
         ports.splice(idx, 1)

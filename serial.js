@@ -39,7 +39,7 @@ function openPort(sock, portPath, baudrate, connMode) {
         if (port) {
             if (port.connId) {
                 //Already open; ensure correct baudrate, socket, and connMode, then resolve.
-                updatePort(port, {socket: sock, mode: connMode, baud: baudrate})
+                updatePort(port, {bSocket: sock, mode: connMode, baud: baudrate})
                     .then(function() {resolve()})
                     .catch(function (e) {reject(e)});
             } else {
@@ -54,7 +54,7 @@ function openPort(sock, portPath, baudrate, connMode) {
                     function (openInfo) {
                         if (!chrome.runtime.lastError) {
                             // No error; update serial port object
-                            updatePort(port, {connId: openInfo.connectionId, socket: sock, mode: connMode, baud: baudrate});
+                            updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode, baud: baudrate});
                             log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
                             resolve();
                         } else {
@@ -161,8 +161,9 @@ function ageWiredPorts() {
     })
 }
 
+//TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
+//TODO Promisify and return error objects as needed
 //TODO Check send callback
-//TODO Promisify and return error object
 function send(port, data) {
 /* Transmit data on port
    port is the open port's object*/
@@ -173,15 +174,27 @@ function send(port, data) {
     } else {
         if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
     }
-    return chrome.serial.send(port.connId, data, function (sendResult) {
-    });
+
+    if (port.isWired) {
+        return chrome.serial.send(port.connId, data, function (sendResult) {});
+    } else {
+        chrome.sockets.tcp.create(function (s_info) {
+            //Update port record with socket to Propeller
+            updatePort(port, {pSocket: s_info.socketId});
+//!!!            chrome.sockets.tcp.onReceive.addListener(httpResponse);
+            log("Contacting wirelessly...", mDbug);
+            chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
+                chrome.sockets.tcp.send(port.pSocket, txData, function () {});
+            });
+        });
+    }
 }
 
 chrome.serial.onReceive.addListener(function(info) {
 // Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
     let port = findPort(byID, info.connectionId);
     if (port) {
-        if (port.mode === 'debug' && port.socket !== null) {
+        if (port.mode === 'debug' && port.bSocket !== null) {
             // send to terminal in browser tab
             let offset = 0;
             do {
@@ -203,7 +216,7 @@ chrome.serial.onReceive.addListener(function(info) {
             clearTimeout(port.packet.timer);
             port.packet.timer = null;
         }
-        port.socket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
+        port.bSocket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
         port.packet.len = 0;
     }
 });
