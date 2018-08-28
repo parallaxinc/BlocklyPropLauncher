@@ -425,6 +425,14 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 function hearFromProp(info) {
 /* Receive Propeller's responses during programming.  Parse responses for expected stages.
    This function is called asynchronously whenever data arrives*/
+
+    log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
+    // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
+    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.pSocket)) {
+        log("...ignoring", mDeep);
+        return;
+    }
+
     const rxHandshake = [
         0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
         0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
@@ -435,16 +443,6 @@ function hearFromProp(info) {
         0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
-
-    if (info.hasOwnProperty())
-
-    log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
-    // Exit immediately if we're not programming
-    if (propComm.stage === sgIdle) {
-        log("...ignoring", mDeep);
-        return;
-    }
-
     var stream = ab2num(info.data);
     var sIdx = 0;
 
