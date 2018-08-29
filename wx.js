@@ -124,33 +124,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function parseHTML(rawResponse) {
-/* Parse rawResponse and return an object with all related fields and data*/
-    let response = {};
+/* Parse rawResponse for HTML content and return an object with all fields and data.
+      */
+    // Convert rawResponse to ANSI String, find start of body (if any), separate header lines, then headers from values
     let str = String.fromCharCode.apply(null, new Uint8Array(rawResponse));
     let bodyIdx = str.indexOf("\r\n\r\n");
-    let lines = (bodyIdx > -1) ? str.slice(0, bodyIdx) : str;
-    lines = lines.split("\r\n");
-    lines.forEach(function(l, i, r) {r[i] = l.split(": ")});
-    if (lines.length) {lines[0] = lines[0].toString().split(" ")}
-    lines.forEach(function(l, i) {
-        if (i > 0) {
-            if (l.length > 1) {response[l[0]] = l[1]}
-        } else {
-            if ((l.length > 1) && (l[0] === "HTTP/1.1")) {response["ResponseCode"] = parseInt(l[1])} else {response["ResponseCode"] = 204}
-        }
-    });
+    let headers = (bodyIdx > -1) ? str.slice(0, bodyIdx) : str;
+    headers = headers.split("\r\n");
+    headers.forEach(function(l, i, h) {h[i] = l.split(": ")});
+    headers[0] = headers[0].split(" ");
+    // Convert to {header: value} object and insert ResponseCode: and Body: properties
+    response = {ResponseCode: ((headers[0].length > 1) && (headers[0][0] === "HTTP/1.1")) ? parseInt(headers[0][1]) : 204};
+    for(let i = 1; i < header.length; i++) {
+        if (header[i].length > 1) {response[header[i][0]] = header[i][1]}
+    }
     response.Body = (bodyIdx > -1) ? str.slice(bodyIdx+4) : "";
     return response;
 }
 
-function formatResponse(response) {
-/*Return response formatted as an object of multiple elements (lines), each element's content is split into notable values, often key/value pairs*/
-    //Split lines, then split headers from values, then split status line components (protocol/version, response code, response text)
-    response = response.split("\r\n");
-    response.forEach(function(l, i, r) {r[i] = l.split(": ")});
-    if (response.length) {response[0] = response[0].toString().split(" ")}
-    return response;
-}
 
 function isWiFiModule(response) {
 /*Returns true if response is from a recognized Wi-Fi Module type.
@@ -190,21 +181,7 @@ function isValidWiFiVersion(response) {
     return valid;
 }
 
-function resultCode(response) {
-/* Return result code.
-   Returns 204 (No Content) if code not found.*/
-    if ((response.length) && (response[0].length > 1)) {
-        return parseInt(response[0][1], 10);
-    } else {
-        return 204; //Error: No Content
-    }
-}
-
-function resultBody(response) {
-/* Return result body as an array buffer */
-    let idx = response.findIndex(function(item) {return item === "\r\n\r\n"});
-}
-
+/*
  function loadPropellerWX(portPath, action, payload, debug) {
 
      chrome.sockets.tcp.create(function (s_info) {
@@ -214,7 +191,7 @@ function resultBody(response) {
 
          function httpResponse(info) {
              log(String.fromCharCode.apply(null, new Uint8Array(info.data)), mDbug);
-             let result = formatResponse(String.fromCharCode.apply(null, new Uint8Array(info.data)));
+/             let result = formatResponse(String.fromCharCode.apply(null, new Uint8Array(info.data)));
              if (isWiFiModule(result) && isValidWiFiVersion(result)) {
                  log("Success!", mDbug);
 //                 var postStr = "POST /propeller/load?baud-rate="+initialBaudrate+"&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: 4\r\n\r\n1234";
@@ -254,7 +231,7 @@ function resultBody(response) {
          }
      });
  }
-
+*/
      /*
      chrome.sockets.tcp.connect(tcp_sock, findIpByWXid(wxid), 80, function() {
  if (payload) {
