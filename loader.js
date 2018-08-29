@@ -130,7 +130,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
             }
         } else {
-            connect = Promise.resolve();
+            connect = function() {return Promise.resolve()};
         }
         // Use connection to download application to the Propeller
         connect()
@@ -250,7 +250,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             log("Transmitting Micro Boot Loader package", mDeep);
                             send(port, txData);
                             //Get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
-                            let handshake = (port.isWired) ? function() {return unPause(port)} : Promise.resolve();
+                            let handshake = (port.isWired) ? function() {return unPause(port)} : function() {return Promise.resolve()};
                             handshake()
                                 .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
@@ -443,8 +443,12 @@ function hearFromProp(info) {
         0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
-    var stream = ab2num(info.data);
     var sIdx = 0;
+    if (propComm.pSocket) {
+        let stream = parseHTML(info.data);
+    } else {
+        let stream = ab2num(info.data);
+    }
 
     /* Validate rxHandshake
      To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear
@@ -533,20 +537,28 @@ function hearFromProp(info) {
 
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
-        while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
-            propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
-            //Finish stage when expected response size received
-            if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+        if (propComm.pSocket) {
+            console.log(stream);
+/*            if (resultCode(stream) === 200) {
                 clearPropCommTimer();
-                propComm.stage = sgIdle;
+                propComm.stage = sgIdle;*/
+//!!!                propComm.mblRespBuf = ???;
+        } else {
+            while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
+                propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
+                //Finish stage when expected response size received
+                if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+                    clearPropCommTimer();
+                    propComm.stage = sgIdle;
 //                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
 //                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
-                if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
-                    //MBL Response is perfect;  Note resolved
-                    propComm.response.resolve();
-                } else {
-                    //MBL Response invalid;  Note rejected; Ignore the rest
-                    propComm.response.reject(Error(notice(neLoaderFailed)));
+                    if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
+                        //MBL Response is perfect;  Note resolved
+                        propComm.response.resolve();
+                    } else {
+                        //MBL Response invalid;  Note rejected; Ignore the rest
+                        propComm.response.reject(Error(notice(neLoaderFailed)));
+                    }
                 }
             }
         }

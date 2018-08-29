@@ -122,11 +122,32 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+
+function parseHTML(rawResponse) {
+/* Parse rawResponse and return an object with all related fields and data*/
+    let response = {};
+    let str = String.fromCharCode.apply(null, new Uint8Array(rawResponse));
+    let bodyIdx = str.indexOf("\r\n\r\n");
+    let lines = (bodyIdx > -1) ? str.slice(0, bodyIdx) : str;
+    lines = lines.split("\r\n");
+    lines.forEach(function(l, i, r) {r[i] = l.split(": ")});
+    if (lines.length) {lines[0] = lines[0].toString().split(" ")}
+    lines.forEach(function(l, i) {
+        if (i > 0) {
+            if (l.length > 1) {response[l[0]] = l[1]}
+        } else {
+            if ((l.length > 1) && (l[0] === "HTTP/1.1")) {response["ResponseCode"] = parseInt(l[1])} else {response["ResponseCode"] = 204}
+        }
+    });
+    response.Body = (bodyIdx > -1) ? str.slice(bodyIdx+4) : "";
+    return response;
+}
+
 function formatResponse(response) {
 /*Return response formatted as an object of multiple elements (lines), each element's content is split into notable values, often key/value pairs*/
-    //Lowercase all, split lines, then split headers from values, then split status line components (protocol/version, response code, response text)
-    response = response.toLowerCase().split("\r\n");
-    response.forEach(function(l,i, r) {r[i] = l.split(": ")});
+    //Split lines, then split headers from values, then split status line components (protocol/version, response code, response text)
+    response = response.split("\r\n");
+    response.forEach(function(l, i, r) {r[i] = l.split(": ")});
     if (response.length) {response[0] = response[0].toString().split(" ")}
     return response;
 }
@@ -177,6 +198,11 @@ function resultCode(response) {
     } else {
         return 204; //Error: No Content
     }
+}
+
+function resultBody(response) {
+/* Return result body as an array buffer */
+    let idx = response.findIndex(function(item) {return item === "\r\n\r\n"});
 }
 
  function loadPropellerWX(portPath, action, payload, debug) {
