@@ -444,7 +444,7 @@ function hearFromProp(info) {
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
     var sIdx = 0;
-    let stream = (propComm.port.pSocket) ? parseHTML(info.data) : ab2num(info.data);
+    let stream = (propComm.port.pSocket) ? parseHTTP(info.data) : ab2num(info.data);
 
     /* Validate rxHandshake
      To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear

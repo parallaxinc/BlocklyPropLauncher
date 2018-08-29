@@ -123,20 +123,20 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-function parseHTML(rawResponse) {
-/* Parse rawResponse for HTML content and return an object with all fields and data.
-      */
+function parseHTTP(rawResponse) {
+/* Parse rawResponse for HTTP content and return an object with all headers and data.
+   Returned object is guaranteed to contain ResponseCode and Body headers; all other headers are optional.  Body may be empty.*/
     // Convert rawResponse to ANSI String, find start of body (if any), separate header lines, then headers from values
     let str = String.fromCharCode.apply(null, new Uint8Array(rawResponse));
     let bodyIdx = str.indexOf("\r\n\r\n");
-    let headers = (bodyIdx > -1) ? str.slice(0, bodyIdx) : str;
-    headers = headers.split("\r\n");
+    let headers = ( (bodyIdx > -1) ? str.slice(0, bodyIdx) : str ).split("\r\n");
     headers.forEach(function(l, i, h) {h[i] = l.split(": ")});
-    headers[0] = headers[0].split(" ");
+    // Status line is a special case; separate by space
+    headers[0] = headers[0].toString().split(" ");
     // Convert to {header: value} object and insert ResponseCode: and Body: properties
-    response = {ResponseCode: ((headers[0].length > 1) && (headers[0][0] === "HTTP/1.1")) ? parseInt(headers[0][1]) : 204};
-    for(let i = 1; i < header.length; i++) {
-        if (header[i].length > 1) {response[header[i][0]] = header[i][1]}
+    let response = {ResponseCode: ((headers[0].length > 1) && (headers[0][0] === "HTTP/1.1")) ? parseInt(headers[0][1]) : 204};
+    for(let i = 1; i < headers.length; i++) {
+        if (headers[i].length > 1) {response[headers[i][0]] = headers[i][1]}
     }
     response.Body = (bodyIdx > -1) ? str.slice(bodyIdx+4) : "";
     return response;
