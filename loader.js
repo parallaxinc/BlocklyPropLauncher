@@ -426,7 +426,8 @@ function hearFromProp(info) {
 /* Receive Propeller's responses during programming.  Parse responses for expected stages.
    This function is called asynchronously whenever data arrives*/
 
-    log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
+    let stream = (propComm.port.pSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
+    log("Received " + stream.byteLength + " bytes = " + stream, mDeep);
     // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
     if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.pSocket)) {
         log("...ignoring", mDeep);
@@ -444,7 +445,6 @@ function hearFromProp(info) {
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
     var sIdx = 0;
-    let stream = (propComm.port.pSocket) ? parseHTTP(info.data) : ab2num(info.data);
 
     /* Validate rxHandshake
      To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear

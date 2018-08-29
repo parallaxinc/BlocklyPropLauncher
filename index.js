@@ -522,16 +522,6 @@ var str2ab = function(str, len = null) {
     return buf;
 };
 
-var ab2num = function(buf) {
-// Convert ArrayBuffer to Number Array
-  var bufView = new Uint8Array(buf);
-  var unis = [];
-  for (var i = 0; i < bufView.length; i++) {
-    unis.push(bufView[i]);
-  }
-  return unis;
-};
-
 var buf2ab = function (buffer) {
 // Convert buffer to ArrayBuffer
     var buf = new ArrayBuffer(buffer.length);
@@ -552,15 +542,6 @@ var str2buf = function(str) {
   return bufView;
 };
 
-var getIndexByValue = function(element, value) {
-  var list = element.options;
-  for (var i = 0; i < list.length; i++) {
-    if (list[i].value === value) {
-      return i;
-    }
-  }
-};
-
 function isNumber(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
@@ -575,24 +556,4 @@ function checksumArray(arr, l) {
   chksm = (256 - chksm) & 255;
   return chksm;
 }
-
-// retrieves a value from a byte array, parameters for address, endianness, and number of bytes
-function getValueAt(arr, addr, order, byteCount) {
-  var o = 0, k;
-  if (order === 1) {
-    for (k = addr + byteCount - 1; k >= addr; k--) {
-      o = o + arr[k];
-      if (k !== addr)
-        o = o * 256;
-    }
-  } else {
-    for (k = addr; k <= addr + byteCount - 1; k++) {
-      o = o + arr[k];
-      if (k !== addr + byteCount - 1)
-        o = o * 256;
-    }
-  }
-  return o;
-}
-
 
