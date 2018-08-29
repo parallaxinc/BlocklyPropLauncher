@@ -37,7 +37,7 @@ let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loa
 
 const propCommStart = {                              //propCommStart is used to initialize propComm
     stage        : sgIdle,                           //Propeller Protocol Stage
-    pSocket      : null,                             //Socket to Propeller (if wireless connection)
+    port         : null,                             //Wireless port to Propeller (if any)
     response     : null,                             //Micro Boot Loader response signal (Promise)
     rxCount      : 0,                                //Current count of receive bytes (for stage)
     version      : 0,                                //Propeller firmware version number
@@ -164,7 +164,7 @@ function listen(port, engage) {
     port = the port to listen to.
     engage = true to add listener; false to remove listener.*/
     if (engage) {
-        resetPropComm();
+        resetPropComm(port);
         chrome.serial.onReceive.removeListener(hearFromProp);                    //Safety: previous listener may be left over from uncaught promise (rare)
         chrome.sockets.tcp.onReceive.removeListener(hearFromProp);
         if (port.isWired) {
@@ -183,14 +183,14 @@ function listen(port, engage) {
 
 function resetPropComm(port, timeout) {
     /*Reset propComm object to default values
-     port = [optional] the port that PropComm is associated with.
+     port = the port that PropComm is associated with.
      timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired/wireless), creates deferred promise, and creates timeout timer.
      */
     clearPropCommTimer();                                                //Clear old timer, if any
     Object.assign(propComm, propCommStart);                              //Reset propComm object
     if (timeout) {                                                       //If timeout provided
         propComm.stage = (port.isWired) ? sgHandshake : sgMBLResponse;   //Ready for handshake
-        propComm.pSocket = port.pSocket;                                 //Remember wireless Propeller socket (if any)
+        propComm.port = port;                                            //Remember wireless Propeller port (if any)
         propComm.response = deferredPromise();                           //Create new deferred promise for micro boot loader response
         setPropCommTimer(timeout, notice(nePropellerNotFound));          //Default to "Propeller Not Found" error
     };
@@ -428,7 +428,7 @@ function hearFromProp(info) {
 
     log("Received " + info.data.byteLength + " bytes = " + ab2num(info.data), mDeep);
     // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
-    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.pSocket)) {
+    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.pSocket)) {
         log("...ignoring", mDeep);
         return;
     }
@@ -444,11 +444,7 @@ function hearFromProp(info) {
         0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
     ];
     var sIdx = 0;
-    if (propComm.pSocket) {
-        let stream = parseHTML(info.data);
-    } else {
-        let stream = ab2num(info.data);
-    }
+    let stream = (propComm.port.pSocket) ? parseHTML(info.data) : ab2num(info.data);
 
     /* Validate rxHandshake
      To find a received handshake, a few problems must be overcome: 1) data doesn't always arrive in it's entirety per any receive event; a few bytes may appear
@@ -537,7 +533,7 @@ function hearFromProp(info) {
 
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
-        if (propComm.pSocket) {
+        if (propComm.port.pSocket) {
             console.log(stream);
 /*            if (resultCode(stream) === 200) {
                 clearPropCommTimer();
