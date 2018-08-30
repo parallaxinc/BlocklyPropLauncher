@@ -29,6 +29,7 @@ const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
 const sgMBLResponse = 3;
+const sgWXResponse = 4;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
 let propComm = {};                                   //Holds current status
@@ -182,18 +183,20 @@ function listen(port, engage) {
     }
 }
 
-function resetPropComm(port, timeout) {
+function resetPropComm(port, timeout, stage, error) {
     /*Reset propComm object to default values
      port = the port that PropComm is associated with.
      timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired/wireless), creates deferred promise, and creates timeout timer.
+     stage = [optional] stage to initialize with.
+     error = [optional] error notice code if timeout occurs
      */
-    clearPropCommTimer();                                                //Clear old timer, if any
-    Object.assign(propComm, propCommStart);                              //Reset propComm object
-    if (timeout) {                                                       //If timeout provided
-        propComm.stage = (port.isWired) ? sgHandshake : sgMBLResponse;   //Ready for handshake
-        propComm.port = port;                                            //Remember wireless Propeller port (if any)
-        propComm.response = deferredPromise();                           //Create new deferred promise for micro boot loader response
-        setPropCommTimer(timeout, notice(nePropellerNotFound));          //Default to "Propeller Not Found" error
+    clearPropCommTimer();                                                                          //Clear old timer, if any
+    Object.assign(propComm, propCommStart);                                                        //Reset propComm object
+    if (timeout) {                                                                                 //If timeout provided
+        propComm.stage = (!stage) ? (port.isWired) ? sgHandshake : sgMBLResponse : stage;          //Initialize the stage
+        propComm.port = port;                                                                      //Remember wireless Propeller port (if any)
+        propComm.response = deferredPromise();                                                     //Create new deferred promise for micro boot loader response
+        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error));                 //Default to "Propeller Not Found" error
     };
 }
 
@@ -559,6 +562,21 @@ function hearFromProp(info) {
                 //MBL Response invalid;  Note rejected; Ignore the rest
                 propComm.response.reject(Error(notice(neLoaderFailed)));
             }
+        }
+    }
+
+    // Receive WiFi Module response
+    if (propComm.stage === sgWXResponse) {
+        clearPropCommTimer();
+        propComm.stage = sgIdle;
+        console.log(stream);
+        if (stream.ResponseCode === 200) {
+//            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
+//            propComm.rxCount = propComm.mblRespBuf.byteLength;
+            propComm.response.resolve();
+        } else {
+            //TODO Designate a proper error here (probably best to pass on error from response)
+            propComm.response.reject(Error(notice(neLoaderFailed)));
         }
     }
 }

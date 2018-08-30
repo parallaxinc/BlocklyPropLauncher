@@ -110,18 +110,21 @@ function changeBaudrate(port, baudrate) {
                     }
                 });
             } else {
-                    chrome.sockets.tcp.create(function (s_info) {
-                        //Update port record with socket to Propeller
-                        let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
-                        updatePort(port, {pSocket: s_info.socketId});
-                        chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
-                            //TODO Need to check for errors.
-                            chrome.sockets.tcp.send(port.pSocket, str2ab(postStr), function () {
-//!!!                                port.baud = baudrate;
-                                resolve();
-                            });
+                //TODO Need to check for errors.
+                resetPropComm(port, 500, sgWXResponse, neCanNotSetBaudrate);
+                chrome.sockets.tcp.create(function (s_info) {
+                    //Update port record with socket to Propeller
+                    updatePort(port, {pSocket: s_info.socketId});
+                    let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
+                    chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
+                        chrome.sockets.tcp.send(port.pSocket, str2ab(postStr), function () {
+//!!!                            port.baud = baudrate;
+                            propComm.response
+                                .then(function() {return resolve();})
+                                .catch(function(e) {return reject(e);})
                         });
                     });
+                });
             }
         } else {
             // Port is already set to baudrate
