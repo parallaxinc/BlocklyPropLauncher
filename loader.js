@@ -98,16 +98,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
      payload is base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image
      debug is true if a terminal is intended to connect to the Propeller after download; false otherwise*/
 
-    //Set and/or adjust postResetDelay based on platform
-    //Ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-    postResetDelay = platform === pfWin ? 60 : 100;
-
     let binImage;
 
     if (payload) {
         //Extract Propeller Application from payload
         binImage = parseFile(payload);
-        if (binImage.message !== undefined) {log("Error: " + binImage.message); return;}
+        if (binImage.message !== undefined) {log("Error: " + binImage.message, mAll, sock); return;}
     } else {
         binImage = buf2ab(bin);
     }
@@ -118,7 +114,10 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         // Port found
         let connect;
         let originalBaudrate;
+
         if (port.isWired) {
+            //Set postResetDelay based on platform; ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
+            postResetDelay = (platform === pfWin) ? 60 : 100;
             if (port.connId) {
                 // Connection exists, prep to reuse it
                 originalBaudrate = port.baud;
@@ -130,6 +129,8 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
             }
         } else {
+            //Clear postResetDelay (it's controlled by wireless device)
+            postResetDelay = 1;
             connect = function() {return Promise.resolve()};
         }
         // Use connection to download application to the Propeller
@@ -534,11 +535,13 @@ function hearFromProp(info) {
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
         if (propComm.port.pSocket) {
+            // Wireless response
             if (stream.ResponseCode === 200) {
                 propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
                 propComm.rxCount = propComm.mblRespBuf.byteLength;
             }
         } else {
+            // Wired response
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             }
