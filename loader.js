@@ -426,8 +426,8 @@ function hearFromProp(info) {
 /* Receive Propeller's responses during programming.  Parse responses for expected stages.
    This function is called asynchronously whenever data arrives*/
 
+    log("Received " + info.data.byteLength + " bytes", mDeep);
     let stream = (propComm.port.pSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    log("Received " + stream.byteLength + " bytes = " + stream, mDeep);
     // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
     if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.pSocket)) {
         log("...ignoring", mDeep);
@@ -534,30 +534,27 @@ function hearFromProp(info) {
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
         if (propComm.port.pSocket) {
-            console.log(stream);
             if (stream.ResponseCode === 200) {
-                clearPropCommTimer();
-                propComm.stage = sgIdle;
                 propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
-                console.log(propComm.mblRespBuf);
+                propComm.rxCount = propComm.mblRespBuf.byteLength;
             }
         } else {
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
-                //Finish stage when expected response size received
-                if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
-                    clearPropCommTimer();
-                    propComm.stage = sgIdle;
-//                log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
-//                log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
-                    if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
-                        //MBL Response is perfect;  Note resolved
-                        propComm.response.resolve();
-                    } else {
-                        //MBL Response invalid;  Note rejected; Ignore the rest
-                        propComm.response.reject(Error(notice(neLoaderFailed)));
-                    }
-                }
+            }
+        }
+        //Finish stage when expected response size received
+        if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
+            clearPropCommTimer();
+            propComm.stage = sgIdle;
+//            log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
+//            log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
+            if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
+                //MBL Response is perfect;  Note resolved
+                propComm.response.resolve();
+            } else {
+                //MBL Response invalid;  Note rejected; Ignore the rest
+                propComm.response.reject(Error(notice(neLoaderFailed)));
             }
         }
     }
