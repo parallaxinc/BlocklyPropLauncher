@@ -89,17 +89,18 @@ function closePort(port) {
    }
 }
 
+//TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function changeBaudrate(port, baudrate) {
 /* Return a promise that changes the port's baudrate.
-   port is the open port's object
+   port is the port's object
    baudrate is optional; defaults to finalBaudrate
    Resolves (with nothing); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
-        if (port) {
-            if (port.baud !== baudrate) {
-                // Need to change current baudrate
-                log("Changing " + port.path + " to " + baudrate + " baud", mDbug);
+        if (port.baud !== baudrate) {
+            // Need to change current baudrate
+            log("Changing " + port.path + " to " + baudrate + " baud", mDbug);
+            if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
                         port.baud = baudrate;
@@ -109,9 +110,22 @@ function changeBaudrate(port, baudrate) {
                     }
                 });
             } else {
-                // Port is already set to baudrate
-                resolve();
+                    chrome.sockets.tcp.create(function (s_info) {
+                        //Update port record with socket to Propeller
+                        let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
+                        updatePort(port, {pSocket: s_info.socketId});
+                        chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
+                            //TODO Need to check for errors.
+                            chrome.sockets.tcp.send(port.pSocket, str2ab(postStr), function () {
+//!!!                                port.baud = baudrate;
+                                resolve();
+                            });
+                        });
+                    });
             }
+        } else {
+            // Port is already set to baudrate
+            resolve();
         }
     });
 }
@@ -166,7 +180,7 @@ function ageWiredPorts() {
 //TODO Check send callback
 function send(port, data) {
 /* Transmit data on port
-   port is the open port's object*/
+   port is the port's object*/
 
     // Convert data from string or buffer to an ArrayBuffer
     if (typeof data === 'string') {
@@ -181,8 +195,6 @@ function send(port, data) {
         chrome.sockets.tcp.create(function (s_info) {
             //Update port record with socket to Propeller
             updatePort(port, {pSocket: s_info.socketId});
-//!!!            chrome.sockets.tcp.onReceive.addListener(httpResponse);
-            log("Contacting wirelessly...", mDbug);
             chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
                 chrome.sockets.tcp.send(port.pSocket, txData, function () {});
             });
