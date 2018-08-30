@@ -125,7 +125,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function parseHTTP(rawResponse) {
 /* Parse rawResponse for HTTP content and return an object with all headers and data.
-   Returned object is guaranteed to contain ResponseCode and Body headers; all other headers are optional.  Body may be empty.*/
+   Returned object is guaranteed to contain ResponseCode and Body headers; all other headers are optional.
+   Body is an ArrayBuffer and may be empty.*/
     // Convert rawResponse to ANSI String, find start of body (if any), separate header lines, then headers from values
     let str = String.fromCharCode.apply(null, new Uint8Array(rawResponse));
     let bodyIdx = str.indexOf("\r\n\r\n");
@@ -138,7 +139,7 @@ function parseHTTP(rawResponse) {
     for(let i = 1; i < headers.length; i++) {
         if (headers[i].length > 1) {response[headers[i][0]] = headers[i][1]}
     }
-    response.Body = (bodyIdx > -1) ? str.slice(bodyIdx+4) : "";
+    response.Body = (bodyIdx > -1) ? rawResponse.slice(bodyIdx+4) : new ArrayBuffer(0);
     return response;
 }
 

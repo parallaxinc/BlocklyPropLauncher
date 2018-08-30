@@ -535,10 +535,12 @@ function hearFromProp(info) {
     if (propComm.stage === sgMBLResponse) {
         if (propComm.port.pSocket) {
             console.log(stream);
-/*            if (resultCode(stream) === 200) {
+            if (stream.ResponseCode === 200) {
                 clearPropCommTimer();
-                propComm.stage = sgIdle;*/
-//!!!                propComm.mblRespBuf = ???;
+                propComm.stage = sgIdle;
+                propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
+                console.log(propComm.mblRespBuf);
+            }
         } else {
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
