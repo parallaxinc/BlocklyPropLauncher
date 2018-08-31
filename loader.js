@@ -205,14 +205,15 @@ function setPropCommTimer(timeout, timeoutError) {
      timeout = timeout period (in ms)
      timeoutError = string message to issue upon a timeout
      */
-    clearPropCommTimer();
-    propComm.timeoutError = timeoutError;
+    clearPropCommTimer();                                         //Clear old timer now
+    propComm.timeoutError = timeoutError;                         //Prep for new error possibility
     timeout = Math.trunc(timeout);
-    propComm.timer = setTimeout(function() {
+    propComm.timer = setTimeout(function() {                      //If timeout occurs...
 //        log("Timed out in " + timeout + " ms", mDbug);
-        clearPropCommTimer();                                     //Clear timer
-        propComm.stage = sgIdle;                                  //Reset propComm stage to Idle (ignore incoming data)
-        propComm.response.reject(Error(propComm.timeoutError));   //Reject with error
+        clearPropCommTimer();                                     //  Clear timer
+        propComm.stage = sgIdle;                                  //  Reset propComm stage to Idle (ignore incoming data)
+        if (propComm.port.pSocket) {propComm.port.pSocket = null} //  Forget socket id (should be closed by host)
+        propComm.response.reject(Error(propComm.timeoutError));   //  And reject with error
     }, timeout);
 }
 
@@ -539,10 +540,12 @@ function hearFromProp(info) {
     if (propComm.stage === sgMBLResponse) {
         if (propComm.port.pSocket) {
             // Wireless response
+            console.log(stream);
             if (stream.ResponseCode === 200) {
                 propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
                 propComm.rxCount = propComm.mblRespBuf.byteLength;
             }
+            if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {propComm.port.pSocket = null} //  Forget socket id (closed by host)}
         } else {
             // Wired response
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
@@ -562,6 +565,7 @@ function hearFromProp(info) {
                 //MBL Response invalid;  Note rejected; Ignore the rest
                 propComm.response.reject(Error(notice(neLoaderFailed)));
             }
+            return;
         }
     }
 
@@ -578,6 +582,7 @@ function hearFromProp(info) {
             //TODO Designate a proper error here (probably best to pass on error from response)
             propComm.response.reject(Error(notice(neLoaderFailed)));
         }
+        if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {propComm.port.pSocket = null} //  Forget socket id (closed by host)}
     }
 }
 

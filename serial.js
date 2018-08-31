@@ -185,6 +185,12 @@ function send(port, data) {
 /* Transmit data on port
    port is the port's object*/
 
+    function socketSend() {
+        chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function () {
+            chrome.sockets.tcp.send(port.pSocket, data, function () {});
+        });
+    }
+
     // Convert data from string or buffer to an ArrayBuffer
     if (typeof data === 'string') {
         data = str2ab(data);
@@ -192,16 +198,17 @@ function send(port, data) {
         if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
     }
 
-    if (port.isWired) {
+    if (port.isWired) { // Wired port
         return chrome.serial.send(port.connId, data, function (sendResult) {});
-    } else {
-        chrome.sockets.tcp.create(function (s_info) {
-            //Update port record with socket to Propeller
-            updatePort(port, {pSocket: s_info.socketId});
-            chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
-                chrome.sockets.tcp.send(port.pSocket, txData, function () {});
+    } else {            // Wireless port
+        if (!port.pSocket) { // No socket yet; create one
+            chrome.sockets.tcp.create(function (s_info) {
+                updatePort(port, {pSocket: s_info.socketId});
+                socketSend();
             });
-        });
+        } else {             // Socket exists; use it
+            socketSend();
+        }
     }
 }
 
