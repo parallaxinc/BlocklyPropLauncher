@@ -251,12 +251,10 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
                             propComm.mblETransId[0] = transmissionId;
-                            //Send Micro Boot Loader package
+                            //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
                             log("Transmitting Micro Boot Loader package", mDeep);
-                            send(port, txData);
-                            //Get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
-                            let handshake = (port.isWired) ? function() {return unPause(port)} : function() {return Promise.resolve()};
-                            handshake()
+                            send(port, txData)()
+                                .then(function() {if (port.isWired) {return unPause(port)}})                 //Unpause port (if wired)
                                 .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
@@ -320,10 +318,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
-                        send(port, txData);                                                                              //Transmit packet
-                        pIdx += txPacketLength - 2;                                                                      //Increment image index
-                        packetId--;                                                                                      //Decrement Packet ID (to next packet)
-                        resolve();
+                        send(port, txData)                                                                               //Transmit packet
+                            .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
                     });
                 }
 
@@ -365,16 +361,18 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             propComm.mblETransId[0] = transmissionId;
                         }
 
-                        send(port, txData);                                                                        //Transmit packet
+                        send(port, txData)                                                                         //Transmit packet
+                            .then(function() {
+                                if (next.value.type !== ltLaunchNow) {                                             //  If not last instruction packet...
+                                    propComm.response                                                              //    When response (promise)...
+                                        .then(function() {return sendInstructionPacket()})                         //      is success; send next packet (if any) and
+                                        .then(function() {return resolve()})                                       //        resolve
+                                        .catch(function(e) {return  reject(Error(next.value.recvErr))});           //      is failure; reject (return the specific error)
+                                } else {                                                                           //  Else, last instruction packet sent; success
+                                    resolve();                                                                     //    Success; User App Launched!
+                                }
 
-                        if (next.value.type !== ltLaunchNow) {                                                     //If not last instruction packet...
-                            propComm.response                                                                      //  When response (promise)...
-                                .then(function() {return sendInstructionPacket()})                                 //    is success; send next packet (if any) and
-                                .then(function() {return resolve()})                                               //      resolve
-                                .catch(function(e) {return  reject(Error(next.value.recvErr))});                   //    is failure; reject (return the specific error)
-                        } else {                                                                                   //Else, last instruction packet sent; success
-                            resolve();                                                                             //  Success; User App Launched!
-                        }
+                            });
                     });
                 }
 

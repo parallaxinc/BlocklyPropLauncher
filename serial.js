@@ -179,37 +179,41 @@ function ageWiredPorts() {
 }
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
-//TODO Promisify and return error objects as needed
 //TODO Check send callback
+//TODO Reject with error objects as needed
 function send(port, data) {
-/* Transmit data on port
-   port is the port's object*/
+/* Return a promise that transmits data on port
+   port is the port's object
+   data is an ArrayBuffer (preferrably), string, or array*/
 
-    function socketSend() {
-        chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function () {
-            chrome.sockets.tcp.send(port.pSocket, data, function () {});
-        });
-    }
-
-    // Convert data from string or buffer to an ArrayBuffer
-    if (typeof data === 'string') {
-        data = str2ab(data);
-    } else {
-        if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
-    }
-
-    if (port.isWired) { // Wired port
-        return chrome.serial.send(port.connId, data, function (sendResult) {});
-    } else {            // Wireless port
-        if (!port.pSocket) { // No socket yet; create one
-            chrome.sockets.tcp.create(function (s_info) {
-                updatePort(port, {pSocket: s_info.socketId});
-                socketSend();
+    return new Promise(function(resolve, reject) {
+        function socketSend() {
+            chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function () {
+                chrome.sockets.tcp.send(port.pSocket, data, function () {resolve()});
             });
-        } else {             // Socket exists; use it
-            socketSend();
         }
-    }
+
+        // Convert data from string or buffer to an ArrayBuffer
+        if (typeof data === 'string') {
+            data = str2ab(data);
+        } else {
+            if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
+        }
+
+        if (port.isWired) { // Wired port
+            chrome.serial.send(port.connId, data, function (sendResult) {});
+            resolve();
+        } else {            // Wireless port
+            if (!port.pSocket) { // No socket yet; create one
+                chrome.sockets.tcp.create(function (s_info) {
+                    updatePort(port, {pSocket: s_info.socketId});
+                    socketSend();
+                });
+            } else {             // Socket exists; use it
+                socketSend();
+            }
+        }
+    });
 }
 
 chrome.serial.onReceive.addListener(function(info) {
