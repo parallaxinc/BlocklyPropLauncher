@@ -478,9 +478,9 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
                  Instead, update the connection mode so that serial debug data halts.*/
               port.mode = 'none';
           } else if (action === "msg") {
-              // Serial message to send to the device
+              // Message to send to the Propeller
               if (port.connId) {
-                  send(port, msg);
+                  send(port, msg, false);
               }
           }
       } else {

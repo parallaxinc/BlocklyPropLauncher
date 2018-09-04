@@ -73,19 +73,27 @@ function openPort(sock, portPath, baudrate, connMode) {
 
 //TODO Promisify closePort()
 //TODO Consider returning error object
-function closePort(port) {
+function closePort(port, command) {
 /* Close the port.
-   port is the port object*/
-   if (port && port.connId) {
-       chrome.serial.disconnect(port.connId, function (closeResult) {
-           if (closeResult) {
-               log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
-               // Clear connection id to indicate port is closed
-               updatePort(port, {connId: null});
-           } else {
-               log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
+   port is the port object
+   command [ignored unless wireless] must be true to close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service*/
+   if (port) {
+       if (port.isWired) {
+           // Wired port
+           if (port.connId) {
+               chrome.serial.disconnect(port.connId, function (closeResult) {
+                   if (closeResult) {
+                       log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
+                       // Clear connection id to indicate port is closed
+                       updatePort(port, {connId: null});
+                   } else {
+                       log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
+                   }
+               });
            }
-       });
+       } else {
+           {updatePort(propComm.port, {phSocket: null})
+       }
    }
 }
 
@@ -112,12 +120,12 @@ function changeBaudrate(port, baudrate) {
             } else {
                 //TODO Need to check for errors.
                 resetPropComm(port, 500, sgWXResponse, neCanNotSetBaudrate);
-                chrome.sockets.tcp.create(function (s_info) {
-                    //Update port record with socket to Propeller
-                    updatePort(port, {pSocket: s_info.socketId});
+                chrome.sockets.tcp.create(function (info) {
+                    //Update port record with socket to Propeller's HTTP service
+                    updatePort(port, {phSocket: info.socketId});
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
-                    chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function() {
-                        chrome.sockets.tcp.send(port.pSocket, str2ab(postStr), function () {
+                    chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
+                        chrome.sockets.tcp.send(port.phSocket, str2ab(postStr), function () {
 //!!!                            port.baud = baudrate;
                             propComm.response
                                 .then(function() {return resolve();})
@@ -181,16 +189,40 @@ function ageWiredPorts() {
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 //TODO Check send callback
 //TODO Reject with error objects as needed
-function send(port, data) {
+function send(port, data, command) {
 /* Return a promise that transmits data on port
    port is the port's object
-   data is an ArrayBuffer (preferrably), string, or array*/
+   data is an ArrayBuffer (preferrably), string, or array
+   command [ignored unless wireless] must be true to send to Wi-Fi Module's HTTP-based command service and false to send to Propeller via Telnet service*/
 
     return new Promise(function(resolve, reject) {
-        function socketSend() {
-            chrome.sockets.tcp.connect(port.pSocket, port.ip, 80, function () {
-                chrome.sockets.tcp.send(port.pSocket, data, function () {resolve()});
-            });
+
+        log("in send()", mDbug); //!!!!
+
+        function socketSend(p) {
+            log("in socketSend()", mDbug); //!!!!
+            if (!port[p.socket]) { // No ph or pt socket yet; create one and connect to it
+                chrome.sockets.tcp.create(function (info) {
+                    log("in sockets.tcp.create()", mDbug); //!!!!
+                    updatePort(port, {[p.socket]: info.socketId});
+                    chrome.sockets.tcp.connect(port[p.socket], port.ip, p.portNum, function () {
+                        //TODO Handle connect result
+                        log("in sockets.tcp.connect()", mDbug); //!!!!
+                        chrome.sockets.tcp.send(port[p.socket], data, function () {
+                            //TODO handle send result
+                            log("in sockets.tcp.connect > send()", mDbug); //!!!!
+                            resolve();
+                        });
+                    });
+                });
+            } else {             // Socket exists; use it
+                log("socket exists", mDbug); //!!!!
+                chrome.sockets.tcp.send(port[p.socket], data, function () {
+                    //TODO handle send result
+                    log("in sockets.tcp.send()", mDbug); //!!!!
+                    resolve();
+                });
+            }
         }
 
         // Convert data from string or buffer to an ArrayBuffer
@@ -201,17 +233,11 @@ function send(port, data) {
         }
 
         if (port.isWired) { // Wired port
-            chrome.serial.send(port.connId, data, function (sendResult) {});
-            resolve();
+            chrome.serial.send(port.connId, data, function (sendResult) {
+                resolve();
+            });
         } else {            // Wireless port
-            if (!port.pSocket) { // No socket yet; create one
-                chrome.sockets.tcp.create(function (s_info) {
-                    updatePort(port, {pSocket: s_info.socketId});
-                    socketSend();
-                });
-            } else {             // Socket exists; use it
-                socketSend();
-            }
+            socketSend((command) ? {socket: "phSocket", portNum: 80} : {socket: "ptSocket", portNum: 23});
         }
     });
 }

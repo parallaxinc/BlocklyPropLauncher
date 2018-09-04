@@ -44,7 +44,7 @@ function makePortName(mac) {
 
 function addPort(alist) {
 /* Add new wired or wireless port record (automatically updates existing port if necessary).
-   alist: [required] one or more attributes of port to add.  The only valid attributes for an addPort() operation are:
+   alist: [required] one or more attributes of port to add.  The only valid attributes for an addPort() operation are (use UpdatePort to adjust more):
      path: [required] the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") if mac and ip provided,
            and a wireless name will be fabricated from the MAC address
      mac: [omitted if wired] the wireless port's MAC address
@@ -67,7 +67,7 @@ function addPort(alist) {
         updatePort(port, alist);
     } else {
         // else, add it as a new port record (all fields included; many with default values to be updated later)
-//!!!        log("Adding port (" + cid + ", " + portPath + ", " + iP + ")", mDbug);
+        log("Adding port: " + alist.path, mDbug);
         ports.push({
             path       : alist.path,                                   /*[<>""] Wired port path, or wireless port's custom name, or fabricated name; never empty*/
             connId     : get("connId", alist, null),                   /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
@@ -76,7 +76,8 @@ function addPort(alist) {
             life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
             bSocket    : null,                                         /*[null+] Socket to browser (persistent)*/
             bSocketIdx : -1,                                           /*[>=-1] Index of browser socket in sockets list*/
-            pSocket    : null,                                         /*[null+] Socket to Propeller (not persistent)*/
+            phSocket   : null,                                         /*[null+] Socket to Propeller's HTTP service (not persistent)*/
+            ptSocket   : null,                                         /*[null+] Socket to Propeller's Telnet service (persistent)*/
             mode       : "",                                           /*[""+] Intention of the connection; "", "debug", or "programming"*/
             baud       : 0,                                            /*[>=0] Wired port's data rate*/
             packet     : {},                                           /*[...] Packet buffer for socket*/
@@ -96,7 +97,8 @@ function updatePort(port, alist) {
      connId: unique identifier for the wired serial port connection id
      ip: the wireless port's IP address
      bSocket: active socket to browser to associate with port; may be null
-     pSocket: active socket to Propeller associated with port; may be null
+     phSocket: active socket to Propeller's HTTP service; may be null
+     ptSocket: active socket to Propeller's Telnet service; may be null
      mode: the current point of the connection; "", "debug", "programming"
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
@@ -128,7 +130,8 @@ function updatePort(port, alist) {
                 if (sIdx > -1) {sockets[sIdx].portIdx = findPortIdx(byPath, port.path)}
             }
         }
-        set("pSocket");
+        set("phSocket");
+        set("ptSocket");
         set("mode");
         if (exists("baud", alist)) {
             changeBaudrate(port, alist.baud)

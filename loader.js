@@ -205,15 +205,16 @@ function setPropCommTimer(timeout, timeoutError) {
      timeout = timeout period (in ms)
      timeoutError = string message to issue upon a timeout
      */
-    clearPropCommTimer();                                         //Clear old timer now
-    propComm.timeoutError = timeoutError;                         //Prep for new error possibility
+    clearPropCommTimer();                                                         //Clear old timer now
+    propComm.timeoutError = timeoutError;                                         //Prep for new error possibility
     timeout = Math.trunc(timeout);
-    propComm.timer = setTimeout(function() {                      //If timeout occurs...
+    propComm.timer = setTimeout(function() {                                      //If timeout occurs...
 //        log("Timed out in " + timeout + " ms", mDbug);
-        clearPropCommTimer();                                     //  Clear timer
-        propComm.stage = sgIdle;                                  //  Reset propComm stage to Idle (ignore incoming data)
-        if (propComm.port.pSocket) {propComm.port.pSocket = null} //  Forget socket id (should be closed by host)
-        propComm.response.reject(Error(propComm.timeoutError));   //  And reject with error
+        clearPropCommTimer();                                                     //  Clear timer
+        propComm.stage = sgIdle;                                                  //  Reset propComm stage to Idle (ignore incoming data)
+        if (propComm.port.phSocket) {updatePort(propComm.port, {phSocket: null})} //  Forget HTTP service socket id (should be closed by host)
+        if (propComm.port.ptSocket) {updatePort(propComm.port, {ptSocket: null})} //  Forget Telnet service socket id
+        propComm.response.reject(Error(propComm.timeoutError));                   //  And reject with error
     }, timeout);
 }
 
@@ -253,7 +254,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             propComm.mblETransId[0] = transmissionId;
                             //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
                             log("Transmitting Micro Boot Loader package", mDeep);
-                            send(port, txData)()
+                            send(port, txData, true)
                                 .then(function() {if (port.isWired) {return unPause(port)}})                 //Unpause port (if wired)
                                 .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
@@ -318,7 +319,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
-                        send(port, txData)                                                                               //Transmit packet
+                        log("about to send", mDbug); //!!!!
+                        send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
                     });
                 }
@@ -361,7 +363,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             propComm.mblETransId[0] = transmissionId;
                         }
 
-                        send(port, txData)                                                                         //Transmit packet
+                        send(port, txData, false)                                                                  //Transmit packet
                             .then(function() {
                                 if (next.value.type !== ltLaunchNow) {                                             //  If not last instruction packet...
                                     propComm.response                                                              //    When response (promise)...
@@ -405,8 +407,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
          initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
         var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+500;
 
-        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 500 [Rx hardware to OS slack time]
-        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1+500;
+        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 1500 or 500 [Network or Rx hardware to OS slack time]
+        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1 + (port.isWireless) ? 1500 : 500;
 
         //Set for limited retry attempts (multiple when wired to try various post-reset timing)
         var attempts = (port.isWired) ? 6 : 1;
@@ -430,9 +432,9 @@ function hearFromProp(info) {
    This function is called asynchronously whenever data arrives*/
 
     log("Received " + info.data.byteLength + " bytes", mDeep);
-    let stream = (propComm.port.pSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
+    let stream = (propComm.port.phSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
     // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
-    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.pSocket)) {
+    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.phSocket && info.socketId !== propComm.port.ptSocket)) {
         log("...ignoring", mDeep);
         return;
     }
@@ -536,14 +538,14 @@ function hearFromProp(info) {
 
     // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
     if (propComm.stage === sgMBLResponse) {
-        if (propComm.port.pSocket) {
+        if (propComm.port.isWireless) {
             // Wireless response
             console.log(stream);
             if (stream.ResponseCode === 200) {
                 propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
                 propComm.rxCount = propComm.mblRespBuf.byteLength;
             }
-            if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {propComm.port.pSocket = null} //  Forget socket id (closed by host)}
+            if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)}
         } else {
             // Wired response
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
@@ -580,7 +582,7 @@ function hearFromProp(info) {
             //TODO Designate a proper error here (probably best to pass on error from response)
             propComm.response.reject(Error(notice(neLoaderFailed)));
         }
-        if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {propComm.port.pSocket = null} //  Forget socket id (closed by host)}
+        if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)
     }
 }
 
