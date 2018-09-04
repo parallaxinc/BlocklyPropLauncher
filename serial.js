@@ -71,30 +71,58 @@ function openPort(sock, portPath, baudrate, connMode) {
     });
 }
 
-//TODO Promisify closePort()
-//TODO Consider returning error object
+//TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function closePort(port, command) {
 /* Close the port.
    port is the port object
-   command [ignored unless wireless] must be true to close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service*/
-   if (port) {
-       if (port.isWired) {
-           // Wired port
-           if (port.connId) {
-               chrome.serial.disconnect(port.connId, function (closeResult) {
-                   if (closeResult) {
-                       log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
-                       // Clear connection id to indicate port is closed
-                       updatePort(port, {connId: null});
-                   } else {
-                       log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
-                   }
-               });
-           }
-       } else {
-           {updatePort(propComm.port, {phSocket: null})
-       }
-   }
+   command [ignored unless wireless] must be true to close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service
+   Resolves (with nothing); rejects with Error*/
+
+    return new Promise(function(resolve, reject) {
+
+        function socketClose(socket) {
+            // Nullify port's socket reference
+            let sID = port[socket];
+            updatePort(port, {[socket]: null});
+            // Disconnect and/or close socket (if necessary)
+            chrome.sockets.tcp.getInfo(sID, function(info) {
+                if (info.connected) {
+                    chrome.sockets.tcp.disconnect(sID, function() {
+                        chrome.sockets.tcp.close(sID, function() {
+                            resolve();
+                        })
+                    })
+                } else {
+                    chrome.sockets.tcp.close(port[socket], function() {
+                        resolve();
+                    })
+                }
+            });
+        }
+
+        if (port) {
+            if (port.isWired) {
+                // Wired port
+                if (port.connId) {
+                    chrome.serial.disconnect(port.connId, function (closeResult) {
+                        if (closeResult) {
+                            log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
+                            // Clear connection id to indicate port is closed
+                            updatePort(port, {connId: null});
+                            resolve();
+                        } else {
+                            log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
+                            reject(Error(notice(neCanNotClosePort, [port.path])));
+                        }
+                    });
+                }
+            } else {
+                // Wireless port
+                socketClose((command) ? "phSocket" : "ptSocket");
+            }
+        }
+
+    });
 }
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term

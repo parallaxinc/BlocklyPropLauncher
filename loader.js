@@ -196,25 +196,24 @@ function resetPropComm(port, timeout, stage, error) {
         propComm.stage = (!stage) ? (port.isWired) ? sgHandshake : sgMBLResponse : stage;          //Initialize the stage
         propComm.port = port;                                                                      //Remember wireless Propeller port (if any)
         propComm.response = deferredPromise();                                                     //Create new deferred promise for micro boot loader response
-        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error));                 //Default to "Propeller Not Found" error
+        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error), true);           //Default to "Propeller Not Found" error
     };
 }
 
-function setPropCommTimer(timeout, timeoutError) {
-    /*  Set timeout timer for Propeller Communication
-     timeout = timeout period (in ms)
-     timeoutError = string message to issue upon a timeout
-     */
+function setPropCommTimer(timeout, timeoutError, command) {
+/*  Set timeout timer for Propeller Communication
+    timeout = timeout period (in ms)
+    timeoutError = string message to issue upon a timeout
+    command [ignored unless wireless] must be true to, upon timeout, close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service*/
     clearPropCommTimer();                                                         //Clear old timer now
     propComm.timeoutError = timeoutError;                                         //Prep for new error possibility
     timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {                                      //If timeout occurs...
 //        log("Timed out in " + timeout + " ms", mDbug);
-        clearPropCommTimer();                                                     //  Clear timer
-        propComm.stage = sgIdle;                                                  //  Reset propComm stage to Idle (ignore incoming data)
-        if (propComm.port.phSocket) {updatePort(propComm.port, {phSocket: null})} //  Forget HTTP service socket id (should be closed by host)
-        if (propComm.port.ptSocket) {updatePort(propComm.port, {ptSocket: null})} //  Forget Telnet service socket id
-        propComm.response.reject(Error(propComm.timeoutError));                   //  And reject with error
+        clearPropCommTimer();                                                              //  Clear timer
+        propComm.stage = sgIdle;                                                           //  Reset propComm stage to Idle (ignore incoming data)
+        if (propComm.port.isWireless) {closePort(propComm.port, command)}                  //  Close and/or forget HTTP or Telnet service socket
+        propComm.response.reject(Error(propComm.timeoutError));                            //  And reject with error
     }, timeout);
 }
 
@@ -293,7 +292,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
             propComm.response = deferredPromise();                    //Create new deferred promise for micro boot loader response
             propComm.stage = sgMBLResponse;
             propComm.rxCount = 0;
-            setPropCommTimer(timeout, timeoutError);
+            setPropCommTimer(timeout, timeoutError, false);
         }
 
         //TODO catch send() errors
