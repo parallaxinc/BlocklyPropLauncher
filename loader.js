@@ -1,4 +1,5 @@
 /* Parallax Inc. ("PARALLAX") CONFIDENTIAL
+/* Parallax Inc. ("PARALLAX") CONFIDENTIAL
  Unpublished Copyright (c) 2017 Parallax Inc., All Rights Reserved.
 
  NOTICE:  All information contained herein is, and remains the property of PARALLAX.  The intellectual and technical concepts contained
@@ -166,7 +167,7 @@ function listen(port, engage) {
     port = the port to listen to.
     engage = true to add listener; false to remove listener.*/
     if (engage) {
-        resetPropComm(port);
+        resetPropComm(port, null, null, null, true);
         chrome.serial.onReceive.removeListener(hearFromProp);                    //Safety: previous listener may be left over from uncaught promise (rare)
         chrome.sockets.tcp.onReceive.removeListener(hearFromProp);
         if (port.isWired) {
@@ -183,20 +184,20 @@ function listen(port, engage) {
     }
 }
 
-function resetPropComm(port, timeout, stage, error) {
-    /*Reset propComm object to default values
-     port = the port that PropComm is associated with.
-     timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired/wireless), creates deferred promise, and creates timeout timer.
-     stage = [optional] stage to initialize with.
-     error = [optional] error notice code if timeout occurs
-     */
+function resetPropComm(port, timeout, stage, error, command) {
+/*Reset propComm object to default values
+    port = the port that PropComm is associated with.
+    timeout = [optional] period (in ms) for initial timeout.  If provided, sets stage to initial value (according to wired/wireless), creates deferred promise, and creates timeout timer.
+    stage = [optional] stage to initialize with.
+    error = [optional] error notice code if timeout occurs
+    command [ignored unless wireless] must be true to, upon timeout, close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service*/
     clearPropCommTimer();                                                                          //Clear old timer, if any
     Object.assign(propComm, propCommStart);                                                        //Reset propComm object
     if (timeout) {                                                                                 //If timeout provided
         propComm.stage = (!stage) ? (port.isWired) ? sgHandshake : sgMBLResponse : stage;          //Initialize the stage
         propComm.port = port;                                                                      //Remember wireless Propeller port (if any)
         propComm.response = deferredPromise();                                                     //Create new deferred promise for micro boot loader response
-        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error), true);           //Default to "Propeller Not Found" error
+        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error), command);        //Default to "Propeller Not Found" error
     };
 }
 
@@ -264,7 +265,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                 };
 
                 Promise.resolve()
-                    .then(function() {                   resetPropComm(port, mblDeliveryTime);})                          //Reset propComm object
+                    .then(function() {                   resetPropComm(port, mblDeliveryTime, null, null, true);})        //Reset propComm object
                     .then(function() {if (port.isWired) {log("Generating reset signal", mDeep);}})                        //If wired...
                     .then(function() {if (port.isWired) {return setControl(port, {dtr: false});}})                        //    Start Propeller Reset Signal
                     .then(function() {if (port.isWired) {return flush(port);}})                                           //    Flush transmit/receive buffers (during Propeller reset)

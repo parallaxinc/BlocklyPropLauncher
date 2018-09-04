@@ -147,7 +147,7 @@ function changeBaudrate(port, baudrate) {
                 });
             } else {
                 //TODO Need to check for errors.
-                resetPropComm(port, 500, sgWXResponse, neCanNotSetBaudrate);
+                resetPropComm(port, 500, sgWXResponse, neCanNotSetBaudrate, true);
                 chrome.sockets.tcp.create(function (info) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
