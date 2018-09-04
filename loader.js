@@ -432,8 +432,9 @@ function hearFromProp(info) {
    This function is called asynchronously whenever data arrives*/
 
     log("Received " + info.data.byteLength + " bytes", mDeep);
+    // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
     let stream = (propComm.port.phSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    // Exit immediately if we're idling or if socket-based data is not in response to our Propeller communication socket
+    // Exit if we're idling or if socket-based data is not in response to our Propeller communication socket
     if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.phSocket && info.socketId !== propComm.port.ptSocket)) {
         log("...ignoring", mDeep);
         return;
@@ -541,11 +542,16 @@ function hearFromProp(info) {
         if (propComm.port.isWireless) {
             // Wireless response
             console.log(stream);
-            if (stream.ResponseCode === 200) {
-                propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
+            if (propComm.port.phSocket) { //HTTP-command response
+                if (stream.ResponseCode === 200) {
+                    propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
+                    propComm.rxCount = propComm.mblRespBuf.byteLength;
+                }
+                if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)}
+            } else {                      //Telnet response
+                propComm.mblRespBuf.set(new Uint8Array(stream.slice(0, propComm.mblRespBuf.byteLength)));
                 propComm.rxCount = propComm.mblRespBuf.byteLength;
             }
-            if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)}
         } else {
             // Wired response
             while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
