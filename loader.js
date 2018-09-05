@@ -319,7 +319,6 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
-                        log("about to send", mDbug); //!!!!
                         send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
                     });
@@ -407,11 +406,11 @@ function talkToProp(sock, port, binImage, toEEPROM) {
          initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
         var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1+500;
 
-        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 1500 or 500 [Network or Rx hardware to OS slack time]
-        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1 + (port.isWireless) ? 1500 : 500;
+        //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 1500 or 250 [Network or Rx hardware to OS slack time]
+        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1 + (port.isWireless) ? 1500 : 250;
 
         //Set for limited retry attempts (multiple when wired to try various post-reset timing)
-        var attempts = (port.isWired) ? 6 : 1;
+        var attempts = (port.isWired) ? Math.trunc(postResetDelay / autoAdjust) + 1 : 1;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Get Propeller's attention and send initial application (Micro Boot Loader)

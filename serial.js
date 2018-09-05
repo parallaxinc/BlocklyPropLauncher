@@ -84,6 +84,7 @@ function closePort(port, command) {
             // Nullify port's socket reference
             let sID = port[socket];
             updatePort(port, {[socket]: null});
+            log("Closing socket", mDbug);
             // Disconnect and/or close socket (if necessary)
             chrome.sockets.tcp.getInfo(sID, function(info) {
                 if (info.connected) {
