@@ -24,6 +24,10 @@ function $(id) {
   return document.getElementById(id);
 }
 
+// Programming metrics
+const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
+const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
+
 // Messaging types
 // These classify messages sent to log() to be routed to one or more destinations (browser dialog, app log, or app/browser console).
 // The intention is that such messages can be later filtered via options set in the app itself to make debugging easier.
@@ -56,11 +60,11 @@ function log(text = "", type = mStat, socket = null) {
   if (type & (mcUser | mcStatus | mcVerbose)) {
   // Deliver categorized message to proper destination
       if ((type & mdDisplay) && socket !== null) {
-        let dispText = text !== "." ? '\r' + text : text;
-        socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
+          let dispText = text !== "." ? '\r' + text : text;
+          socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
       }
       if (type & mdLog) {$('log').innerHTML += text + '<br>'}
-      if (type & mdConsole) {console.log(text)}
+      if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
   }
 }
 
@@ -114,17 +118,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  if ($('wx-allow').checked) {
+    enableWX();
+  }
+
   if(chrome.storage) {
-    chrome.storage.sync.get('s_port', function(result) {
-      $('bpc-port').value = result.s_port || '6009';
-    });
-    
-    chrome.storage.sync.get('s_url', function(result) {
-      $('bpc-url').value = result.s_url || 'localhost';
-    });
+    chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
+    chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
+    chrome.storage.sync.get('sm-0', function(result) {$('sm-0').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-1', function(result) {$('sm-1').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-2', function(result) {$('sm-2').value = result.s_url || '255';});
+    chrome.storage.sync.get('sm-3', function(result) {$('sm-3').value = result.s_url || '0';});
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
+    $('sm-0').value = '255';
+    $('sm-1').value = '255';
+    $('sm-2').value = '255';
+    $('sm-3').value = '0';
   }
 
   $('websocket-connect').onclick = function() {
@@ -150,6 +161,16 @@ document.addEventListener('DOMContentLoaded', function() {
     connect_ws($('bpc-port').value, $('bpc-url').value);
   };
 
+  // TODO: re-write this to use onblur and/or onchange to auto-save. 
+  $('save-netmask').onclick = function() {
+    if(chrome.storage) {
+      chrome.storage.sync.set({'sm-0':$('sm-0').value}, function() {});
+      chrome.storage.sync.set({'sm-1':$('sm-1').value}, function() {});
+      chrome.storage.sync.set({'sm-2':$('sm-2').value}, function() {});
+      chrome.storage.sync.set({'sm-3':$('sm-3').value}, function() {});
+    }
+  };
+
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top !== '10px') {
       setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
@@ -164,21 +185,38 @@ document.addEventListener('DOMContentLoaded', function() {
     verboseLogging = $('bpc-trace').checked;
   };
   
-  $('wx-module-tab').onclick = function() {
-    if($('wx-module-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-selected';
-      $('port-path-tab').className = 'tab-unselect';
-      $('wx-module-settings').style.display = 'block';
-      $('port-path-settings').style.display = 'none';
+  $('wx-allow').onclick = function() {
+    var wx_enabled = $('wx-allow').checked;
+    if(wx_enabled) {
+      enableWX();
+    } else {
+      disableWX();
     }
   };
 
-  $('port-path-tab').onclick = function() {
-    if($('port-path-tab').className === 'tab-unselect') {
-      $('wx-module-tab').className = 'tab-unselect';
-      $('port-path-tab').className = 'tab-selected';
-      $('wx-module-settings').style.display = 'none';
-      $('port-path-settings').style.display = 'block';
+  $('wmt').onclick = function() {
+    if($('wx-module-tab').className === 'tab-unselect tab-right') {
+      $('wx-module-tab').className = 'tab-selected tab-right';
+      $('port-path-tab').className = 'tab-unselect tab-left';
+      $('wx-module-settings').style.visibility = 'visible';
+      $('port-path-settings').style.visibility = 'hidden';
+      $('sep-right').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'hidden';
+      $('cor-left').style.visibility = 'visible';
+      $('cor-right').style.visibility = 'hidden';
+    }
+  };
+
+  $('ppt').onclick = function() {
+    if($('port-path-tab').className === 'tab-unselect tab-left') {
+      $('wx-module-tab').className = 'tab-unselect tab-right';
+      $('port-path-tab').className = 'tab-selected tab-left';
+      $('wx-module-settings').style.visibility = 'hidden';
+      $('port-path-settings').style.visibility = 'visible';
+      $('sep-left').style.visibility = 'visible';
+      $('sep-right').style.visibility = 'hidden';
+      $('cor-right').style.visibility = 'visible';
+      $('cor-left').style.visibility = 'hidden';
     }
   };
 
@@ -197,15 +235,15 @@ function disconnect() {
 function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = '&#10004; Connected';
-      $('websocket-connect').innerHTML = 'Disconnect';
-      $('ws-button-container').style.visibility = 'visible';
       $('connect-disconnect').className = 'status status-green';
+      $('websocket-connect').disabled = false;
+      $('websocket-connect').innerHTML = 'Disconnect';
       log('BlocklyProp site connected');
   } else {
       $('connect-disconnect').innerHTML = 'Waiting to<br>connect...';
       $('connect-disconnect').className = 'status status-clear';
-      $('ws-button-container').style.visibility = 'hidden';
-      $('websocket-connect').innerHTML = 'Connect';
+      $('websocket-connect').disabled = true;
+      $('websocket-connect').innerHTML = 'Waiting...';
       log('BlocklyProp site disconnected');
   }
 }
@@ -236,15 +274,15 @@ function deleteSocket(socketOrIdx) {
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
 //  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
-    // Clear USB's knowledge of socket connection record
-    if (sockets[idx].serialIdx > -1) {
-//      log("  Clearing port index " + sockets[idx].serialIdx + " reference to this socket", mDbug);
-      ports[sockets[idx].serialIdx].socket = null;
-      ports[sockets[idx].serialIdx].socketIdx = -1;
+    // Clear port's knowledge of socket connection record
+    if (sockets[idx].portIdx > -1) {
+//      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
+      ports[sockets[idx].portIdx].bSocket = null;
+      ports[sockets[idx].portIdx].bSocketIdx = -1;
     }
     // Delete socket connection record and adjust ports' later references down, if any
     sockets.splice(idx, 1);
-    ports.forEach(function(v) {if (v.socketIdx > idx) {v.socketIdx--}});
+    ports.forEach(function(v) {if (v.bSocketIdx > idx) {v.bSocketIdx--}});
   }
 }
 
@@ -271,7 +309,7 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
 //      log("Adding socket at index " + sockets.length, mDbug);
-      sockets.push({socket:socket, serialIdx:-1});
+      sockets.push({socket:socket, portIdx:-1});
       
       //Listen for ports
       if(portListener === null) {
@@ -286,18 +324,12 @@ function connect_ws(ws_port, url_path) {
           if (ws_msg.type === "load-prop") {
             log('Received Propeller Application for ' + ws_msg.action);
             setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
-//            var msg_to_send = {type:'ui-command', action:'message-compile', msg:'Working...'};
-//            socket.send(JSON.stringify(msg_to_send));
-
-
-              // open or close the serial port for terminal/debug
+          // open or close the serial port for terminal/debug
           } else if (ws_msg.type === "serial-terminal") {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
-
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
             sendPortList();
-  
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -372,18 +404,42 @@ function connect_ws(ws_port, url_path) {
   //});
 }
 
+function enableWX() {
+    wx_scanner_interval = setInterval(function() {
+        discoverWirelessPorts();
+        ageWirelessPorts();
+        displayWirelessPorts();
+    }, 3500);
+}
+
+function disableWX() {
+    if(wx_scanner_interval) {
+        clearInterval(wx_scanner_interval);
+        $('wx-list').innerHTML = '';
+    }
+}
 
 function sendPortList() {
-// find and send list of serial devices (filtered according to platform and type)
+// find and send list of communication ports (filtered according to platform and type)
   chrome.serial.getDevices(
-    function(ports) {
-      var pt = [];
-      ports.forEach(function(pl) {
-        if ((pl.path.indexOf(portPattern[platform]) > -1) && (pl.path.indexOf(' bt ') === -1 && pl.path.indexOf('bluetooth') === -1)) {
-          pt.push(pl.path);
+    function(portlist) {
+      let wn = [];
+      let wln = [];
+      // update wired ports
+      portlist.forEach(function(port) {
+        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
+          addPort({path: port.path});
         }
       });
-      var msg_to_send = {type:'port-list',ports:pt};
+      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
+
+      // gather separated and sorted port lists (wired names and wireless names)
+      ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
+      wn.sort();
+      wln.sort();
+
+      // report back to editor
+      var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
       for (var i = 0; i < sockets.length; i++) {
         sockets[i].socket.send(JSON.stringify(msg_to_send));
         if (chrome.runtime.lastError) {
@@ -401,41 +457,50 @@ function helloClient(sock, baudrate) {
 }
 
 //TODO Check send results and act accordingly?
+//TODO refactor to combine usb and wx-based port code efficiently
 function serialTerminal(sock, action, portPath, baudrate, msg) {
-  if (action === "open") {
-    openPort(sock, portPath, baudrate, 'debug')
-      .then(function(id) {var cid = id})
-      .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
-      .catch(function() {
-        log('Unable to connect terminal to ' + portPath);
-        var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-        sock.send(JSON.stringify(msg_to_send));
-      });
-  } else if (action === "close") {
-    // Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-    // lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-    // Instead, update the connection mode so that serial debug data halts.
-//      closePort(findPortId(portPath));
-    let conn = findPort(portPath);
-    if (conn) {conn.mode = 'none'}
-  } else if (action === "msg") {
-    // Serial message to send to the device
-    // Find port connection id from portPath or socket
-    let cid = findPortId(portPath);
-    if (!cid) {
-      let sIdx = findSocketIdx(sock);
-      if (sIdx > -1) {
-         cid = (sockets[sIdx].serialIdx > -1) ? ports[sockets[sIdx].serialIdx].connId : null;
+  // Find port from portPath
+  let port = findPort(byPath, portPath);
+  if (port) {
+      if(port.isWired) {
+          if (action === "open") {
+              // Open port for terminal use
+              openPort(sock, portPath, baudrate, 'debug')
+                  .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+                  .catch(function() {
+                      log('Unable to connect terminal to ' + portPath);
+                      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
+                      sock.send(JSON.stringify(msg_to_send));
+                  });
+          } else if (action === "close") {
+              /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+                 lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+                 Instead, update the connection mode so that serial debug data halts.*/
+              port.mode = 'none';
+          } else if (action === "msg") {
+              // Message to send to the Propeller
+              if (port.connId) {
+                  send(port, msg, false);
+              }
+          }
+      } else {
+          // TODO add WX module debug passthrough functions
+          if (action === 'open') {
+
+          } else if (action === 'close') {
+
+          } else if (action === 'msg') {
+
+          }
       }
-    }
-    if (cid) {
-      send(cid, msg);
-    }
+  } else {
+      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a valid serial port.'};
+      sock.send(JSON.stringify(msg_to_send));
   }
 }
 
-// Convert ArrayBuffer to String
 var ab2str = function(buf) {
+// Convert ArrayBuffer to String
   var bufView = new Uint8Array(buf);
   var unis = [];
   for (var i = 0; i < bufView.length; i++) {
@@ -444,28 +509,27 @@ var ab2str = function(buf) {
   return String.fromCharCode.apply(null, unis);
 };
 
-// Convert ArrayBuffer to Number Array
-var ab2num = function(buf) {
-  var bufView = new Uint8Array(buf);
-  var unis = [];
-  for (var i = 0; i < bufView.length; i++) {
-    unis.push(bufView[i]);
-  }
-  return unis;
-};
-
-// Converts String to ArrayBuffer.
 var str2ab = function(str, len = null) {
 // Convert str to array buffer, optionally of size len
-  if (!len) {
-    len = str.length;
-  }
-  var buf = new ArrayBuffer(len);
-  var bufView = new Uint8Array(buf);
-  for (var i = 0; i < Math.min(len, str.length); i++) {
-    bufView[i] = str.charCodeAt(i);
-  }
-  return buf;
+    if (!len) {
+        len = str.length;
+    }
+    var buf = new ArrayBuffer(len);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < Math.min(len, str.length); i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+};
+
+var buf2ab = function (buffer) {
+// Convert buffer to ArrayBuffer
+    var buf = new ArrayBuffer(buffer.length);
+    var bufView = new Uint8Array(buf);
+    for (var i = 0; i < buffer.length; i++) {
+        bufView[i] = buffer[i];
+    }
+    return buf;
 };
 
 var str2buf = function(str) {
@@ -476,15 +540,6 @@ var str2buf = function(str) {
     bufView[i] = str.charCodeAt(i);
   }
   return bufView;
-};
-
-var getIndexByValue = function(element, value) {
-  var list = element.options;
-  for (var i = 0; i < list.length; i++) {
-    if (list[i].value === value) {
-      return i;
-    }
-  }
 };
 
 function isNumber(n) {
@@ -501,24 +556,4 @@ function checksumArray(arr, l) {
   chksm = (256 - chksm) & 255;
   return chksm;
 }
-
-// retrieves a value from a byte array, parameters for address, endianness, and number of bytes
-function getValueAt(arr, addr, order, byteCount) {
-  var o = 0, k;
-  if (order === 1) {
-    for (k = addr + byteCount - 1; k >= addr; k--) {
-      o = o + arr[k];
-      if (k !== addr)
-        o = o * 256;
-    }
-  } else {
-    for (k = addr; k <= addr + byteCount - 1; k++) {
-      o = o + arr[k];
-      if (k !== addr + byteCount - 1)
-        o = o * 256;
-    }
-  }
-  return o;
-}
-
 

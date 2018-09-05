@@ -63,6 +63,8 @@ const neRAMChecksumFailed          = 125;
 const neEEPROMVerifyFailed         = 127;
 const neCommunicationLost          = 128;
 const neLoaderFailed               = 129;
+const neCanNotFindPort             = 130;
+const neCanNotClosePort            = 131;
 const neCommunicationFailed        = 199;
 
 // Notices, by ID
@@ -80,6 +82,8 @@ notices = {
     [neEEPROMVerifyFailed]         : "EEPROM verify failed",
     [neCommunicationLost]          : "Communication lost",    /*No response*/
     [neLoaderFailed]               : "Loader failed",         /*Response invalid*/
+    [neCanNotFindPort]             : "Can not find port %s",  /*Requested port not found in ports list*/
+    [neCanNotClosePort]            : "Can not close port %s", /*Requested port can not be closed*/
     [neCommunicationFailed]        : "Communication failed"   /*Response unexpected*/
 };
 

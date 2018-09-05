@@ -1,17 +1,23 @@
 {
   "name": "BlocklyProp Launcher",
   "description": "A Chrome application that connects your Propeller-Powered Hardware to the BlocklyProp website.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "manifest_version": 2,
   "minimum_chrome_version": "45",
   
-  "permissions": ["browser", "serial", "storage"],
+  "permissions": ["browser", "serial", "storage", "system.network"],
 
   "sockets": {
+    "udp": {
+      "create": "*",
+      "send": "*",
+      "bind": "*",
+      "multicastMembership": "",
+      "joinGroup":"*"
+    },
     "tcp": {
       "connect": "*"
     },
-
     "tcpServer": {
       "listen": "*"
     }
