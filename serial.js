@@ -153,12 +153,12 @@ function changeBaudrate(port, baudrate) {
                 });
             } else {
                 //TODO Need to check for errors.
-                resetPropComm(port, 500, sgWXResponse, notice(neCanNotSetBaudrate, [port.path, baudrate]), true);
+                resetPropComm(port, 1500, sgWXResponse, notice(neCanNotSetBaudrate, [port.path, baudrate]), true);
                 chrome.sockets.tcp.create(function (info) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
                     if (!port.phSocket) {
-                        log("NULL SOCKET!!!", mDbug);
+                        log("NULL SOCKET!!!", mDbug);  //!!!
                     }
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
                     chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
