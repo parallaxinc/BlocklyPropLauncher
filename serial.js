@@ -93,7 +93,7 @@ function closePort(port, command) {
                         })
                     })
                 } else {
-                    chrome.sockets.tcp.close(port[socket], function() {
+                    chrome.sockets.tcp.close(sID, function() {
                         resolve();
                     })
                 }
@@ -147,7 +147,7 @@ function changeBaudrate(port, baudrate) {
                 });
             } else {
                 //TODO Need to check for errors.
-                resetPropComm(port, 500, sgWXResponse, neCanNotSetBaudrate, true);
+                resetPropComm(port, 500, sgWXResponse, notice(neCanNotSetBaudrate, [port.path, baudrate]), true);
                 chrome.sockets.tcp.create(function (info) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
