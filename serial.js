@@ -145,7 +145,7 @@ function changeBaudrate(port, baudrate) {
             if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
-                        updatePort(port, {baud: baudrate});
+                        port.baud = baudrate;  //Update baud; does not use updatePort() because of circular reference //!!!
                         resolve();
                     } else {
                         reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
@@ -163,9 +163,8 @@ function changeBaudrate(port, baudrate) {
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
                     chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
                         chrome.sockets.tcp.send(port.phSocket, str2ab(postStr), function () {
-                            updatePort(port, {baud: baudrate});
                             propComm.response
-                                .then(function() {return resolve();})
+                                .then(function() {port.baud = baudrate; return resolve();})  //Update baud; does not use updatePort() because of circular reference //!!!
                                 .catch(function(e) {return reject(e);})
                         });
                     });
