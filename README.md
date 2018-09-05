@@ -28,7 +28,7 @@ No build process is required- simply press the play button in Chrome Dev Editor 
 
 Though there is no need for a "build" process during development, the release process requires extra effort because this project is currently closed-source and since Chrome Applications are executing from source, the released application needs to have it's Parallax-created code obfuscated prior to publication.  _Obfuscation is not really source code protection, but good obfuscation techniques can at least slow down reverse-engineering efforts._
 
-- Releases of this Chrome App are source-code obfuscated with _javascript-obfuscator_ using the command-line (CLI) tools; currently tested with _javascript-obfuscator v0.9.4_.
+- Releases of this Chrome App are source-code obfuscated with _javascript-obfuscator_ using the command-line (CLI) tools; currently tested with _javascript-obfuscator v0.18.1_.
     - Requires (and can be installed with) Node.js.
     - Source repository and instructions: [https://github.com/javascript-obfuscator/javascript-obfuscator](https://github.com/javascript-obfuscator/javascript-obfuscator)
     - Live online version: [https://javascriptobfuscator.herokuapp.com/](https://javascriptobfuscator.herokuapp.com/)
