@@ -131,8 +131,10 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
             }
         } else {
-            //Clear postResetDelay (it's controlled by wireless device)
+            //Virtually-clear postResetDelay (it's controlled by wireless device)
             postResetDelay = 1;
+            //TODO Retrieve actual current baudrate
+            originalBaudrate = initialBaudrate;
             connect = function() {return Promise.resolve()};
         }
         // Use connection to download application to the Propeller
@@ -197,7 +199,7 @@ function resetPropComm(port, timeout, stage, error, command) {
         propComm.stage = (!stage) ? (port.isWired) ? sgHandshake : sgMBLResponse : stage;          //Initialize the stage
         propComm.port = port;                                                                      //Remember wireless Propeller port (if any)
         propComm.response = deferredPromise();                                                     //Create new deferred promise for micro boot loader response
-        setPropCommTimer(timeout, notice((!error) ? nePropellerNotFound : error), command);        //Default to "Propeller Not Found" error
+        setPropCommTimer(timeout, (!error) ? notice(nePropellerNotFound) : error, command);        //Default to "Propeller Not Found" error
     };
 }
 
@@ -210,7 +212,7 @@ function setPropCommTimer(timeout, timeoutError, command) {
     propComm.timeoutError = timeoutError;                                         //Prep for new error possibility
     timeout = Math.trunc(timeout);
     propComm.timer = setTimeout(function() {                                      //If timeout occurs...
-//        log("Timed out in " + timeout + " ms", mDbug);
+        log("Timed out in " + timeout + " ms", mDbug);
         clearPropCommTimer();                                                              //  Clear timer
         propComm.stage = sgIdle;                                                           //  Reset propComm stage to Idle (ignore incoming data)
         if (propComm.port.isWireless) {closePort(propComm.port, command)}                  //  Close and/or forget HTTP or Telnet service socket
