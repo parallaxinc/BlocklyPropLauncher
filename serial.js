@@ -145,7 +145,7 @@ function changeBaudrate(port, baudrate) {
             if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
-                        port.baud = baudrate;
+                        updatePort(port, {baud: baudrate});
                         resolve();
                     } else {
                         reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
@@ -158,12 +158,12 @@ function changeBaudrate(port, baudrate) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
                     if (!port.phSocket) {
-                        log("NULL SOCKET!!!", mDbug);  //!!!
+                        log("NULL SOCKET!!!", mDbug);  //!!!!
                     }
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
                     chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
                         chrome.sockets.tcp.send(port.phSocket, str2ab(postStr), function () {
-//!!!                            port.baud = baudrate;
+                            updatePort(port, {baud: baudrate});
                             propComm.response
                                 .then(function() {return resolve();})
                                 .catch(function(e) {return reject(e);})

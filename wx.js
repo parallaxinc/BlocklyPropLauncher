@@ -24,8 +24,6 @@ WXVer = ["v1.0"];
 // Container for the active UDP socket used for discovery broadcasts
 var udp_sock;
 
-//!!! var tcp_sock;
-
 // Initial discovery packet.  4-bytes per module representing the module's IP are appended as Wi-Fi modules are found
 // signaling to a module that it does not have to re-respond.
 var disc_packet = '\0\0\0\0';
@@ -221,7 +219,7 @@ function isValidWiFiVersion(response) {
 //             chrome.sockets.tcp.send(tcp_sock, str2ab(getStr), function() {});
 
                  //Generate loader package (in txData)
-             let packetId = 1; //!!!
+             let packetId = 1;
              generateLoaderPacket(ltUnEncCore, packetId, defaultClockSpeed, defaultClockMode);
              chrome.sockets.tcp.send(tcp_sock, txData, function() {});
 

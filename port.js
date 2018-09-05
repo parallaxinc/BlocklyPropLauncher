@@ -112,7 +112,7 @@ function updatePort(port, alist) {
             // Empty port path?  If wireless port, craft path from mac, else abort (reject)
             if (port.isWireless && port.mac) {alist.path = makePortName(port.mac)} else {reject(Error("path required!")); return}
         }
-//!!!        log("Updating port '" + port.path + "' with " + alist, mDbug);
+//        log("Updating port '" + port.path + "' with " + alist, mDbug);
         // Apply updates (if necessary) as well as special handling
         set("path");
         set("connId");
