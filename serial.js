@@ -84,21 +84,26 @@ function closePort(port, command) {
             // Nullify port's socket reference
             let sID = port[socket];
             updatePort(port, {[socket]: null});
-            log("Closing socket", mDbug);
-            // Disconnect and/or close socket (if necessary)
-            chrome.sockets.tcp.getInfo(sID, function(info) {
-                if (info.connected) {
-                    chrome.sockets.tcp.disconnect(sID, function() {
+            if (sID) {
+                log("Closing socket", mDbug);
+                // Disconnect and/or close socket (if necessary)
+                chrome.sockets.tcp.getInfo(sID, function(info) {
+                    if (info.connected) {
+                        chrome.sockets.tcp.disconnect(sID, function() {
+                            chrome.sockets.tcp.close(sID, function() {
+                                resolve();
+                            })
+                        })
+                    } else {
                         chrome.sockets.tcp.close(sID, function() {
                             resolve();
                         })
-                    })
-                } else {
-                    chrome.sockets.tcp.close(sID, function() {
-                        resolve();
-                    })
-                }
-            });
+                    }
+                });
+            } else {
+                log("Not closing socket", mDbug);
+                reject(Error(notice(neCanNotClosePort, [port.path])));
+            }
         }
 
         if (port) {
@@ -152,6 +157,9 @@ function changeBaudrate(port, baudrate) {
                 chrome.sockets.tcp.create(function (info) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
+                    if (!port.phSocket) {
+                        log("NULL SOCKET!!!", mDbug);
+                    }
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
                     chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
                         chrome.sockets.tcp.send(port.phSocket, str2ab(postStr), function () {

@@ -147,16 +147,19 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 listen(port, false);                                                                                //Disable listener
                 port.mode = (debug !== "none") ? "debug" : "programming";
                 log(notice(nsDownloadSuccessful), mAll, sock);
-                if (sock && debug !== "none") {
+                if (sock && debug !== "none") {                                                                     //If debug needed, open terminal/graph
                     sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
+                } else {                                                                                            //Else
+                    if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
                 }
             })                                                                                                      //Error? Disable listener and display error
             .catch(function(e) {
                 listen(port, false);
                 log(e.message, mAll, sock);
                 log(notice(neDownloadFailed), mAll, sock);
-                if (port.connId) {changeBaudrate(port, originalBaudrate)}
+                if ((port.isWired && port.connId) || port.isWireless) {changeBaudrate(port, originalBaudrate)}
+                if (port.isWireless) {closePort(port, false)}
             });
     } else {
         // Port not found
@@ -215,8 +218,10 @@ function setPropCommTimer(timeout, timeoutError, command) {
         log("Timed out in " + timeout + " ms", mDbug);
         clearPropCommTimer();                                                              //  Clear timer
         propComm.stage = sgIdle;                                                           //  Reset propComm stage to Idle (ignore incoming data)
-        if (propComm.port.isWireless) {closePort(propComm.port, command)}                  //  Close and/or forget HTTP or Telnet service socket
-        propComm.response.reject(Error(propComm.timeoutError));                            //  And reject with error
+        Promise.resolve()
+            .then(function() {if (propComm.port.isWireless) {return closePort(propComm.port, command)}})    //  Close and/or forget HTTP or Telnet service socket
+            .then(function() {propComm.response.reject(Error(propComm.timeoutError))})                      //  And reject with error
+            .catch(function(e) {propComm.response.reject(Error(propComm.timeoutError))})
     }, timeout);
 }
 
