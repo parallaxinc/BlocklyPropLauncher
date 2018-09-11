@@ -243,11 +243,14 @@ function send(port, data, command) {
                     updatePort(port, {[p.socket]: info.socketId});
                     chrome.sockets.tcp.connect(port[p.socket], port.ip, p.portNum, function () {
                         //TODO Handle connect result
-                        log("in sockets.tcp.connect()", mDbug); //!!!!
-                        chrome.sockets.tcp.send(port[p.socket], data, function () {
-                            //TODO handle send result
-                            log("in sockets.tcp.connect > send()", mDbug); //!!!!
-                            resolve();
+                        chrome.sockets.tcp.setNoDelay(info.socketId, true, function(result) {
+                            if (result < 0) {log("Warning: unable to disable Nagle timer", mDbug)}
+                            log("in sockets.tcp.connect()", mDbug); //!!!!
+                            chrome.sockets.tcp.send(port[p.socket], data, function () {
+                                //TODO handle send result
+                                log("in sockets.tcp.connect > send()", mDbug); //!!!!
+                                resolve();
+                            });
                         });
                     });
                 });
