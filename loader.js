@@ -258,7 +258,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         setTimeout(function() {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
-                            propComm.mblETransId[0] = transmissionId;
+                            propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
                             //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
                             log("Transmitting Micro Boot Loader package", mDeep);
                             send(port, txData, true)
@@ -320,11 +320,10 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
-                        transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
-                        propComm.mblEPacketId[0] = packetId-1;
-                        propComm.mblETransId[0] = transmissionId;
+                        propComm.mblEPacketId[0] = packetId-1;                                                           //Set next expected packetId
+                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                                  //Set next random Transmission ID
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                        //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
                         send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
@@ -359,15 +358,15 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         log(next.value.sendLog, mAll, sock);
 
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
 
                         if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
                             prepForMBLResponse(next.value.recvTime, notice(neCommunicationLost));                  //  Prepare to receive next MBL response
                             packetId = next.value.nextId;                                                          //  Ready next Packet ID
                             propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
-                            propComm.mblETransId[0] = transmissionId;
+                            propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);
                         }
+
+                        (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                  //Store random Transmission ID (or 0)
 
                         send(port, txData, false)                                                                  //Transmit packet
                             .then(function() {
@@ -396,7 +395,6 @@ function talkToProp(sock, port, binImage, toEEPROM) {
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
-        var transmissionId = 0;                                                          //Initial Transmission ID
         var pIdx = 0;                                                                    //Packet index (points to next data in binary image to send
         //Calculate target application's full checksum (used for RAM Checksum confirmation)}
         binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
