@@ -228,7 +228,7 @@ function ageWiredPorts() {
 function send(port, data, command) {
 /* Return a promise that transmits data on port
    port is the port's object
-   data is an ArrayBuffer (preferrably), string, or array
+   data is an ArrayBuffer
    command [ignored unless wireless] must be true to send to Wi-Fi Module's HTTP-based command service and false to send to Propeller via Telnet service*/
 
     return new Promise(function(resolve, reject) {
@@ -262,13 +262,6 @@ function send(port, data, command) {
                     resolve();
                 });
             }
-        }
-
-        // Convert data from string or buffer to an ArrayBuffer
-        if (typeof data === 'string') {
-            data = str2ab(data);
-        } else {
-            if (data instanceof ArrayBuffer === false) {data = buf2ab(data);}
         }
 
         if (port.isWired) { // Wired port

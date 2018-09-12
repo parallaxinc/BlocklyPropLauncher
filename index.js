@@ -462,6 +462,12 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   // Find port from portPath
   let port = findPort(byPath, portPath);
   if (port) {
+      // Convert msg from string or buffer to an ArrayBuffer
+      if (typeof msg === 'string') {
+          msg = str2ab(msg);
+      } else {
+          if (msg instanceof ArrayBuffer === false) {msg = buf2ab(msg);}
+      }
       if(port.isWired) {
           if (action === "open") {
               // Open port for terminal use
