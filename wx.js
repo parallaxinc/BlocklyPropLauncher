@@ -180,6 +180,9 @@ function isValidWiFiVersion(response) {
     return valid;
 }
 
+chrome.sockets.tcp.onReceive.addListener(debugReceiver);
+chrome.sockets.tcp.onReceiveError.addListener(debugErrorReceiver);
+
 /*
  function loadPropellerWX(portPath, action, payload, debug) {
 

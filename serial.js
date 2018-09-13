@@ -274,11 +274,13 @@ function send(port, data, command) {
     });
 }
 
-chrome.serial.onReceive.addListener(function(info) {
-// Permanent serial receive listener- routes debug data from Propeller to connected browser when necessary
-    let port = findPort(byID, info.connectionId);
+//TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
+function debugReceiver(info) {
+// Wired and wireless receive listener- routes debug data from Propeller to connected browser when necessary
+    let wired = (info.hasOwnProperty(connectionId));
+    let port = wired ? findPort(byCID, info.connectionId) : findPort(byPTID, info.socketId);
     if (port) {
-        if (port.mode === 'debug' && port.bSocket !== null) {
+        if (port.mode === 'debug' && port.bSocket) {
             // send to terminal in browser tab
             let offset = 0;
             do {
@@ -303,14 +305,22 @@ chrome.serial.onReceive.addListener(function(info) {
         port.bSocket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
         port.packet.len = 0;
     }
-});
+};
 
-chrome.serial.onReceiveError.addListener(function(info) {
-// Permanent serial receive error listener.
-    switch (info.error) {
-        case "disconnected":
-        case "device_lost" :
-        case "system_error": deletePort(byID, info.connectionId);
+//TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
+function debugErrorReceiver(info) {
+// Wired and wireless receive error listener.
+    if (info.hasOwnProperty(connectionId)) {
+        switch (info.error) {
+            case "disconnected":
+            case "device_lost" :
+            case "system_error": deletePort(byCID, info.connectionId);
+        }
+//        log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
+    } else {
+        log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
     }
-//    log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
-});
+};
+
+chrome.serial.onReceive.addListener(debugReceiver);
+chrome.serial.onReceiveError.addListener(debugErrorReceiver);

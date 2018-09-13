@@ -16,9 +16,11 @@
 
 
 // Find Port identifier types
-const byID = "connId";
-const byMAC = "mac";
-const byPath = "path";
+const byCID = "connId";            //Represents numeric Connection ID (cid) type
+const byPHID = "phSocket";         //Represents numeric Propeller HTTP Socket ID type
+const byPTID = "ptSocket";         //Represents numeric Propeller Telnet Socket ID type
+const byMAC = "mac";               //Represents alphanumeric MAC address type
+const byPath = "path";             //Represents alphanumeric path (wired/wireless port identifier) type
 
 // Port's max lifetime
 const wLife = 2;
@@ -149,7 +151,9 @@ function exists(attr, src) {
 function findPortIdx(type, clue) {
 /* Return index of wired or wireless port associated with clue
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)
    Returns -1 if not found*/
@@ -159,7 +163,9 @@ function findPortIdx(type, clue) {
 function findPort(type, clue) {
 /* Return port record associated with clue.  This allows caller to later directly retrieve any member of the record (provided caller safely checks for null)
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)
    Returns null if not found*/
@@ -176,7 +182,9 @@ function findPort(type, clue) {
 function deletePort(type, clue) {
 /* Delete wired or wireless port associated with clue
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)*/
     let idx = findPortIdx(type, clue);
