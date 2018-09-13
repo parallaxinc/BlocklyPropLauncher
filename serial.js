@@ -277,7 +277,7 @@ function send(port, data, command) {
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function debugReceiver(info) {
 // Wired and wireless receive listener- routes debug data from Propeller to connected browser when necessary
-    let wired = (info.hasOwnProperty(connectionId));
+    let wired = (info.hasOwnProperty("connectionId"));
     let port = wired ? findPort(byCID, info.connectionId) : findPort(byPTID, info.socketId);
     if (port) {
         if (port.mode === 'debug' && port.bSocket) {
@@ -310,7 +310,7 @@ function debugReceiver(info) {
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function debugErrorReceiver(info) {
 // Wired and wireless receive error listener.
-    if (info.hasOwnProperty(connectionId)) {
+    if (info.hasOwnProperty("connectionId")) {
         switch (info.error) {
             case "disconnected":
             case "device_lost" :
@@ -318,7 +318,14 @@ function debugErrorReceiver(info) {
         }
 //        log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
     } else {
-        log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
+        switch (info.resultCode) {
+            case -100: let port = findPort(byPTID, info.socketId);
+                       if (!port) {port = findPort(byPHID, info.socketId)}
+                       log("Error: SocketID "+info.socketId+" connection closed" + ((port) ? " for port ." : "."), mDeep);
+                       break;
+            default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
+        }
+
     }
 };
 
