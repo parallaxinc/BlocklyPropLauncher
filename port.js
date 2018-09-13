@@ -28,8 +28,8 @@ const wlLife = 3;
 var ports = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
-const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
-const serPacketMax = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10));   // Size of buffer to hold max bytes receivable in FillTime at max baudrate
+const serPacketMaxTxTime = 100;                                                 // Max wait time before transmitting packet (ms)
+const serPacketMax = 1492;                                                      // Size of buffer to transmit serial data to browser
 const serPacket = {
     id      : 0,
     bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),

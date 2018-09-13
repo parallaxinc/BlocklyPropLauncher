@@ -289,7 +289,7 @@ chrome.serial.onReceive.addListener(function(info) {
                 if (port.packet.len === serPacketMax) {
                     sendDebugPacket(port);
                 } else if (port.packet.timer === null) {
-                    port.packet.timer = setTimeout(sendDebugPacket, serPacketFillTime, port)
+                    port.packet.timer = setTimeout(sendDebugPacket, serPacketMaxTxTime, port)
                 }
             } while (offset < info.data.byteLength);
         }
