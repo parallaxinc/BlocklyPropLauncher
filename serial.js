@@ -241,6 +241,7 @@ function send(port, data, command) {
                 chrome.sockets.tcp.create(function (info) {
                     log("in sockets.tcp.create()", mDbug); //!!!!
                     updatePort(port, {[p.socket]: info.socketId});
+                    log(p.socket + " SocketID "+port[p.socket]+" transmitting" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                     chrome.sockets.tcp.connect(port[p.socket], port.ip, p.portNum, function () {
                         //TODO Handle connect result
                         chrome.sockets.tcp.setNoDelay(info.socketId, true, function(result) {
@@ -321,7 +322,7 @@ function debugErrorReceiver(info) {
         switch (info.resultCode) {
             case -100: let port = findPort(byPTID, info.socketId);
                        if (!port) {port = findPort(byPHID, info.socketId)}
-                       log("Error: SocketID "+info.socketId+" connection closed" + ((port) ? " for port ." : "."), mDeep);
+                       log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                        break;
             default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
         }

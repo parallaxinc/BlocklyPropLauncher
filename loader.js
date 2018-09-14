@@ -123,7 +123,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             if (port.connId) {
                 // Connection exists, prep to reuse it
                 originalBaudrate = port.baud;
-                port.mode = "programming";
+                updatePort(port, {mode: "programming", bSocket: sock});
                 connect = function() {return changeBaudrate(port, initialBaudrate)}
             } else {
                 // No connection yet, prep to create one
@@ -135,6 +135,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             postResetDelay = 1;
             //TODO Retrieve actual current baudrate
             originalBaudrate = initialBaudrate;
+            updatePort(port, {mode: "programming", bSocket: sock});
             connect = function() {return Promise.resolve()};
         }
         // Use connection to download application to the Propeller
@@ -151,6 +152,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                     sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
                 } else {                                                                                            //Else
+                    updatePort(port, {mode: ""});                                                                   //  Clear port mode
                     if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
                 }
             })                                                                                                      //Error? Disable listener and display error
@@ -158,6 +160,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 listen(port, false);
                 log(e.message, mAll, sock);
                 log(notice(neDownloadFailed), mAll, sock);
+                updatePort(port, {mode: ""});
                 if ((port.isWired && port.connId) || port.isWireless) {changeBaudrate(port, originalBaudrate)}
                 if (port.isWireless) {closePort(port, false)}
             });
@@ -856,7 +859,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
             txView.set(timingPulses, txLength + encodedLoader.byteLength);
         } else /*loaderType === ltCore*/ {
             //[ltUnEncCore] Prepare unencoded loader packet (for wireless downloads)
-            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
+            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&final-baud-rate="+finalBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
 
             txData = new ArrayBuffer(postStr.byteLength+patchedLoader.byteLength);
             txView = new Uint8Array(txData);
