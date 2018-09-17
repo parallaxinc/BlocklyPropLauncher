@@ -303,7 +303,9 @@ function debugReceiver(info) {
             clearTimeout(port.packet.timer);
             port.packet.timer = null;
         }
-        port.bSocket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
+        if (port.mode === 'debug' && port.bSocket) {
+            port.bSocket.send(JSON.stringify({type: 'serial-terminal', packetID: port.packet.id++, msg: btoa(ab2str(port.packet.bufView.slice(0, port.packet.len)))}));
+        }
         port.packet.len = 0;
     }
 };
