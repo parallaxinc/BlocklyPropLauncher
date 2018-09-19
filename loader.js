@@ -23,19 +23,20 @@ let txData;                                         //Data to transmit to the Pr
 const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
+const mblRespSize = 8;                              //Size of Micro Boot Loader Response (and Expected) array buffers
 
 // propComm stage values
 const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
-const sgMBLResponse = 3;
+const sgMBLResponse = 3;                             //NOTE: hearFromProp() requires all further to be wireless stages
 const sgWXResponse = 4;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
 let propComm = {};                                   //Holds current status
-let mblRespAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader actual responses
-let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader expected responses
+let mblRespAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader actual responses
+let mblExpdAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader expected responses
 
 const propCommStart = {                              //propCommStart is used to initialize propComm
     stage        : sgIdle,                           //Propeller Protocol Stage
@@ -441,8 +442,11 @@ function hearFromProp(info) {
     log("Received " + info.data.byteLength + " bytes", mDeep);
     // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
     let stream = (propComm.port.phSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    // Exit if we're idling or if socket-based data is not in response to our Propeller communication socket
-    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.phSocket && info.socketId !== propComm.port.ptSocket)) {
+    // Exit if we're idling or if socket-based data is not in response to our communication
+    if (propComm.stage === sgIdle ||
+        !(info.hasOwnProperty("socketId") &&
+            ((propComm.stage === sgMBLResponse && (info.socketId === propComm.port.phSocket || info.socketId === propComm.port.ptSocket)) ||
+            (propComm.stage === sgWXResponse && info.socketId === propComm.port.phSocket)))) {
         log("...ignoring", mDeep);
         return;
     }
@@ -544,39 +548,40 @@ function hearFromProp(info) {
         propComm.rxCount = 0;
     }
 
-    // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
+    // Receive Micro Boot Loader's response.  The first serves as its "Ready" signal, the rest are packet responses; all are formatted as 4-byte expected Packet ID followed by 4-byte Transmission ID.
+    // NOTE: For wireless, the first is contained in the body of an HTTP response and the rest are delivered as Telnet responses.
     if (propComm.stage === sgMBLResponse) {
         if (propComm.port.isWireless) {
             // Wireless response
             console.log(stream);
-            if (propComm.port.phSocket) { //HTTP-command response
+            if (propComm.port.phSocket) { //HTTP-command response; we'll assume right size, errors will be caught by timeout
                 if (stream.ResponseCode === 200) {
-                    propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
-                    propComm.rxCount = propComm.mblRespBuf.byteLength;
+                    propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(-mblRespSize)));
+                    propComm.rxCount = mblRespSize;
                 }
                 if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)}
-            } else {                      //Telnet response
-                propComm.mblRespBuf.set(new Uint8Array(stream.slice(0, propComm.mblRespBuf.byteLength)));
-                propComm.rxCount = propComm.mblRespBuf.byteLength;
+            } else {                      //Telnet response; we'll assume right size (perhaps tacked onto end of previous debug stream), errors will be caught by timeout
+                propComm.mblRespBuf.set(new Uint8Array(stream.slice(-mblRespSize)));
+                propComm.rxCount = mblRespSize;
             }
         } else {
             // Wired response
-            while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
+            while (sIdx < stream.length && propComm.rxCount < mblRespSize) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             }
         }
         //Finish stage when expected response size received
-        if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
-            clearPropCommTimer();
-            propComm.stage = sgIdle;
+        if (propComm.rxCount === mblRespSize) {
 //            log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
 //            log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
             if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
                 //MBL Response is perfect;  Note resolved
+                clearPropCommTimer();
+                propComm.stage = sgIdle;
                 propComm.response.resolve();
             } else {
-                //MBL Response invalid;  Note rejected; Ignore the rest
-                propComm.response.reject(Error(notice(neLoaderFailed)));
+                //MBL Response invalid;  may be leftover debug data; ignore
+                propComm.rxCount = 0;
             }
             return;
         }
@@ -588,8 +593,8 @@ function hearFromProp(info) {
         propComm.stage = sgIdle;
         console.log(stream);
         if (stream.ResponseCode === 200) {
-//            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
-//            propComm.rxCount = propComm.mblRespBuf.byteLength;
+//            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, mblRespSize)));
+//            propComm.rxCount = mblRespSize;
             propComm.response.resolve();
         } else {
             //TODO Designate a proper error here (probably best to pass on error from response)

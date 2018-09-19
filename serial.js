@@ -157,9 +157,6 @@ function changeBaudrate(port, baudrate) {
                 chrome.sockets.tcp.create(function (info) {
                     //Update port record with socket to Propeller's HTTP service
                     updatePort(port, {phSocket: info.socketId});
-                    if (!port.phSocket) {
-                        log("NULL SOCKET!!!", mDbug);  //!!!!
-                    }
                     let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
                     chrome.sockets.tcp.connect(port.phSocket, port.ip, 80, function() {
                         chrome.sockets.tcp.send(port.phSocket, str2ab(postStr), function () {
@@ -233,33 +230,33 @@ function send(port, data, command) {
 
     return new Promise(function(resolve, reject) {
 
-        log("in send()", mDbug); //!!!!
+//        log("in send()", mDbug); //!!!!
 
         function socketSend(p) {
-            log("in socketSend()", mDbug); //!!!!
+//            log("in socketSend()", mDbug); //!!!!
             if (!port[p.socket]) { // No ph or pt socket yet; create one and connect to it
                 chrome.sockets.tcp.create(function (info) {
-                    log("in sockets.tcp.create()", mDbug); //!!!!
+//                    log("in sockets.tcp.create()", mDbug); //!!!!
                     updatePort(port, {[p.socket]: info.socketId});
-                    log(p.socket + " SocketID "+port[p.socket]+" transmitting" + ((port) ? " for port " + port.path + "." : "."), mDeep);
+//                    log(p.socket + " SocketID "+port[p.socket]+" transmitting" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                     chrome.sockets.tcp.connect(port[p.socket], port.ip, p.portNum, function () {
                         //TODO Handle connect result
                         chrome.sockets.tcp.setNoDelay(info.socketId, true, function(result) {
                             if (result < 0) {log("Warning: unable to disable Nagle timer", mDbug)}
-                            log("in sockets.tcp.connect()", mDbug); //!!!!
+//                            log("in sockets.tcp.connect()", mDbug); //!!!!
                             chrome.sockets.tcp.send(port[p.socket], data, function () {
                                 //TODO handle send result
-                                log("in sockets.tcp.connect > send()", mDbug); //!!!!
+//                                log("in sockets.tcp.connect > send()", mDbug); //!!!!
                                 resolve();
                             });
                         });
                     });
                 });
             } else {             // Socket exists; use it
-                log("socket exists", mDbug); //!!!!
+//                log("socket exists", mDbug); //!!!!
                 chrome.sockets.tcp.send(port[p.socket], data, function () {
                     //TODO handle send result
-                    log("in sockets.tcp.send()", mDbug); //!!!!
+//                    log("in sockets.tcp.send()", mDbug); //!!!!
                     resolve();
                 });
             }
@@ -322,13 +319,13 @@ function debugErrorReceiver(info) {
 //        log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
     } else {
         switch (info.resultCode) {
-            case -100: let port = findPort(byPTID, info.socketId);
-                       if (!port) {port = findPort(byPHID, info.socketId)}
-                       log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
+            case -100: //port closed
+                // let port = findPort(byPTID, info.socketId);
+                // if (!port) {port = findPort(byPHID, info.socketId)}
+                // log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                        break;
             default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
         }
-
     }
 };
 
