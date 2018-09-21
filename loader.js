@@ -171,7 +171,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                     sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
                 } else {                                                                                            //Else
-                    updatePort(port, {mode: ""});                                                                   //  Clear port mode
+                    updatePort(port, {mode: "none"});                                                               //  Clear port mode
                     if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
                 }
             })                                                                                                      //Error? Disable listener and display error
@@ -179,7 +179,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 listen(port, false);
                 log(e.message, mAll, sock);
                 log(notice(neDownloadFailed), mAll, sock);
-                updatePort(port, {mode: ""});
+                updatePort(port, {mode: "none"});
                 if ((port.isWired && port.connId) || port.isWireless) {changeBaudrate(port, originalBaudrate)}
                 if (port.isWireless) {closePort(port, false)}
             });

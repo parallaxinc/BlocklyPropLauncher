@@ -494,9 +494,11 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
           if (action === 'open') {
 
           } else if (action === 'close') {
-
+              port.mode = 'none';
           } else if (action === 'msg') {
-
+              if (port.ptSocket) {
+                  send(port, msg, false);
+              }
           }
       }
   } else {

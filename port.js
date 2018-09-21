@@ -80,7 +80,7 @@ function addPort(alist) {
             bSocketIdx : -1,                                           /*[>=-1] Index of browser socket in sockets list*/
             phSocket   : null,                                         /*[null+] Socket to Propeller's HTTP service (not persistent)*/
             ptSocket   : null,                                         /*[null+] Socket to Propeller's Telnet service (persistent)*/
-            mode       : "",                                           /*[""+] Intention of the connection; "", "debug", or "programming"*/
+            mode       : "none",                                       /*["none"+] Intention of the connection; "none", "debug", or "programming"*/
             baud       : 0,                                            /*[>=0] Wired port's data rate*/
             packet     : {},                                           /*[...] Packet buffer for socket*/
             isWired    : !Boolean(get("ip", alist, "")),               /*[true/false] indicates if port is wired or not*/
@@ -101,7 +101,7 @@ function updatePort(port, alist) {
      bSocket: active socket to browser to associate with port; may be null
      phSocket: active socket to Propeller's HTTP service; may be null
      ptSocket: active socket to Propeller's Telnet service; may be null
-     mode: the current point of the connection; "", "debug", "programming"
+     mode: the current point of the connection; "none", "debug", "programming"
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
 
