@@ -467,14 +467,14 @@ function hearFromProp(info) {
     // Exit if this isn't the data we're looking for
     if (dataSource === dsDontCare) {
         log("Ignoring " + info.data.byteLength + " unexpected bytes", mDeep);
-        console.log(info.data);  //!!!!
+//        console.log(info.data);  //!!!!
         return;
     }
 
     // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
     let stream = (dataSource === dsHTTP) ? parseHTTP(info.data) : new Uint8Array(info.data)
     log("Received " + info.data.byteLength + " bytes", mDeep);
-    console.log(stream);  //!!!!
+//    console.log(stream);  //!!!!
 
     var sIdx = 0;
 
