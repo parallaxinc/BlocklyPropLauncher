@@ -33,6 +33,12 @@ const sgRAMChecksum = 2;
 const sgMBLResponse = 3;                             //NOTE: hearFromProp() requires all further to be wireless stages
 const sgWXResponse = 4;
 
+// hearFromProp data source valuse
+const dsDontCare = -1;
+const dsWired = 0;
+const dsHTTP = 1;
+const dsTelnet = 2;
+
 // Propeller Communication (propComm) status; categorizes Propeller responses
 let propComm = {};                                   //Holds current status
 let mblRespAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader actual responses
@@ -60,6 +66,18 @@ const ltVerifyRAM = 0;                               //Generate Verify RAM execu
 const ltProgramEEPROM = 1;                           //Generate Program EEPROM executable packet
 const ltReadyToLaunch = 2;                           //Generate Ready To Launch executable packet
 const ltLaunchNow = 3;                               //Generate Launch Now executable packet
+
+//Receiver Handshake pattern
+const rxHandshake = [
+    0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
+    0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
+    0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  //continuing-LFSR stream bits from the Propeller, prompted by the
+    0xEF,0xCE,0xCF,0xEE,0xEF,0xEE,0xEE,0xEE,0xEE,0xEF,0xEE,0xCF,0xCF,0xEF,0xEE,0xCE,  //timing templates following the txHandshake stream.
+    0xEF,0xEF,0xEF,0xEF,0xCE,0xEF,0xEE,0xEF,0xCF,0xEF,0xCF,0xCF,0xCE,0xCE,0xCE,0xCF,
+    0xCF,0xEF,0xCE,0xEE,0xCF,0xEE,0xEF,0xCE,0xCE,0xCE,0xEF,0xEF,0xCF,0xCF,0xEE,0xEE,
+    0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
+    0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
+];
 
 /***********************************************************
  *                     Support Functions                   *
@@ -437,30 +455,27 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
 function hearFromProp(info) {
 /* Receive Propeller's responses during programming.  Parse responses for expected stages.
-   This function is called asynchronously whenever data arrives*/
+   This function is called asynchronously whenever data arrives and may receive data not related to programming (such as a debug stream or unrelated IP traffic)
+   so it filters and ignores what it doesn't need.*/
 
-    log("Received " + info.data.byteLength + " bytes", mDeep);
-    // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
-    let stream = (propComm.port.phSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    // Exit if we're idling or if socket-based data is not in response to our communication
-    if (propComm.stage === sgIdle ||
-        !(info.hasOwnProperty("socketId") &&
-            ((propComm.stage === sgMBLResponse && (info.socketId === propComm.port.phSocket || info.socketId === propComm.port.ptSocket)) ||
-            (propComm.stage === sgWXResponse && info.socketId === propComm.port.phSocket)))) {
-        log("...ignoring", mDeep);
+    let dataSource = (info.hasOwnProperty("socketId")) ?
+        /*Is Expected Wireless HTTP?*/   (info.socketId === propComm.port.phSocket) ? dsHTTP :
+        /*Is Expected Wireless Telnet?*/     (!propComm.port.phSocket && propComm.stage === sgMBLResponse && info.socketId === propComm.port.ptSocket) ? dsTelnet :
+        /*Unexpected WL Protocol for State*/      dsDontCare :
+        /*Is Expected Wired stream?*/    (propComm.stage !== sgIdle) ? dsWired : dsDontCare;
+
+    // Exit if this isn't the data we're looking for
+    if (dataSource === dsDontCare) {
+        log("Ignoring " + info.data.byteLength + " unexpected bytes", mDeep);
+        console.log(info.data);  //!!!!
         return;
     }
 
-    const rxHandshake = [
-        0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
-        0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
-        0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  //continuing-LFSR stream bits from the Propeller, prompted by the
-        0xEF,0xCE,0xCF,0xEE,0xEF,0xEE,0xEE,0xEE,0xEE,0xEF,0xEE,0xCF,0xCF,0xEF,0xEE,0xCE,  //timing templates following the txHandshake stream.
-        0xEF,0xEF,0xEF,0xEF,0xCE,0xEF,0xEE,0xEF,0xCF,0xEF,0xCF,0xCF,0xCE,0xCE,0xCE,0xCF,
-        0xCF,0xEF,0xCE,0xEE,0xCF,0xEE,0xEF,0xCE,0xCE,0xCE,0xEF,0xEF,0xCF,0xCF,0xEE,0xEE,
-        0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
-        0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
-    ];
+    // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
+    let stream = (dataSource === dsHTTP) ? parseHTTP(info.data) : new Uint8Array(info.data)
+    log("Received " + info.data.byteLength + " bytes", mDeep);
+    console.log(stream);  //!!!!
+
     var sIdx = 0;
 
     /* Validate rxHandshake
@@ -551,10 +566,9 @@ function hearFromProp(info) {
     // Receive Micro Boot Loader's response.  The first serves as its "Ready" signal, the rest are packet responses; all are formatted as 4-byte expected Packet ID followed by 4-byte Transmission ID.
     // NOTE: For wireless, the first is contained in the body of an HTTP response and the rest are delivered as Telnet responses.
     if (propComm.stage === sgMBLResponse) {
-        if (propComm.port.isWireless) {
+        if (dataSource !== dsWired) {
             // Wireless response
-            console.log(stream);
-            if (propComm.port.phSocket) { //HTTP-command response; we'll assume right size, errors will be caught by timeout
+            if (dataSource === dsHTTP) { //HTTP-command response; we'll assume right size, errors will be caught by timeout
                 if (stream.ResponseCode === 200) {
                     propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(-mblRespSize)));
                     propComm.rxCount = mblRespSize;
@@ -566,6 +580,7 @@ function hearFromProp(info) {
             }
         } else {
             // Wired response
+            //TODO consider set function here
             while (sIdx < stream.length && propComm.rxCount < mblRespSize) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             }
@@ -591,7 +606,6 @@ function hearFromProp(info) {
     if (propComm.stage === sgWXResponse) {
         clearPropCommTimer();
         propComm.stage = sgIdle;
-        console.log(stream);
         if (stream.ResponseCode === 200) {
 //            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, mblRespSize)));
 //            propComm.rxCount = mblRespSize;
