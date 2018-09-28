@@ -468,41 +468,28 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       } else {
           if (msg instanceof ArrayBuffer === false) {msg = buf2ab(msg);}
       }
-      if(port.isWired) {
-          if (action === "open") {
-              // Open port for terminal use
-              openPort(sock, portPath, baudrate, 'debug')
-                  .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
-                  .catch(function() {
-                      log('Unable to connect terminal to ' + portPath);
-                      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-                      sock.send(JSON.stringify(msg_to_send));
-                  });
-          } else if (action === "close") {
-              /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-                 lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-                 Instead, update the connection mode so that serial debug data halts.*/
-              port.mode = 'none';
-          } else if (action === "msg") {
-              // Message to send to the Propeller
-              if (port.connId) {
-                  send(port, msg, false);
-              }
-          }
-      } else {
-          // TODO add WX module debug passthrough functions
-          if (action === 'open') {
-
-          } else if (action === 'close') {
-              port.mode = 'none';
-          } else if (action === 'msg') {
-              if (port.ptSocket) {
-                  send(port, msg, false);
-              }
+      if (action === "open") {
+          // Open port for terminal use
+          openPort(sock, portPath, baudrate, 'debug')
+              .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+              .catch(function() {
+                  log('Unable to connect terminal to ' + portPath);
+                  var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected port.'};
+                  sock.send(JSON.stringify(msg_to_send));
+              });
+      } else if (action === "close") {
+          /* Terminal closed.  Keep wired port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+             lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+             Instead, update the connection mode so that serial debug data halts.*/
+          port.mode = 'none';
+      } else if (action === "msg") {
+          // Message to send to the Propeller
+          if ((port.isWired && port.connId) || (port.isWireless && port.ptSocket)) { //Send only if port is open
+              send(port, msg, false);
           }
       }
   } else {
-      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a valid serial port.'};
+      var msg_to_send = {type:'serial-terminal', msg:'Port ' + portPath + ' not found.\rPlease close this terminal and select an existing port.'};
       sock.send(JSON.stringify(msg_to_send));
   }
 }
