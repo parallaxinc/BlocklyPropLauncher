@@ -272,11 +272,11 @@ function deleteSocket(socketOrIdx) {
 /* Delete socket from lists (sockets and ports)
    socketOrIdx is socket object or index of socket record to delete*/
   let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
-//  log("Deleting socket at index " + idx, mDbug);
+  log("Deleting socket at index " + idx, mDbug);
   if (idx > -1 && idx < sockets.length) {
     // Clear port's knowledge of socket connection record
     if (sockets[idx].portIdx > -1) {
-//      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
+      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
       ports[sockets[idx].portIdx].bSocket = null;
       ports[sockets[idx].portIdx].bSocketIdx = -1;
     }

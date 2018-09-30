@@ -81,7 +81,7 @@ function openSocket(port, command) {
     return new Promise(function(resolve, reject) {
         let p = (command) ? {socket: "phSocket", portNum: 80} : {socket: "ptSocket", portNum: 23};
         if (port[p.socket]) { // Already open; resolve
-            resolve();
+            resolve(p);
         } else {              // No ph or pt socket yet; create one and connect to it
             chrome.sockets.tcp.create(function (info) {
 //                    log("in sockets.tcp.create()", mDbug); //!!!!
@@ -269,7 +269,7 @@ function send(port, data, command) {
 //                        log("in sockets.tcp.send()", mDbug); //!!!!
                         resolve();
                     });
-                }
+                })
                 .catch(function (e) {reject(e)})
         }
     });
@@ -323,9 +323,11 @@ function debugErrorReceiver(info) {
     } else {
         switch (info.resultCode) {
             case -100: //port closed
-                // let port = findPort(byPTID, info.socketId);
-                // if (!port) {port = findPort(byPHID, info.socketId)}
-                // log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
+                let port = findPort(byPTID, info.socketId);
+                if (!port) {port = findPort(byPHID, info.socketId)}
+                if (port) {
+                    log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
+                }
                        break;
             default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
         }

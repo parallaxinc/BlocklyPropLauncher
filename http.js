@@ -80,10 +80,14 @@ PSocket.prototype.write = function(data) {
   var that = this;
   return new Promise(function(resolve, reject) {
     chrome.sockets.tcp.send(that.socketId, data, function(info) {
-      if (info && info.resultCode >= 0)
-        resolve(info.bytesSent);
-      else
-        reject(new Error('chrome sockets.tcp error ' + (info && info.resultCode)));
+      if (!chrome.runtime.lastError) {
+          if (info.resultCode === 0)
+              resolve(info.bytesSent);
+          else
+              reject(new Error('Socket TCP error ' + (info.resultCode)));
+      } else {
+          reject(new Error('Socket ID ' + that.socketId + ' error: ' + (chrome.runtime.lastError.message)));
+      }
     });
   });
 };
