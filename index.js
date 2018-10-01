@@ -92,9 +92,6 @@ var platform = pfUnk;
              Unknown    ChromeOS        Linux             macOS          Windows */
 portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
 
-// A list of connected websockets.
-var sockets = [];
-
 // Http and ws servers
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
@@ -254,36 +251,21 @@ function closeServer() {
   isServer = false;
 }
 
-function findSocketIdx(socket) {
-/* Return index of socket in sockets list
-   Returns -1 if not found*/
-    return sockets.findIndex(function(s) {return s.socket === socket});
-}
-
+//!!!!
 function closeSockets() {
-// Close all sockets and remove them from the list
-  while (sockets.length) {
-    sockets[0].socket.close();
-    deleteSocket(0);
-  }
+// Close all sockets and remove them from the ports list
+    ports.forEach(function(p) {
+        if (p.bSocket) {
+            p.bSocket.close();
+            p.bSocket = null;
+        }})
 }
 
-function deleteSocket(socketOrIdx) {
-/* Delete socket from lists (sockets and ports)
-   socketOrIdx is socket object or index of socket record to delete*/
-  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
-  log("Deleting socket at index " + idx, mDbug);
-  if (idx > -1 && idx < sockets.length) {
-    // Clear port's knowledge of socket connection record
-    if (sockets[idx].portIdx > -1) {
-      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
-      ports[sockets[idx].portIdx].bSocket = null;
-      ports[sockets[idx].portIdx].bSocketIdx = -1;
-    }
-    // Delete socket connection record and adjust ports' later references down, if any
-    sockets.splice(idx, 1);
-    ports.forEach(function(v) {if (v.bSocketIdx > idx) {v.bSocketIdx--}});
-  }
+function deleteSocket(socket) {
+/* Delete socket from ports list
+   socket is object to delete*/
+  log("Deleting socket " + socket, mDbug);
+  ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
 }
 
 function connect_ws(ws_port, url_path) {
@@ -308,12 +290,11 @@ function connect_ws(ws_port, url_path) {
   
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
-//      log("Adding socket at index " + sockets.length, mDbug);
-      sockets.push({socket:socket, portIdx:-1});
-      
+
+      //!!!! TODO Figure out why there are two separate sendPortList calls
       //Listen for ports
       if(portListener === null) {
-        portListener = setInterval(function() {sendPortList();}, 5000);
+        portListener = setInterval(function() {sendPortList(socket)}, 5000);
       }
   
       socket.addEventListener('message', function(e) {
@@ -329,7 +310,7 @@ function connect_ws(ws_port, url_path) {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
-            sendPortList();
+            sendPortList(socket);
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -347,10 +328,12 @@ function connect_ws(ws_port, url_path) {
       });
 
 
-      // When a socket is closed, remove it from the list of connected sockets.
+      // When a socket is closed, remove it from the list of ports.
       socket.addEventListener('close', function() {
         deleteSocket(socket);
-        if (sockets.length === 0) {
+        let count = 0;
+        ports.forEach(function(p) {if (p.bSocket) count++});
+        if (count) {
           updateStatus(false);
           clearInterval(portListener);
           portListener = null;
@@ -419,8 +402,8 @@ function disableWX() {
     }
 }
 
-function sendPortList() {
-// find and send list of communication ports (filtered according to platform and type)
+function sendPortList(socket) {
+// Find and send list of communication ports (filtered according to platform and type) to browser via socket
   chrome.serial.getDevices(
     function(portlist) {
       let wn = [];
@@ -440,12 +423,10 @@ function sendPortList() {
 
       // report back to editor
       var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-      for (var i = 0; i < sockets.length; i++) {
-        sockets[i].socket.send(JSON.stringify(msg_to_send));
-        if (chrome.runtime.lastError) {
-          console.log(chrome.runtime.lastError);
+      socket.send(JSON.stringify(msg_to_send));
+      if (chrome.runtime.lastError) {
+        console.log(chrome.runtime.lastError);
         }
-      }
     }
   );
 }

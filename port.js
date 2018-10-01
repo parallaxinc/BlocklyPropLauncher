@@ -77,7 +77,6 @@ function addPort(alist) {
             ip         : get("ip", alist, ""),                         /*[""+] Wireless port's IP address; */
             life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
             bSocket    : null,                                         /*[null+] Socket to browser (persistent)*/
-            bSocketIdx : -1,                                           /*[>=-1] Index of browser socket in sockets list*/
             phSocket   : null,                                         /*[null+] Socket to Propeller's HTTP service (not persistent)*/
             ptSocket   : null,                                         /*[null+] Socket to Propeller's Telnet service (persistent)*/
             mode       : "none",                                       /*["none"+] Intention of the connection; "none", "debug", or "programming"*/
@@ -92,7 +91,7 @@ function addPort(alist) {
 }
 
 function updatePort(port, alist) {
-/* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
+/* Update port attributes if necessary.  Automatically handles special case of baudrate changes.
    port: [required] port object to update
    alist: [required] one or more attributes of port to update.  Unchanging attributes can be omitted.  Possible attributes are:
      path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from the MAC address
@@ -120,18 +119,7 @@ function updatePort(port, alist) {
         set("connId");
         set("ip");
         port.life = (port.isWired) ? wLife : wlLife;
-        // Update sockets<->ports links as necessary
-        if (exists("bSocket", alist)) {
-            let sIdx = findSocketIdx(alist.bSocket);
-            if (port.bSocketIdx !== sIdx) {
-                // new browser socket is different; adjust existing browser socket's record (if any), then apply new browser socket details to port
-//                log("  Linking to browser socket index " + sIdx, mDbug);
-                if (port.bSocketIdx !== -1) {sockets[port.bSocketIdx].portIdx = -1}
-                port.bSocket = alist.bSocket;
-                port.bSocketIdx = sIdx;
-                if (sIdx > -1) {sockets[sIdx].portIdx = findPortIdx(byPath, port.path)}
-            }
-        }
+        set("bSocket");
         set("phSocket");
         set("ptSocket");
         set("mode");
@@ -190,12 +178,6 @@ function deletePort(type, clue) {
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
         log("Deleting port: " + ports[idx].path, mDbug);
-        if (ports[idx].bSocketIdx > -1) {
-            // Clear socket's knowledge of wired or wireless port record
-            sockets[ports[idx].bSocketIdx].portIdx = -1;
-        }
-        // Delete port record and adjust socket's later references down, if any
-        ports.splice(idx, 1)
-        sockets.forEach(function(v) {if (v.portIdx > idx) {v.portIdx--}});
+        ports.splice(idx, 1);
     }
 }

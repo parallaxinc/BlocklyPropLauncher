@@ -110,7 +110,7 @@ function closePort(port, command) {
     return new Promise(function(resolve, reject) {
 
         function socketClose(socket) {
-            // Nullify port's socket reference
+            // Nullify port's HTTP or Telnet socket reference
             let sID = port[socket];
             updatePort(port, {[socket]: null});
             if (sID) {
