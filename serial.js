@@ -24,7 +24,6 @@
  *                 Serial Support Functions                *
  ***********************************************************/
 
-//TODO Consider returning error object
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
 function openPort(sock, portPath, baudrate, connMode) {
 /* Return a promise to open wired or wireless port at portPath with baudrate and connect to browser sock.  If wireless, the port is opened
@@ -84,14 +83,11 @@ function openSocket(port, command) {
             resolve(p);
         } else {              // No ph or pt socket yet; create one and connect to it
             chrome.sockets.tcp.create(function (info) {
-//                    log("in sockets.tcp.create()", mDbug); //!!!!
                 updatePort(port, {[p.socket]: info.socketId});
-//                    log(p.socket + " SocketID "+port[p.socket]+" transmitting" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                 chrome.sockets.tcp.connect(port[p.socket], port.ip, p.portNum, function () {
                     //TODO Handle connect result
                     chrome.sockets.tcp.setNoDelay(info.socketId, true, function(result) {
                         if (result < 0) {log("Warning: unable to disable Nagle timer", mDbug)}
-//                            log("in sockets.tcp.connect()", mDbug); //!!!!
                         resolve(p);
                     });
                 });
@@ -255,7 +251,6 @@ function send(port, data, command) {
    data is an ArrayBuffer
    command [ignored unless wireless] is true to send to Wi-Fi Module's HTTP-based command service and false to send to Propeller via Telnet service*/
     return new Promise(function(resolve, reject) {
-//        log("in send()", mDbug); //!!!!
         if (port.isWired) { // Wired port
             chrome.serial.send(port.connId, data, function (sendResult) {
                 resolve();
@@ -263,10 +258,8 @@ function send(port, data, command) {
         } else {            // Wireless port
             openSocket(port, command)
                 .then(function (p) {
-//                    log("socket exists", mDbug); //!!!!
                     chrome.sockets.tcp.send(port[p.socket], data, function () {
                         //TODO handle send result
-//                        log("in sockets.tcp.send()", mDbug); //!!!!
                         resolve();
                     });
                 })
