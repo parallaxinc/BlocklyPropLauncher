@@ -98,7 +98,8 @@ var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
 // Timer(s) to scan and send the port list
-var portScanner = [];
+var portScanner = null;
+var portLister = [];
 
 // Is verbose loggin turned on?
 var verboseLogging = false;
@@ -223,10 +224,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function connect() {
   connect_ws($('bpc-port').value, $('bpc-url').value);
+  portScanner = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
 }
 
 function disconnect() {
   closeSockets();
+  clearInterval(portScanner);
+  portScanner = null;
 }
 
 function updateStatus(connected) {
@@ -252,15 +256,15 @@ function closeServer() {
 }
 
 function closeSockets() {
-// Close all sockets and remove them from the ports and portScanner lists
+// Close all sockets and remove them from the ports and portLister lists
     ports.forEach(function(p) {
         if (p.bSocket) {
             p.bSocket.close();
             p.bSocket = null;
         }});
-    while (portScanner.length) {
-        clearInterval(portScanner[0].scanner);
-        portScanner.splice(0, 1);
+    while (portLister.length) {
+        clearInterval(portLister[0].scanner);
+        portLister.splice(0, 1);
     }
 }
 
@@ -304,7 +308,7 @@ function connect_ws(ws_port, url_path) {
             log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
             let s = setInterval(function() {sendPortList(socket)}, 5000);
-            portScanner.push({socket: socket, scanner: s});
+            portLister.push({socket: socket, scanner: s});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -325,13 +329,13 @@ function connect_ws(ws_port, url_path) {
       // Browser socket closed; terminate its port scans and remove it from list of ports.
       socket.addEventListener('close', function() {
         log("Browser socket closing: " + socket.pSocket_.socketId, mDbug);
-        let Idx = portScanner.findIndex(function(s) {return s.socket === socket});
+        let Idx = portLister.findIndex(function(s) {return s.socket === socket});
         if (Idx > -1) {
-            clearInterval(portScanner[Idx].scanner);
-            portScanner.splice(Idx, 1);
+            clearInterval(portLister[Idx].scanner);
+            portLister.splice(Idx, 1);
         }
         ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
-        if (!portScanner.length) {
+        if (!portLister.length) {
             updateStatus(false);
             chrome.app.window.current().drawAttention();
         }
@@ -398,34 +402,39 @@ function disableWX() {
     }
 }
 
+function scanWPorts() {
+// Generate list of current communication ports (filtered according to platform and type)
+    chrome.serial.getDevices(
+        function(portlist) {
+            let wn = [];
+            let wln = [];
+            // update wired ports
+            portlist.forEach(function(port) {
+                if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
+                    addPort({path: port.path});
+                }
+            });
+            ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
+        }
+    );
+}
+
 function sendPortList(socket) {
 // Find and send list of communication ports (filtered according to platform and type) to browser via socket
-  chrome.serial.getDevices(
-    function(portlist) {
-      let wn = [];
-      let wln = [];
-      log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
-      // update wired ports
-      portlist.forEach(function(port) {
-        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
-          addPort({path: port.path});
-        }
-      });
-      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
+    let wn = [];
+    let wln = [];
+    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
+    // gather separated and sorted port lists (wired names and wireless names)
+    ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
+    wn.sort();
+    wln.sort();
 
-      // gather separated and sorted port lists (wired names and wireless names)
-      ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
-      wn.sort();
-      wln.sort();
-
-      // report back to editor
-      var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-      socket.send(JSON.stringify(msg_to_send));
-      if (chrome.runtime.lastError) {
-        console.log(chrome.runtime.lastError);
-        }
-    }
-  );
+    // report back to editor
+    var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
+    socket.send(JSON.stringify(msg_to_send));
+    if (chrome.runtime.lastError) {
+      console.log(chrome.runtime.lastError);
+      }
 }
 
 
