@@ -86,7 +86,9 @@ PSocket.prototype.write = function(data) {
           else
               reject(new Error('Socket TCP error ' + (info.resultCode)));
       } else {
-          reject(new Error('Socket ID ' + that.socketId + ' error: ' + (chrome.runtime.lastError.message)));
+          let emsg = 'Socket ID ' + that.socketId + ' error: ' + chrome.runtime.lastError.message;
+          console.log(emsg);
+          reject(new Error(emsg));
       }
     });
   });

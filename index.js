@@ -97,8 +97,8 @@ var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
-// Keep track of the interval that sends the port list so it can be turned off
-var portListener = null;
+// Timer(s) to scan and send the port list
+var portScanner = [];
 
 // Is verbose loggin turned on?
 var verboseLogging = false;
@@ -291,13 +291,6 @@ function connect_ws(ws_port, url_path) {
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
 
-      //!!!! TODO Figure out why there are two separate sendPortList calls
-      //Listen for ports
-      if(portListener === null) {
-        log("Setting up portListener (sendPortList()) for socket " + socket.pSocket_.socketId, mDbug);
-        portListener = setInterval(function() {sendPortList(socket)}, 5000);
-      }
-  
       socket.addEventListener('message', function(e) {
         if (isJson(e.data)) {
           var ws_msg = JSON.parse(e.data);
@@ -311,8 +304,10 @@ function connect_ws(ws_port, url_path) {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
-            log("Calling sendPortList() from port-list-request of socket " + socket.pSocket_.socketId, mDbug);
+          // Send port list now and set up scanner to send port list on regular interval
+            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
+            portScanner.push({socket: socket, scanner: setInterval(function() {sendPortList(socket)}, 5000)});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -330,17 +325,18 @@ function connect_ws(ws_port, url_path) {
       });
 
 
-      // When a socket is closed, remove it from the list of ports.
+      // Browser socket closed; terminate its port scans and remove it from list of ports.
       socket.addEventListener('close', function() {
-        log("Socket closing " + socket.pSocket_.socketId, mDbug);
+        log("Browser socket closing: " + socket.pSocket_.socketId, mDbug);
+        let Idx = portScanner.findIndex(function(s) {return s.socket === socket});
+        if (Idx > -1) {
+            clearInterval(portScanner.scanner);
+            portScanner.slice(Idx, 1);
+        }
         deleteSocket(socket);
-        let count = 0;
-        ports.forEach(function(p) {if (p.bSocket) count++});
-        if (count) {
-          updateStatus(false);
-          clearInterval(portListener);
-          portListener = null;
-          chrome.app.window.current().drawAttention();
+        if (!portScanner.length) {
+            updateStatus(false);
+            chrome.app.window.current().drawAttention();
         }
       });
 
