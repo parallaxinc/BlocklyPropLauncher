@@ -251,21 +251,17 @@ function closeServer() {
   isServer = false;
 }
 
-//!!!!
 function closeSockets() {
-// Close all sockets and remove them from the ports list
+// Close all sockets and remove them from the ports and portScanner lists
     ports.forEach(function(p) {
         if (p.bSocket) {
             p.bSocket.close();
             p.bSocket = null;
-        }})
-}
-
-function deleteSocket(socket) {
-/* Delete socket from ports list
-   socket is object to delete*/
-  log("Deleting socket " + socket.pSocket_.socketId, mDbug);
-  ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
+        }});
+    while (portScanner.length) {
+        clearInterval(portScanner[0].scanner);
+        portScanner.splice(0, 1);
+    }
 }
 
 function connect_ws(ws_port, url_path) {
@@ -307,7 +303,8 @@ function connect_ws(ws_port, url_path) {
           // Send port list now and set up scanner to send port list on regular interval
             log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
-            portScanner.push({socket: socket, scanner: setInterval(function() {sendPortList(socket)}, 5000)});
+            let s = setInterval(function() {sendPortList(socket)}, 5000);
+            portScanner.push({socket: socket, scanner: s});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -330,10 +327,10 @@ function connect_ws(ws_port, url_path) {
         log("Browser socket closing: " + socket.pSocket_.socketId, mDbug);
         let Idx = portScanner.findIndex(function(s) {return s.socket === socket});
         if (Idx > -1) {
-            clearInterval(portScanner.scanner);
-            portScanner.slice(Idx, 1);
+            clearInterval(portScanner[Idx].scanner);
+            portScanner.splice(Idx, 1);
         }
-        deleteSocket(socket);
+        ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
         if (!portScanner.length) {
             updateStatus(false);
             chrome.app.window.current().drawAttention();
