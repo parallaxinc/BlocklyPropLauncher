@@ -98,7 +98,7 @@ var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
 // Timer(s) to scan and send the port list
-var portScanner = null;
+var wScannerInterval = null;
 var portLister = [];
 
 // Is verbose loggin turned on?
@@ -224,13 +224,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function connect() {
   connect_ws($('bpc-port').value, $('bpc-url').value);
-  portScanner = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+  scanWPorts();
+  wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
 }
 
 function disconnect() {
   closeSockets();
-  clearInterval(portScanner);
-  portScanner = null;
+  clearInterval(wScannerInterval);
+  wScannerInterval = null;
 }
 
 function updateStatus(connected) {
@@ -388,22 +389,19 @@ function connect_ws(ws_port, url_path) {
 }
 
 function enableWX() {
-    wx_scanner_interval = setInterval(function() {
-        discoverWirelessPorts();
-        ageWirelessPorts();
-        displayWirelessPorts();
-    }, 3500);
+    scanWXPorts();
+    wScannerInterval = setInterval(scanWXPorts, 3500);
 }
 
 function disableWX() {
-    if(wx_scanner_interval) {
-        clearInterval(wx_scanner_interval);
+    if(wScannerInterval) {
+        clearInterval(wScannerInterval);
         $('wx-list').innerHTML = '';
     }
 }
 
 function scanWPorts() {
-// Generate list of current communication ports (filtered according to platform and type)
+// Generate list of current wired ports (filtered according to platform and type)
     chrome.serial.getDevices(
         function(portlist) {
             let wn = [];
@@ -417,6 +415,13 @@ function scanWPorts() {
             ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
         }
     );
+}
+
+function scanWXPorts() {
+// Generate list of current wireless ports
+    discoverWirelessPorts();
+    ageWirelessPorts();
+    displayWirelessPorts();
 }
 
 function sendPortList(socket) {
