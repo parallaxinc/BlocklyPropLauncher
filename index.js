@@ -264,7 +264,7 @@ function closeSockets() {
 function deleteSocket(socket) {
 /* Delete socket from ports list
    socket is object to delete*/
-  log("Deleting socket " + socket, mDbug);
+  log("Deleting socket " + socket.pSocket_.socketId, mDbug);
   ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
 }
 
@@ -294,6 +294,7 @@ function connect_ws(ws_port, url_path) {
       //!!!! TODO Figure out why there are two separate sendPortList calls
       //Listen for ports
       if(portListener === null) {
+        log("Setting up portListener (sendPortList()) for socket " + socket.pSocket_.socketId, mDbug);
         portListener = setInterval(function() {sendPortList(socket)}, 5000);
       }
   
@@ -310,6 +311,7 @@ function connect_ws(ws_port, url_path) {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
+            log("Calling sendPortList() from port-list-request of socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
@@ -330,6 +332,7 @@ function connect_ws(ws_port, url_path) {
 
       // When a socket is closed, remove it from the list of ports.
       socket.addEventListener('close', function() {
+        log("Socket closing " + socket.pSocket_.socketId, mDbug);
         deleteSocket(socket);
         let count = 0;
         ports.forEach(function(p) {if (p.bSocket) count++});
@@ -408,6 +411,7 @@ function sendPortList(socket) {
     function(portlist) {
       let wn = [];
       let wln = [];
+      log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
       // update wired ports
       portlist.forEach(function(port) {
         if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
