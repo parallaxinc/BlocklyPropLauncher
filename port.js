@@ -34,7 +34,7 @@ const serPacketMaxTxTime = 100;                                                 
 const serPacketMax = 1492;                                                      // Size of buffer to transmit serial data to browser
 const serPacket = {
     id      : 0,
-    bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),
+    bufView : null, /*set later to new Uint8Array(new ArrayBuffer(serPacketMax)) since Object.assign() only shallow-copies*/
     len     : 0,
     timer   : null,
 };
@@ -85,8 +85,9 @@ function addPort(alist) {
             isWired    : !Boolean(get("ip", alist, "")),               /*[true/false] indicates if port is wired or not*/
             isWireless : Boolean(get("ip", alist, ""))                 /*[true/false] indicates if port is wireless or not*/
         });
-        // Give it its own packet buffer
+        // Give it its own packet object and buffer
         Object.assign(ports[ports.length-1].packet, serPacket);
+        ports[ports.length-1].packet.bufView = new Uint8Array(new ArrayBuffer(serPacketMax));
     }
 }
 
