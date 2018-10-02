@@ -92,16 +92,14 @@ var platform = pfUnk;
              Unknown    ChromeOS        Linux             macOS          Windows */
 portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
 
-// A list of connected websockets.
-var sockets = [];
-
 // Http and ws servers
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
-// Keep track of the interval that sends the port list so it can be turned off
-var portListener = null;
+// Timer(s) to scan and send the port list
+var wScannerInterval = null;
+var portLister = [];
 
 // Is verbose loggin turned on?
 var verboseLogging = false;
@@ -226,10 +224,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function connect() {
   connect_ws($('bpc-port').value, $('bpc-url').value);
+  scanWPorts();
+  wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
 }
 
 function disconnect() {
   closeSockets();
+  clearInterval(wScannerInterval);
+  wScannerInterval = null;
 }
 
 function updateStatus(connected) {
@@ -254,36 +256,17 @@ function closeServer() {
   isServer = false;
 }
 
-function findSocketIdx(socket) {
-/* Return index of socket in sockets list
-   Returns -1 if not found*/
-    return sockets.findIndex(function(s) {return s.socket === socket});
-}
-
 function closeSockets() {
-// Close all sockets and remove them from the list
-  while (sockets.length) {
-    sockets[0].socket.close();
-    deleteSocket(0);
-  }
-}
-
-function deleteSocket(socketOrIdx) {
-/* Delete socket from lists (sockets and ports)
-   socketOrIdx is socket object or index of socket record to delete*/
-  let idx = (typeof socketOrIdx === "number") ? socketOrIdx : findSocketIdx(socketOrIdx);
-//  log("Deleting socket at index " + idx, mDbug);
-  if (idx > -1 && idx < sockets.length) {
-    // Clear port's knowledge of socket connection record
-    if (sockets[idx].portIdx > -1) {
-//      log("  Clearing port index " + sockets[idx].portIdx + " reference to this socket", mDbug);
-      ports[sockets[idx].portIdx].bSocket = null;
-      ports[sockets[idx].portIdx].bSocketIdx = -1;
+// Close all sockets and remove them from the ports and portLister lists
+    ports.forEach(function(p) {
+        if (p.bSocket) {
+            p.bSocket.close();
+            p.bSocket = null;
+        }});
+    while (portLister.length) {
+        clearInterval(portLister[0].scanner);
+        portLister.splice(0, 1);
     }
-    // Delete socket connection record and adjust ports' later references down, if any
-    sockets.splice(idx, 1);
-    ports.forEach(function(v) {if (v.bSocketIdx > idx) {v.bSocketIdx--}});
-  }
 }
 
 function connect_ws(ws_port, url_path) {
@@ -308,14 +291,7 @@ function connect_ws(ws_port, url_path) {
   
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
-//      log("Adding socket at index " + sockets.length, mDbug);
-      sockets.push({socket:socket, portIdx:-1});
-      
-      //Listen for ports
-      if(portListener === null) {
-        portListener = setInterval(function() {sendPortList();}, 5000);
-      }
-  
+
       socket.addEventListener('message', function(e) {
         if (isJson(e.data)) {
           var ws_msg = JSON.parse(e.data);
@@ -329,7 +305,11 @@ function connect_ws(ws_port, url_path) {
             serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
-            sendPortList();
+          // Send port list now and set up scanner to send port list on regular interval
+//            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
+            sendPortList(socket);
+            let s = setInterval(function() {sendPortList(socket)}, 5000);
+            portLister.push({socket: socket, scanner: s});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
             helloClient(socket, ws_msg.baudrate || 115200);
@@ -347,14 +327,18 @@ function connect_ws(ws_port, url_path) {
       });
 
 
-      // When a socket is closed, remove it from the list of connected sockets.
+      // Browser socket closed; terminate its port scans and remove it from list of ports.
       socket.addEventListener('close', function() {
-        deleteSocket(socket);
-        if (sockets.length === 0) {
-          updateStatus(false);
-          clearInterval(portListener);
-          portListener = null;
-          chrome.app.window.current().drawAttention();
+        log("Browser socket closing: " + socket.pSocket_.socketId, mDbug);
+        let Idx = portLister.findIndex(function(s) {return s.socket === socket});
+        if (Idx > -1) {
+            clearInterval(portLister[Idx].scanner);
+            portLister.splice(Idx, 1);
+        }
+        ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
+        if (!portLister.length) {
+            updateStatus(false);
+            chrome.app.window.current().drawAttention();
         }
       });
 
@@ -405,49 +389,57 @@ function connect_ws(ws_port, url_path) {
 }
 
 function enableWX() {
-    wx_scanner_interval = setInterval(function() {
-        discoverWirelessPorts();
-        ageWirelessPorts();
-        displayWirelessPorts();
-    }, 3500);
+    scanWXPorts();
+    wScannerInterval = setInterval(scanWXPorts, 3500);
 }
 
 function disableWX() {
-    if(wx_scanner_interval) {
-        clearInterval(wx_scanner_interval);
+    if(wScannerInterval) {
+        clearInterval(wScannerInterval);
         $('wx-list').innerHTML = '';
     }
 }
 
-function sendPortList() {
-// find and send list of communication ports (filtered according to platform and type)
-  chrome.serial.getDevices(
-    function(portlist) {
-      let wn = [];
-      let wln = [];
-      // update wired ports
-      portlist.forEach(function(port) {
-        if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
-          addPort({path: port.path});
+function scanWPorts() {
+// Generate list of current wired ports (filtered according to platform and type)
+    chrome.serial.getDevices(
+        function(portlist) {
+            let wn = [];
+            let wln = [];
+            // update wired ports
+            portlist.forEach(function(port) {
+                if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
+                    addPort({path: port.path});
+                }
+            });
+            ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
         }
-      });
-      ageWiredPorts();  //Note, wired ports age here (just scanned) and wireless ports age elsewhere (where they are scanned)
+    );
+}
 
-      // gather separated and sorted port lists (wired names and wireless names)
-      ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
-      wn.sort();
-      wln.sort();
+function scanWXPorts() {
+// Generate list of current wireless ports
+    discoverWirelessPorts();
+    ageWirelessPorts();
+    displayWirelessPorts();
+}
 
-      // report back to editor
-      var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-      for (var i = 0; i < sockets.length; i++) {
-        sockets[i].socket.send(JSON.stringify(msg_to_send));
-        if (chrome.runtime.lastError) {
-          console.log(chrome.runtime.lastError);
-        }
+function sendPortList(socket) {
+// Find and send list of communication ports (filtered according to platform and type) to browser via socket
+    let wn = [];
+    let wln = [];
+//    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
+    // gather separated and sorted port lists (wired names and wireless names)
+    ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
+    wn.sort();
+    wln.sort();
+
+    // report back to editor
+    var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
+    socket.send(JSON.stringify(msg_to_send));
+    if (chrome.runtime.lastError) {
+      console.log(chrome.runtime.lastError);
       }
-    }
-  );
 }
 
 
@@ -462,39 +454,34 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
   // Find port from portPath
   let port = findPort(byPath, portPath);
   if (port) {
-      if(port.isWired) {
-          if (action === "open") {
-              // Open port for terminal use
-              openPort(sock, portPath, baudrate, 'debug')
-                  .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
-                  .catch(function() {
-                      log('Unable to connect terminal to ' + portPath);
-                      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected serial port.'};
-                      sock.send(JSON.stringify(msg_to_send));
-                  });
-          } else if (action === "close") {
-              /* Terminal closed.  Keep port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
-                 lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
-                 Instead, update the connection mode so that serial debug data halts.*/
-              port.mode = 'none';
-          } else if (action === "msg") {
-              // Message to send to the Propeller
-              if (port.connId) {
-                  send(port, msg, false);
-              }
-          }
+      // Convert msg from string or buffer to an ArrayBuffer
+      if (typeof msg === 'string') {
+          msg = str2ab(msg);
       } else {
-          // TODO add WX module debug passthrough functions
-          if (action === 'open') {
-
-          } else if (action === 'close') {
-
-          } else if (action === 'msg') {
-
+          if (msg instanceof ArrayBuffer === false) {msg = buf2ab(msg);}
+      }
+      if (action === "open") {
+          // Open port for terminal use
+          openPort(sock, portPath, baudrate, 'debug')
+              .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+              .catch(function() {
+                  log('Unable to connect terminal to ' + portPath);
+                  var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected port.'};
+                  sock.send(JSON.stringify(msg_to_send));
+              });
+      } else if (action === "close") {
+          /* Terminal closed.  Keep wired port open because chrome.serial always toggles DTR upon closing (resetting the Propeller) which causes
+             lots of unnecessary confusion (especially if an older version of the user's app is in the Propeller's EEPROM).
+             Instead, update the connection mode so that serial debug data halts.*/
+          port.mode = 'none';
+      } else if (action === "msg") {
+          // Message to send to the Propeller
+          if ((port.isWired && port.connId) || (port.isWireless && port.ptSocket)) { //Send only if port is open
+              send(port, msg, false);
           }
       }
   } else {
-      var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a valid serial port.'};
+      var msg_to_send = {type:'serial-terminal', msg:'Port ' + portPath + ' not found.\rPlease close this terminal and select an existing port.'};
       sock.send(JSON.stringify(msg_to_send));
   }
 }

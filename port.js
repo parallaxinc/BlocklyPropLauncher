@@ -16,9 +16,11 @@
 
 
 // Find Port identifier types
-const byID = "connId";
-const byMAC = "mac";
-const byPath = "path";
+const byCID = "connId";            //Represents numeric Connection ID (cid) type
+const byPHID = "phSocket";         //Represents numeric Propeller HTTP Socket ID type
+const byPTID = "ptSocket";         //Represents numeric Propeller Telnet Socket ID type
+const byMAC = "mac";               //Represents alphanumeric MAC address type
+const byPath = "path";             //Represents alphanumeric path (wired/wireless port identifier) type
 
 // Port's max lifetime
 const wLife = 2;
@@ -28,11 +30,11 @@ const wlLife = 3;
 var ports = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
-const serPacketFillTime = 10;                                                   // Max wait time to fill packet (ms)
-const serPacketMax = Math.trunc(serPacketFillTime/1000/(1/finalBaudrate*10));   // Size of buffer to hold max bytes receivable in FillTime at max baudrate
+const serPacketMaxTxTime = 100;                                                 // Max wait time before transmitting packet (ms)
+const serPacketMax = 1492;                                                      // Size of buffer to transmit serial data to browser
 const serPacket = {
     id      : 0,
-    bufView : new Uint8Array(new ArrayBuffer(serPacketMax)),
+    bufView : null, /*set later to new Uint8Array(new ArrayBuffer(serPacketMax)) since Object.assign() only shallow-copies*/
     len     : 0,
     timer   : null,
 };
@@ -75,22 +77,22 @@ function addPort(alist) {
             ip         : get("ip", alist, ""),                         /*[""+] Wireless port's IP address; */
             life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
             bSocket    : null,                                         /*[null+] Socket to browser (persistent)*/
-            bSocketIdx : -1,                                           /*[>=-1] Index of browser socket in sockets list*/
             phSocket   : null,                                         /*[null+] Socket to Propeller's HTTP service (not persistent)*/
             ptSocket   : null,                                         /*[null+] Socket to Propeller's Telnet service (persistent)*/
-            mode       : "",                                           /*[""+] Intention of the connection; "", "debug", or "programming"*/
+            mode       : "none",                                       /*["none"+] Intention of the connection; "none", "debug", or "programming"*/
             baud       : 0,                                            /*[>=0] Wired port's data rate*/
             packet     : {},                                           /*[...] Packet buffer for socket*/
             isWired    : !Boolean(get("ip", alist, "")),               /*[true/false] indicates if port is wired or not*/
             isWireless : Boolean(get("ip", alist, ""))                 /*[true/false] indicates if port is wireless or not*/
         });
-        // Give it its own packet buffer
+        // Give it its own packet object and buffer
         Object.assign(ports[ports.length-1].packet, serPacket);
+        ports[ports.length-1].packet.bufView = new Uint8Array(new ArrayBuffer(serPacketMax));
     }
 }
 
 function updatePort(port, alist) {
-/* Update port attributes if necessary.  Automatically handles special cases like baudrate changes and sockets<->ports links.
+/* Update port attributes if necessary.  Automatically handles special case of baudrate changes.
    port: [required] port object to update
    alist: [required] one or more attributes of port to update.  Unchanging attributes can be omitted.  Possible attributes are:
      path: the string path to the wired serial port, or custom name of wireless port.  Can be empty ("") and a wireless name will be fabricated from the MAC address
@@ -99,7 +101,7 @@ function updatePort(port, alist) {
      bSocket: active socket to browser to associate with port; may be null
      phSocket: active socket to Propeller's HTTP service; may be null
      ptSocket: active socket to Propeller's Telnet service; may be null
-     mode: the current point of the connection; "", "debug", "programming"
+     mode: the current point of the connection; "none", "debug", "programming"
      baud: wired serial speed*/
     return new Promise(function(resolve, reject) {
 
@@ -118,18 +120,7 @@ function updatePort(port, alist) {
         set("connId");
         set("ip");
         port.life = (port.isWired) ? wLife : wlLife;
-        // Update sockets<->ports links as necessary
-        if (exists("bSocket", alist)) {
-            let sIdx = findSocketIdx(alist.bSocket);
-            if (port.bSocketIdx !== sIdx) {
-                // new browser socket is different; adjust existing browser socket's record (if any), then apply new browser socket details to port
-//                log("  Linking to browser socket index " + sIdx, mDbug);
-                if (port.bSocketIdx !== -1) {sockets[port.bSocketIdx].portIdx = -1}
-                port.bSocket = alist.bSocket;
-                port.bSocketIdx = sIdx;
-                if (sIdx > -1) {sockets[sIdx].portIdx = findPortIdx(byPath, port.path)}
-            }
-        }
+        set("bSocket");
         set("phSocket");
         set("ptSocket");
         set("mode");
@@ -149,7 +140,9 @@ function exists(attr, src) {
 function findPortIdx(type, clue) {
 /* Return index of wired or wireless port associated with clue
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)
    Returns -1 if not found*/
@@ -159,7 +152,9 @@ function findPortIdx(type, clue) {
 function findPort(type, clue) {
 /* Return port record associated with clue.  This allows caller to later directly retrieve any member of the record (provided caller safely checks for null)
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)
    Returns null if not found*/
@@ -176,18 +171,14 @@ function findPort(type, clue) {
 function deletePort(type, clue) {
 /* Delete wired or wireless port associated with clue
    type / clue pairs must be:
-     byID / numeric Connection ID (cid)
+     byCID / numeric Connection ID (cid)
+     byPHID / numeric Propeller HTTP Socket ID
+     byPTID / numeric Propeller Telnet Socket ID
      byMAC / alphanumeric MAC address
      byPath / alphanumeric path (wired/wireless port identifier)*/
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
         log("Deleting port: " + ports[idx].path, mDbug);
-        if (ports[idx].bSocketIdx > -1) {
-            // Clear socket's knowledge of wired or wireless port record
-            sockets[ports[idx].bSocketIdx].portIdx = -1;
-        }
-        // Delete port record and adjust socket's later references down, if any
-        ports.splice(idx, 1)
-        sockets.forEach(function(v) {if (v.portIdx > idx) {v.portIdx--}});
+        ports.splice(idx, 1);
     }
 }

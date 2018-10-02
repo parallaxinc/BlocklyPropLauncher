@@ -29,7 +29,7 @@ var udp_sock;
 var disc_packet = '\0\0\0\0';
 
 // Holder for the interval for discovering modules
-var wx_scanner_interval = null;
+var wxScannerInterval = null;
 
 function calcBroadcastAddr(mip) {
 // Calculate a broadcast IP from a given address and subnet mask
@@ -179,6 +179,9 @@ function isValidWiFiVersion(response) {
     }
     return valid;
 }
+
+chrome.sockets.tcp.onReceive.addListener(debugReceiver);
+chrome.sockets.tcp.onReceiveError.addListener(debugErrorReceiver);
 
 /*
  function loadPropellerWX(portPath, action, payload, debug) {

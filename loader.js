@@ -23,19 +23,26 @@ let txData;                                         //Data to transmit to the Pr
 const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
+const mblRespSize = 8;                              //Size of Micro Boot Loader Response (and Expected) array buffers
 
 // propComm stage values
 const sgIdle = -1;
 const sgHandshake = 0;
 const sgVersion = 1;
 const sgRAMChecksum = 2;
-const sgMBLResponse = 3;
+const sgMBLResponse = 3;                             //NOTE: hearFromProp() requires all further to be wireless stages
 const sgWXResponse = 4;
+
+// hearFromProp data source valuse
+const dsDontCare = -1;
+const dsWired = 0;
+const dsHTTP = 1;
+const dsTelnet = 2;
 
 // Propeller Communication (propComm) status; categorizes Propeller responses
 let propComm = {};                                   //Holds current status
-let mblRespAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader actual responses
-let mblExpdAB = new ArrayBuffer(8);                  //Buffer for Micro Boot Loader expected responses
+let mblRespAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader actual responses
+let mblExpdAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader expected responses
 
 const propCommStart = {                              //propCommStart is used to initialize propComm
     stage        : sgIdle,                           //Propeller Protocol Stage
@@ -59,6 +66,18 @@ const ltVerifyRAM = 0;                               //Generate Verify RAM execu
 const ltProgramEEPROM = 1;                           //Generate Program EEPROM executable packet
 const ltReadyToLaunch = 2;                           //Generate Ready To Launch executable packet
 const ltLaunchNow = 3;                               //Generate Launch Now executable packet
+
+//Receiver Handshake pattern
+const rxHandshake = [
+    0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
+    0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
+    0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  //continuing-LFSR stream bits from the Propeller, prompted by the
+    0xEF,0xCE,0xCF,0xEE,0xEF,0xEE,0xEE,0xEE,0xEE,0xEF,0xEE,0xCF,0xCF,0xEF,0xEE,0xCE,  //timing templates following the txHandshake stream.
+    0xEF,0xEF,0xEF,0xEF,0xCE,0xEF,0xEE,0xEF,0xCF,0xEF,0xCF,0xCF,0xCE,0xCE,0xCE,0xCF,
+    0xCF,0xEF,0xCE,0xEE,0xCF,0xEE,0xEF,0xCE,0xCE,0xCE,0xEF,0xEF,0xCF,0xCF,0xEE,0xEE,
+    0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
+    0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
+];
 
 /***********************************************************
  *                     Support Functions                   *
@@ -123,7 +142,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             if (port.connId) {
                 // Connection exists, prep to reuse it
                 originalBaudrate = port.baud;
-                port.mode = "programming";
+                updatePort(port, {mode: "programming", bSocket: sock});
                 connect = function() {return changeBaudrate(port, initialBaudrate)}
             } else {
                 // No connection yet, prep to create one
@@ -135,6 +154,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             postResetDelay = 1;
             //TODO Retrieve actual current baudrate
             originalBaudrate = initialBaudrate;
+            updatePort(port, {mode: "programming", bSocket: sock});
             connect = function() {return Promise.resolve()};
         }
         // Use connection to download application to the Propeller
@@ -151,6 +171,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                     sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
                 } else {                                                                                            //Else
+                    updatePort(port, {mode: "none"});                                                               //  Clear port mode
                     if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
                 }
             })                                                                                                      //Error? Disable listener and display error
@@ -158,6 +179,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 listen(port, false);
                 log(e.message, mAll, sock);
                 log(notice(neDownloadFailed), mAll, sock);
+                updatePort(port, {mode: "none"});
                 if ((port.isWired && port.connId) || port.isWireless) {changeBaudrate(port, originalBaudrate)}
                 if (port.isWireless) {closePort(port, false)}
             });
@@ -258,7 +280,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         setTimeout(function() {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
-                            propComm.mblETransId[0] = transmissionId;
+                            propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
                             //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
                             log("Transmitting Micro Boot Loader package", mDeep);
                             send(port, txData, true)
@@ -320,11 +342,10 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
                         txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
-                        transmissionId = Math.floor(Math.random()*4294967296);                                           //Create next random Transmission ID
-                        propComm.mblEPacketId[0] = packetId-1;
-                        propComm.mblETransId[0] = transmissionId;
+                        propComm.mblEPacketId[0] = packetId-1;                                                           //Set next expected packetId
+                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                                  //Set next random Transmission ID
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
+                        (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                        //Store random Transmission ID
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
                         send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
@@ -359,15 +380,15 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         log(next.value.sendLog, mAll, sock);
 
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
-                        transmissionId = Math.floor(Math.random()*4294967296);                                     //Create next random Transmission ID
-                        (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                           //Store random Transmission ID
 
                         if (next.value.type !== ltLaunchNow) {                                                     //Response expected from MBL?
                             prepForMBLResponse(next.value.recvTime, notice(neCommunicationLost));                  //  Prepare to receive next MBL response
                             packetId = next.value.nextId;                                                          //  Ready next Packet ID
                             propComm.mblEPacketId[0] = packetId;                                                   //  Note expected response
-                            propComm.mblETransId[0] = transmissionId;
+                            propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);
                         }
+
+                        (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                  //Store random Transmission ID (or 0)
 
                         send(port, txData, false)                                                                  //Transmit packet
                             .then(function() {
@@ -396,7 +417,6 @@ function talkToProp(sock, port, binImage, toEEPROM) {
         //Determine number of required packets for target application image; value becomes first Packet ID
         var totalPackets = Math.ceil(binImage.byteLength / (maxDataSize-4*2));           //binary image size (in bytes) / (max packet size - packet header)
         var packetId = totalPackets;
-        var transmissionId = 0;                                                          //Initial Transmission ID
         var pIdx = 0;                                                                    //Packet index (points to next data in binary image to send
         //Calculate target application's full checksum (used for RAM Checksum confirmation)}
         binView = new Uint8Array(binImage);                                              //Create view of the Propeller Application Image
@@ -435,27 +455,27 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
 function hearFromProp(info) {
 /* Receive Propeller's responses during programming.  Parse responses for expected stages.
-   This function is called asynchronously whenever data arrives*/
+   This function is called asynchronously whenever data arrives and may receive data not related to programming (such as a debug stream or unrelated IP traffic)
+   so it filters and ignores what it doesn't need.*/
 
-    log("Received " + info.data.byteLength + " bytes", mDeep);
-    // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
-    let stream = (propComm.port.phSocket) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    // Exit if we're idling or if socket-based data is not in response to our Propeller communication socket
-    if ((propComm.stage === sgIdle) || (info.hasOwnProperty("socketId") && info.socketId !== propComm.port.phSocket && info.socketId !== propComm.port.ptSocket)) {
-        log("...ignoring", mDeep);
+    let dataSource = (info.hasOwnProperty("socketId")) ?
+        /*Is Expected Wireless HTTP?*/   (info.socketId === propComm.port.phSocket) ? dsHTTP :
+        /*Is Expected Wireless Telnet?*/     (!propComm.port.phSocket && propComm.stage === sgMBLResponse && info.socketId === propComm.port.ptSocket) ? dsTelnet :
+        /*Unexpected WL Protocol for State*/      dsDontCare :
+        /*Is Expected Wired stream?*/    (propComm.stage !== sgIdle) ? dsWired : dsDontCare;
+
+    // Exit if this isn't the data we're looking for
+    if (dataSource === dsDontCare) {
+        log("Ignoring " + info.data.byteLength + " unexpected bytes", mDeep);
+//        console.log(info.data);
         return;
     }
 
-    const rxHandshake = [
-        0xEE,0xCE,0xCE,0xCF,0xEF,0xCF,0xEE,0xEF,0xCF,0xCF,0xEF,0xEF,0xCF,0xCE,0xEF,0xCF,  //The rxHandshake array consists of 125 bytes encoded to represent
-        0xEE,0xEE,0xCE,0xEE,0xEF,0xCF,0xCE,0xEE,0xCE,0xCF,0xEE,0xEE,0xEF,0xCF,0xEE,0xCE,  //the expected 250-bit (125-byte @ 2 bits/byte) response of
-        0xEE,0xCE,0xEE,0xCF,0xEF,0xEE,0xEF,0xCE,0xEE,0xEE,0xCF,0xEE,0xCF,0xEE,0xEE,0xCF,  //continuing-LFSR stream bits from the Propeller, prompted by the
-        0xEF,0xCE,0xCF,0xEE,0xEF,0xEE,0xEE,0xEE,0xEE,0xEF,0xEE,0xCF,0xCF,0xEF,0xEE,0xCE,  //timing templates following the txHandshake stream.
-        0xEF,0xEF,0xEF,0xEF,0xCE,0xEF,0xEE,0xEF,0xCF,0xEF,0xCF,0xCF,0xCE,0xCE,0xCE,0xCF,
-        0xCF,0xEF,0xCE,0xEE,0xCF,0xEE,0xEF,0xCE,0xCE,0xCE,0xEF,0xEF,0xCF,0xCF,0xEE,0xEE,
-        0xEE,0xCE,0xCF,0xCE,0xCE,0xCF,0xCE,0xEE,0xEF,0xEE,0xEF,0xEF,0xCF,0xEF,0xCE,0xCE,
-        0xEF,0xCE,0xEE,0xCE,0xEF,0xCE,0xCE,0xEE,0xCF,0xCF,0xCE,0xCF,0xCF
-    ];
+    // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
+    let stream = (dataSource === dsHTTP) ? parseHTTP(info.data) : new Uint8Array(info.data)
+    log("Received " + info.data.byteLength + " bytes", mDeep);
+//    console.log(stream);
+
     var sIdx = 0;
 
     /* Validate rxHandshake
@@ -543,39 +563,40 @@ function hearFromProp(info) {
         propComm.rxCount = 0;
     }
 
-    // Receive Micro Boot Loader's response.  The first is its "Ready" signal; the rest are packet responses.
+    // Receive Micro Boot Loader's response.  The first serves as its "Ready" signal, the rest are packet responses; all are formatted as 4-byte expected Packet ID followed by 4-byte Transmission ID.
+    // NOTE: For wireless, the first is contained in the body of an HTTP response and the rest are delivered as Telnet responses.
     if (propComm.stage === sgMBLResponse) {
-        if (propComm.port.isWireless) {
+        if (dataSource !== dsWired) {
             // Wireless response
-            console.log(stream);
-            if (propComm.port.phSocket) { //HTTP-command response
+            if (dataSource === dsHTTP) { //HTTP-command response; we'll assume right size, errors will be caught by timeout
                 if (stream.ResponseCode === 200) {
-                    propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
-                    propComm.rxCount = propComm.mblRespBuf.byteLength;
+                    propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(-mblRespSize)));
+                    propComm.rxCount = mblRespSize;
                 }
                 if (stream.hasOwnProperty("Connection") && stream.Connection === "close") {updatePort(propComm.port, {phSocket: null})} //  Forget socket id (closed by host)}
-            } else {                      //Telnet response
-                propComm.mblRespBuf.set(new Uint8Array(stream.slice(0, propComm.mblRespBuf.byteLength)));
-                propComm.rxCount = propComm.mblRespBuf.byteLength;
+            } else {                      //Telnet response; we'll assume right size (perhaps tacked onto end of previous debug stream), errors will be caught by timeout
+                propComm.mblRespBuf.set(new Uint8Array(stream.slice(-mblRespSize)));
+                propComm.rxCount = mblRespSize;
             }
         } else {
             // Wired response
-            while (sIdx < stream.length && propComm.rxCount < propComm.mblRespBuf.byteLength) {
+            //TODO consider set function here
+            while (sIdx < stream.length && propComm.rxCount < mblRespSize) {
                 propComm.mblRespBuf[propComm.rxCount++] = stream[sIdx++];
             }
         }
         //Finish stage when expected response size received
-        if (propComm.rxCount === propComm.mblRespBuf.byteLength) {
-            clearPropCommTimer();
-            propComm.stage = sgIdle;
+        if (propComm.rxCount === mblRespSize) {
 //            log("Response PacketId: "+ propComm.mblRPacketId+ " TransId: "+ propComm.mblRTransId, mDeep);
 //            log("Expected PacketId: "+ propComm.mblEPacketId+ " TransId: "+ propComm.mblETransId, mDeep);
             if ((propComm.mblRPacketId[0] === propComm.mblEPacketId[0]) && (propComm.mblRTransId[0] === propComm.mblETransId[0])) {
                 //MBL Response is perfect;  Note resolved
+                clearPropCommTimer();
+                propComm.stage = sgIdle;
                 propComm.response.resolve();
             } else {
-                //MBL Response invalid;  Note rejected; Ignore the rest
-                propComm.response.reject(Error(notice(neLoaderFailed)));
+                //MBL Response invalid;  may be leftover debug data; ignore
+                propComm.rxCount = 0;
             }
             return;
         }
@@ -585,10 +606,9 @@ function hearFromProp(info) {
     if (propComm.stage === sgWXResponse) {
         clearPropCommTimer();
         propComm.stage = sgIdle;
-        console.log(stream);
         if (stream.ResponseCode === 200) {
-//            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, propComm.mblRespBuf.byteLength)));
-//            propComm.rxCount = propComm.mblRespBuf.byteLength;
+//            propComm.mblRespBuf.set(new Uint8Array(stream.Body.slice(0, mblRespSize)));
+//            propComm.rxCount = mblRespSize;
             propComm.response.resolve();
         } else {
             //TODO Designate a proper error here (probably best to pass on error from response)
@@ -858,7 +878,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
             txView.set(timingPulses, txLength + encodedLoader.byteLength);
         } else /*loaderType === ltCore*/ {
             //[ltUnEncCore] Prepare unencoded loader packet (for wireless downloads)
-            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
+            let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&final-baud-rate="+finalBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
 
             txData = new ArrayBuffer(postStr.byteLength+patchedLoader.byteLength);
             txView = new Uint8Array(txData);
