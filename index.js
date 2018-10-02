@@ -306,7 +306,7 @@ function connect_ws(ws_port, url_path) {
           // send an updated port list
           } else if (ws_msg.type === "port-list-request") {
           // Send port list now and set up scanner to send port list on regular interval
-            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
+//            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
             let s = setInterval(function() {sendPortList(socket)}, 5000);
             portLister.push({socket: socket, scanner: s});
@@ -428,7 +428,7 @@ function sendPortList(socket) {
 // Find and send list of communication ports (filtered according to platform and type) to browser via socket
     let wn = [];
     let wln = [];
-    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
+//    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
     // gather separated and sorted port lists (wired names and wireless names)
     ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
     wn.sort();
