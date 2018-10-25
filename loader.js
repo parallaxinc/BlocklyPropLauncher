@@ -17,7 +17,7 @@
 
 // Programming metrics
 let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
-let autoAdjust = 20;                                //Amount to adjust postResetDelay upon each failure
+let autoAdjust = 30;                                //Amount to adjust postResetDelay upon each failure
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
@@ -150,7 +150,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
             }
         } else {
-            //Virtually-clear postResetDelay (it's controlled by wireless device)
+            //Nearly-clear the postResetDelay (it's controlled by wireless device)
             postResetDelay = 1;
             //TODO Retrieve actual current baudrate
             originalBaudrate = initialBaudrate;
@@ -304,7 +304,9 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
                             log("Propeller not found: retrying...", mDeep);
-                            postResetDelay = Math.max(postResetDelay - autoAdjust, 1);                //    Shorten Post Reset Delay upon every attempt (min 1)
+                            if (platform === pfWin) {                                                 //    If Windows platform,
+                                postResetDelay = Math.max(postResetDelay - autoAdjust, 1);            //      Shorten Post Reset Delay upon every attempt (min 1)
+                            }
                             return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
                         }
                         return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
@@ -429,15 +431,15 @@ function talkToProp(sock, port, binImage, toEEPROM) {
         var next;
 
         /* Calculate expected Micro Boot Loader and User Application delivery times
-         = 300 [>max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
-         initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 500 [Rx hardware to OS slack time] */
-        var mblDeliveryTime = 300+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1 + (port.isWireless) ? 1500 : 250;
+         = 210 [max post-reset-delay] + ((10 [bits per byte] * (data bytes [transmitting] + 20 silence bytes [MBL waiting] + 8 MBL "ready" bytes [MBL responding])) /
+         initial baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up]  + 250 or 1500 [Rx hardware or Network to OS slack time] */
+        var mblDeliveryTime = Math.trunc(210+((10*(txData.byteLength+20+8))/initialBaudrate)*1000+1 + ((port.isWired) ? 250 : 1500));
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 1500 or 250 [Network or Rx hardware to OS slack time]
-        var userDeliveryTime = ((10*maxDataSize)/finalBaudrate)*1000+1 + (port.isWireless) ? 1500 : 250;
+        var userDeliveryTime = Math.trunc(((10*maxDataSize)/finalBaudrate)*1000+1 + ((port.isWired) ? 250 : 1500));
 
-        //Set for limited retry attempts (multiple when wired to try various post-reset timing)
-        var attempts = (port.isWired) ? Math.trunc(postResetDelay / autoAdjust) + 1 : 1;
+        //Set for limited retry attempts (multiple when wired; potentially trying various post-reset timing)
+        var attempts = (port.isWired) ? (platform === pfWin) ? Math.max(Math.trunc(postResetDelay / autoAdjust), 1) : 2 : 1;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Get Propeller's attention and send initial application (Micro Boot Loader)
