@@ -140,7 +140,7 @@ function closePort(port, command) {
                             log("Closed port " + port.path + " (id " + port.connId + ")", mDbug);
                             // Clear connection id to indicate port is closed
                             updatePort(port, {connId: null});
-                            resolve();
+                            setTimeout(resolve, 250);  //Delay resolve() to prevent future openPort() calls from arriving too soon to accommodate
                         } else {
                             log("Could not close port " + port.path + " (id " + port.connId + ")", mDbug);
                             reject(Error(notice(neCanNotClosePort, [port.path])));

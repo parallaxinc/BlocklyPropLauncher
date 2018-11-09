@@ -142,7 +142,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             if (port.connId) {
                 // Connection exists, prep to close it first (to reset it), then open it (fresh)
                 originalBaudrate = initialBaudrate;
-                connect = function() {closePort(port).then(function() {return openPort(sock, portPath, initialBaudrate, "programming")}).catch(function(e) {return Promise.reject(e)})}
+                connect = function() {return closePort(port).then(function() {return openPort(sock, portPath, initialBaudrate, "programming")}).catch(function(e) {return Promise.reject(e)})}
 //                The following temporarily removed (and replaced above) to intentionally close and reopen port in hopes it eliminates the CrOS v67+ failed download problem
 //                // Connection exists, prep to reuse it
 //                originalBaudrate = port.baud;
