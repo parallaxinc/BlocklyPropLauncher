@@ -445,7 +445,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
         var userDeliveryTime = Math.trunc(((10*maxDataSize)/finalBaudrate)*1000+1 + ((port.isWired) ? 250 : 1500));
 
         //Set for limited retry attempts (multiple when wired; potentially trying various post-reset timing)
-        var attempts = (port.isWired) ? (platform === pfWin) ? Math.max(Math.trunc(postResetDelay / autoAdjust), 1) : 2 : 1;
+        var attempts = (port.isWired) ? ((platform === pfWin) ? Math.max(Math.trunc(postResetDelay / autoAdjust), 1) : 1) : 1;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Get Propeller's attention and send initial application (Micro Boot Loader)
