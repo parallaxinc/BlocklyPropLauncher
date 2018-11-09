@@ -49,8 +49,9 @@ function openPort(sock, portPath, baudrate, connMode) {
                         function (openInfo) {
                             if (!chrome.runtime.lastError) {
                                 // No error; update serial port object
-                                updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode, baud: baudrate});
-                                log("Port " + portPath + " open with ID " + openInfo.connectionId, mDbug);
+                                updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode});
+                                port.baud = baudrate;  //Update baud; does not use updatePort() to avoid unnecessary port activity
+                                log("Port " + portPath + " open with ID " + openInfo.connectionId + " at " + baudrate + " baud", mDbug);
                                 resolve();
                             } else {
                                 // Error
@@ -169,7 +170,7 @@ function changeBaudrate(port, baudrate) {
             if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
-                        port.baud = baudrate;  //Update baud; does not use updatePort() because of circular reference //!!!
+                        port.baud = baudrate;  //Update baud; does not use updatePort() to avoid circular reference
                         resolve();
                     } else {
                         reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
