@@ -49,8 +49,9 @@ function openPort(sock, portPath, baudrate, connMode) {
                         function (openInfo) {
                             if (!chrome.runtime.lastError) {
                                 // No error; update serial port object
-                                updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode, baud: baudrate});
-                                log("Port " + portPath + " open with ID " + openInfo.connectionId, mStat);
+                                updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode});
+                                port.baud = baudrate;  //Update baud; does not use updatePort() to avoid unnecessary port activity
+                                log("Port " + portPath + " open with ID " + openInfo.connectionId + " at " + baudrate + " baud", mDbug);
                                 resolve();
                             } else {
                                 // Error
@@ -108,11 +109,11 @@ function closePort(port, command) {
         function socketClose(socket) {
             // Nullify port's HTTP or Telnet socket reference
             let sID = port[socket];
-            updatePort(port, {[socket]: null});
             if (sID) {
-                log("Closing socket", mDbug);
+                updatePort(port, {[socket]: null});
                 // Disconnect and/or close socket (if necessary)
                 chrome.sockets.tcp.getInfo(sID, function(info) {
+                    log("Closed socket " + sID, mDbug);
                     if (info.connected) {
                         chrome.sockets.tcp.disconnect(sID, function() {
                             chrome.sockets.tcp.close(sID, function() {
@@ -126,7 +127,6 @@ function closePort(port, command) {
                     }
                 });
             } else {
-                log("Not closing socket", mDbug);
                 reject(Error(notice(neCanNotClosePort, [port.path])));
             }
         }
@@ -137,12 +137,12 @@ function closePort(port, command) {
                 if (port.connId) {
                     chrome.serial.disconnect(port.connId, function (closeResult) {
                         if (closeResult) {
-                            log("Closed port " + port.path + " (id " + port.connId + ")", mStat);
+                            log("Closed port " + port.path + " (id " + port.connId + ")", mDbug);
                             // Clear connection id to indicate port is closed
                             updatePort(port, {connId: null});
-                            resolve();
+                            setTimeout(resolve, 250);  //Delay resolve() to prevent future openPort() calls from arriving too soon to accommodate
                         } else {
-                            log("Could not close port " + port.path + " (id " + port.connId + ")", mStat);
+                            log("Could not close port " + port.path + " (id " + port.connId + ")", mDbug);
                             reject(Error(notice(neCanNotClosePort, [port.path])));
                         }
                     });
@@ -170,7 +170,7 @@ function changeBaudrate(port, baudrate) {
             if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
-                        port.baud = baudrate;  //Update baud; does not use updatePort() because of circular reference //!!!
+                        port.baud = baudrate;  //Update baud; does not use updatePort() to avoid circular reference
                         resolve();
                     } else {
                         reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
@@ -315,9 +315,15 @@ function debugErrorReceiver(info) {
 //        log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
     } else {
         switch (info.resultCode) {
-            case -100: //port closed
+            case -100: //Port closed
+                //Find port by Propeller Telnet ID or HTTP ID and clear record
                 let port = findPort(byPTID, info.socketId);
-                if (!port) {port = findPort(byPHID, info.socketId)}
+                if (port) {
+                    updatePort(port, {ptSocket: null});
+                } else {
+                    port = findPort(byPHID, info.socketId);
+                    if (port) {updatePort(port, {phSocket: null})}
+                }
                 if (port) {
                     log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                 }
