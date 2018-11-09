@@ -180,9 +180,11 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 log(e.message, mAll, sock);
                 log(notice(neDownloadFailed), mAll, sock);
                 updatePort(port, {mode: "none"});
-                if ((port.isWired && port.connId) || port.isWireless) {changeBaudrate(port, originalBaudrate)}
-                if (port.isWireless) {closePort(port, false)}
-            });
+                if ((port.isWired && port.connId) || port.isWireless) {return changeBaudrate(port, originalBaudrate)}
+            })
+            .catch(function(e) {log(e.message, mAll, sock)})
+            .then(function() {if (port.isWireless) return closePort(port, false)})
+            .catch(function(e) {log(e.message, mAll, sock);});
     } else {
         // Port not found
         log(notice(neCanNotFindPort, [portPath]), mAll, sock);

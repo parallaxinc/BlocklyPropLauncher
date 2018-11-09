@@ -108,11 +108,11 @@ function closePort(port, command) {
         function socketClose(socket) {
             // Nullify port's HTTP or Telnet socket reference
             let sID = port[socket];
-            updatePort(port, {[socket]: null});
             if (sID) {
-                log("Closing socket", mDbug);
+                updatePort(port, {[socket]: null});
                 // Disconnect and/or close socket (if necessary)
                 chrome.sockets.tcp.getInfo(sID, function(info) {
+                    log("Closed socket " + sID, mDbug);
                     if (info.connected) {
                         chrome.sockets.tcp.disconnect(sID, function() {
                             chrome.sockets.tcp.close(sID, function() {
@@ -126,7 +126,6 @@ function closePort(port, command) {
                     }
                 });
             } else {
-                log("Not closing socket", mDbug);
                 reject(Error(notice(neCanNotClosePort, [port.path])));
             }
         }
@@ -315,9 +314,15 @@ function debugErrorReceiver(info) {
 //        log("Error: PortID "+info.connectionId+" "+info.error, mDeep);
     } else {
         switch (info.resultCode) {
-            case -100: //port closed
+            case -100: //Port closed
+                //Find port by Propeller Telnet ID or HTTP ID and clear record
                 let port = findPort(byPTID, info.socketId);
-                if (!port) {port = findPort(byPHID, info.socketId)}
+                if (port) {
+                    updatePort(port, {ptSocket: null});
+                } else {
+                    port = findPort(byPHID, info.socketId);
+                    if (port) {updatePort(port, {phSocket: null})}
+                }
                 if (port) {
                     log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
                 }
