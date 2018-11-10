@@ -261,6 +261,14 @@ function clearPropCommTimer() {
     }
 }
 
+function wait(ms) {
+    /* Delay (consume CPU time) for ms milliseconds.
+    This should only be used for time-critical delays as it doesn't release to the task queue but instead consumes CPU time until finished.
+    */
+    let Done = Date.now() + ms;
+    while (Date.now() < Done){}
+}
+
 function talkToProp(sock, port, binImage, toEEPROM) {
     /* Return promise to deliver Propeller Application (binImage) to Propeller
      sock is the websocket to direct mUser messages at
@@ -283,7 +291,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
                 function sendMBL() {
                     return new Promise(function(resolve, reject) {
-                        setTimeout(function() {
+//                        setTimeout(function() {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
                             propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
@@ -295,7 +303,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
                                 .catch(function(e) {return reject(e)});                                      //Failed!
-                        }, postResetDelay);
+//                        }, postResetDelay);
                     });
                 };
 
@@ -306,6 +314,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                     .then(function() {if (port.isWired) {return flush(port);}})                                           //    Flush transmit/receive buffers (during Propeller reset)
                     .then(function() {if (port.isWired) {return setControl(port, {dtr: true});}})                         //    End Propeller Reset
                     .then(function() {if (port.isWired) {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);}})  //    Wait post-reset-delay and...
+                    .then(function() {                   wait(postResetDelay);})
                     .then(function() {                   return sendMBL();})                                              //send comm package, including Micro Boot Loader; verify receipt
                     .catch(function(e) {                                                              //Error!
                         if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
