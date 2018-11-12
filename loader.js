@@ -138,16 +138,12 @@ function loadPropeller(sock, portPath, action, payload, debug) {
 
         if (port.isWired) {
             //Set postResetDelay based on platform; ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-            postResetDelay = (platform === pfWin) ? 60 : 100;
+            postResetDelay = ((platform === pfWin) && (!experimentalTiming)) ? 60 : 100;
             if (port.connId) {
-                // Connection exists, prep to close it first (to reset it), then open it (fresh)
-                originalBaudrate = initialBaudrate;
-                connect = function() {return closePort(port).then(function() {return openPort(sock, portPath, initialBaudrate, "programming")}).catch(function(e) {return Promise.reject(e)})}
-//                The following temporarily removed (and replaced above) to intentionally close and reopen port in hopes it eliminates the CrOS v67+ failed download problem
-//                // Connection exists, prep to reuse it
-//                originalBaudrate = port.baud;
-//                updatePort(port, {mode: "programming", bSocket: sock});
-//                connect = function() {return changeBaudrate(port, initialBaudrate)}
+                // Connection exists, prep to reuse it
+                originalBaudrate = port.baud;
+                updatePort(port, {mode: "programming", bSocket: sock});
+                connect = function() {return changeBaudrate(port, initialBaudrate)}
             } else {
                 // No connection yet, prep to create one
                 originalBaudrate = initialBaudrate;
@@ -261,6 +257,14 @@ function clearPropCommTimer() {
     }
 }
 
+function wait(ms) {
+    /* Actively delay for ms milliseconds.
+    This should only be used for time-critical delays as it doesn't release to the task queue but instead consumes CPU time until finished.
+    */
+    let Done = Date.now() + ms;
+    while (Date.now() < Done){}
+}
+
 function talkToProp(sock, port, binImage, toEEPROM) {
     /* Return promise to deliver Propeller Application (binImage) to Propeller
      sock is the websocket to direct mUser messages at
@@ -283,7 +287,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
                 function sendMBL() {
                     return new Promise(function(resolve, reject) {
-                        setTimeout(function() {
+
+                        function txmit() {
                             //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                             propComm.mblEPacketId[0] = packetId;
                             propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
@@ -295,9 +300,16 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                                 .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
                                 .then(function() {return resolve()})
                                 .catch(function(e) {return reject(e)});                                      //Failed!
-                        }, postResetDelay);
+                        }
+
+                        if (!experimentalTiming) {
+                            setTimeout(txmit, postResetDelay);
+                        } else {
+                            wait(postResetDelay);
+                            txmit();
+                        }
                     });
-                };
+                }
 
                 Promise.resolve()
                     .then(function() {                   resetPropComm(port, mblDeliveryTime, null, null, true);})        //Reset propComm object

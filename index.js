@@ -104,6 +104,8 @@ var portLister = [];
 // Is verbose loggin turned on?
 var verboseLogging = false;
 
+// Is experimental timing turned on?
+var experimentalTiming = false;
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -182,7 +184,11 @@ document.addEventListener('DOMContentLoaded', function() {
   $('bpc-trace').onclick = function() {
     verboseLogging = $('bpc-trace').checked;
   };
-  
+
+  $('exp-timing').onclick = function() {
+      experimentalTiming = $('exp-timing').checked;
+  };
+
   $('wx-allow').onclick = function() {
     var wx_enabled = $('wx-allow').checked;
     if(wx_enabled) {
