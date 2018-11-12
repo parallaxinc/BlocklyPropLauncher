@@ -16,14 +16,13 @@
  SELL ANYTHING THAT IT MAY DESCRIBE, IN WHOLE OR IN PART.                                                                                */
 
 // Programming metrics
-let postResetDelay = null;                          //Delay after reset and before serial stream; Post-Reset Delay is set by loadPropeller()
-let autoAdjust = 30;                                //Amount to adjust postResetDelay upon each failure
 let txData;                                         //Data to transmit to the Propeller (size/contents created later)
 
 const defaultClockSpeed = 80000000;
 const defaultClockMode = 0x6F;
 const maxDataSize = 1392;                           //Max data packet size (for packets sent to running Micro Boot Loader)
 const mblRespSize = 8;                              //Size of Micro Boot Loader Response (and Expected) array buffers
+const postResetDelay = 100;                         //Delay after reset and before serial stream
 
 // propComm stage values
 const sgIdle = -1;
@@ -137,8 +136,6 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         let originalBaudrate;
 
         if (port.isWired) {
-            //Set postResetDelay based on platform; ideal Post-Reset Delay = 100 ms; adjust downward according to typically-busy operating systems
-            postResetDelay = ((platform === pfWin) && (!experimentalTiming)) ? 60 : 100;
             if (port.connId) {
                 // Connection exists, prep to reuse it
                 originalBaudrate = port.baud;
@@ -150,8 +147,6 @@ function loadPropeller(sock, portPath, action, payload, debug) {
                 connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
             }
         } else {
-            //Nearly-clear the postResetDelay (it's controlled by wireless device)
-            postResetDelay = 1;
             //TODO Retrieve actual current baudrate
             originalBaudrate = initialBaudrate;
             updatePort(port, {mode: "programming", bSocket: sock});
@@ -287,27 +282,22 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
                 function sendMBL() {
                     return new Promise(function(resolve, reject) {
-
-                        function txmit() {
-                            //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
-                            propComm.mblEPacketId[0] = packetId;
-                            propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
-                            //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
-                            log("Transmitting Micro Boot Loader package", mDeep);
-                            send(port, txData, true)
-                                .then(function() {if (port.isWired) {return unPause(port)}})                 //Unpause port (if wired)
-                                .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
-                                .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
-                                .then(function() {return resolve()})
-                                .catch(function(e) {return reject(e)});                                      //Failed!
-                        }
-
-                        if (!experimentalTiming) {
-                            setTimeout(txmit, postResetDelay);
-                        } else {
+                        //If wired, actively wait before transmitting Micro Boot Loader; active (vs. passive) wait prevents extended delays in CrOS v67+
+                        if (port.isWired) {
+                            log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);
                             wait(postResetDelay);
-                            txmit();
                         }
+                        //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
+                        propComm.mblEPacketId[0] = packetId;
+                        propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
+                        //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
+                        log("Transmitting Micro Boot Loader package", mDeep);
+                        send(port, txData, true)
+                            .then(function() {if (port.isWired) {return unPause(port)}})                 //Unpause port (if wired)
+                            .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
+                            .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
+                            .then(function() {return resolve()})
+                            .catch(function(e) {return reject(e)});                                      //Failed!
                     });
                 }
 
@@ -317,20 +307,9 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                     .then(function() {if (port.isWired) {return setControl(port, {dtr: false});}})                        //    Start Propeller Reset Signal
                     .then(function() {if (port.isWired) {return flush(port);}})                                           //    Flush transmit/receive buffers (during Propeller reset)
                     .then(function() {if (port.isWired) {return setControl(port, {dtr: true});}})                         //    End Propeller Reset
-                    .then(function() {if (port.isWired) {log("Waiting " + Math.trunc(postResetDelay) + " ms", mDeep);}})  //    Wait post-reset-delay and...
                     .then(function() {                   return sendMBL();})                                              //send comm package, including Micro Boot Loader; verify receipt
-                    .catch(function(e) {                                                              //Error!
-                        if (noticeCode(e.message) === nePropellerNotFound && --attempts) {            //  Retry (if "Propeller not found" and more attempts available)
-                            log("Propeller not found: retrying...", mDeep);
-                            if (platform === pfWin) {                                                 //    If Windows platform,
-                                postResetDelay = Math.max(postResetDelay - autoAdjust, 1);            //      Shorten Post Reset Delay upon every attempt (min 1)
-                            }
-                            return sendLoader();                                                      //    note: sendLoader does not return execution below (promises continue at next .then/.catch)
-                        }
-                        return reject(e);                                                             //  Or if other error (or out of retry attempts), reject with message
-                    })
-                    .then(function() {return resolve();})                                             //Propeller found? Resolve
-                    .catch(function(e) {return reject(e);})                                           //Error!  Reject with message
+                    .then(function() {                   return resolve();})                                              //Propeller found? Resolve
+                    .catch(function(e) {                 return reject(e);})                                              //Error!  Reject with message
             });
         }
 
@@ -455,9 +434,6 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
         //=((10 [bits per byte] * [max packet size]) / final baud rate) * 1,000 [to scale ms to integer] + 1 [to always round up] + 1500 or 250 [Network or Rx hardware to OS slack time]
         var userDeliveryTime = Math.trunc(((10*maxDataSize)/finalBaudrate)*1000+1 + ((port.isWired) ? 250 : 1500));
-
-        //Set for limited retry attempts (multiple when wired; potentially trying various post-reset timing)
-        var attempts = (port.isWired) ? ((platform === pfWin) ? Math.max(Math.trunc(postResetDelay / autoAdjust), 1) : 1) : 1;
 
         Promise.resolve()
             .then(function() {return sendLoader();})                                     //Get Propeller's attention and send initial application (Micro Boot Loader)
