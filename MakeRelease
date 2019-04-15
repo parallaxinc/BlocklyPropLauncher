@@ -1,38 +1,30 @@
 echo
-echo ---Making Obfuscated Chrome App release in ./release folder---
+echo ---Making Chrome App release in ./release folder---
 echo
-echo STEP 1 of 3: Clearing ./release folder
+echo STEP 1 of 2: Clearing ./release folder
 echo
 # Clear release folder
 rm -R release/*
 
-echo STEP 2 of 3: Generating obfuscated source - automatically creating ./release folder if needed
-#
-# Options Notes:
-#   disable-console-output - causes the Chrome App to fail to launch (on background.js) or refuse to evaluate statements (parser.js and presumably others).  It must be set 'false' to prevent this.
-#   rotate-string-array    - set to false on small files, true on large files.  This makes it harder to determine the order of strings, but on small files the inserted helper function can attact attention.
-#   string-array-encoding  - further obscures strings by base-64 (or rc4) encoding them, but slows down execution by up to 50%.  It also breaks the Chrome App when true; set to false.
-#
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   background.js  --output release/background.js  --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array false  --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   index.js       --output release/index.js       --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array true   --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   loader.js      --output release/loader.js      --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array true   --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   parser.js      --output release/parser.js      --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array false  --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   port.js        --output release/port.js        --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array false  --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   serial.js      --output release/serial.js      --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array true   --string-array-encoding false  --self-defending true
-./node_modules/javascript-obfuscator/bin/javascript-obfuscator   wx.js          --output release/wx.js          --disable-console-output false  --compact true  --identifier-names-generator hexadecimal  --identifiers-prefix ""  --string-array true  --rotate-string-array false  --string-array-encoding false  --self-defending true
-
 echo
-echo STEP 3 of 3: Copying static resources to ./release folder
+echo STEP 2 of 2: Copying static resources to ./release folder
 echo
 # Copy static resources
 cp -R assets          release/assets
+cp    background.js   release/
 cp    http.js         release/
 cp    index.css       release/
 cp    index.html      release/
+cp    index.js        release/
 cp    LICENSE         release/
+cp    loader.js       release/
 cp    manifest.json   release/
 cp    messages.js     release/
+cp    parser.js       release/
+cp    port.js         release/
+cp    serial.js       release/
 cp    sha1.js         release/
+cp    wx.js           release/
 
 echo Done!
 
