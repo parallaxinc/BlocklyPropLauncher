@@ -1,3 +1,5 @@
+/* Copyright (c) 2019 Parallax Inc., All Rights Reserved. */
+
 /*
  Notices
 
