@@ -95,10 +95,10 @@ function deferredPromise() {
 //TODO Determine why port not found error message is not getting back to the UI
 //TODO Determine how to gracefully handle the need to reset baudrate if error occurs but port is valid (as opposed to error caused by invalid port
 //TODO Remove hard-coded example applications
-function loadPropeller(sock, portPath, action, payload, debug) {
-/* Download payload to Propeller with action on portPath.  If debug, keep port open for communication with sock.
+function loadPropeller(sock, portName, action, payload, debug) {
+/* Download payload to Propeller with action on portName.  If debug, keep port open for communication with sock.
      sock may be null (if for development purposes)
-     portPath is wired or wireless port's pathname
+     portName is wired or wireless port's name
      action is 'RAM' or 'EEPROM'
      payload is base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image
      debug is true if a terminal is intended to connect to the Propeller after download; false otherwise*/
@@ -114,7 +114,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
     }
 
     // Look for an existing port
-    let port = findPort(byPath, portPath);
+    let port = findPort(byName, portName);
     if (port) {
         // Port found
         let connect;
@@ -129,7 +129,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             } else {
                 // No connection yet, prep to create one
                 originalBaudrate = initialBaudrate;
-                connect = function() {return openPort(sock, portPath, initialBaudrate, "programming")}
+                connect = function() {return openPort(sock, portName, initialBaudrate, "programming")}
             }
         } else {
             //TODO Retrieve actual current baudrate
@@ -140,7 +140,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
         // Use connection to download application to the Propeller
         connect()
             .then(function() {listen(port, true)})                                                                  //Enable listener
-            .then(function() {log(notice(000, ["Scanning port " + portPath]), mUser, sock)})                        //Notify what port we're using
+            .then(function() {log(notice(000, ["Scanning port " + portName]), mUser, sock)})                        //Notify what port we're using
             .then(function() {return talkToProp(sock, port, binImage, action === 'EEPROM')})                        //Download user application to RAM or EEPROM
             .then(function() {return changeBaudrate(port, originalBaudrate)})                                       //Restore original baudrate
             .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
@@ -167,7 +167,7 @@ function loadPropeller(sock, portPath, action, payload, debug) {
             .catch(function(e) {log(e.message, mAll, sock);});
     } else {
         // Port not found
-        log(notice(neCanNotFindPort, [portPath]), mAll, sock);
+        log(notice(neCanNotFindPort, [portName]), mAll, sock);
     }
 }
 

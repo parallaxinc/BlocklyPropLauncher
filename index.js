@@ -81,6 +81,7 @@ const winPortOriginLen = 4;
 /* Serial port ID pattern (index into with platform value)
              Unknown    ChromeOS        Linux             macOS          Windows */
 portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
+portDelim =   ["",       "/",            "/",              "/",            "\\"];
 
 // Http and ws servers
 var server = new http.Server();
@@ -284,7 +285,7 @@ function connect_ws(ws_port, url_path) {
       socket.addEventListener('message', function(e) {
         if (isJson(e.data)) {
           var ws_msg = JSON.parse(e.data);
-          
+          //Note: ws.msg.portPath is now really a "pathless" portName but kept named as-is for legacy support
           // load the propeller
           if (ws_msg.type === "load-prop") {
             log('Received Propeller Application for ' + ws_msg.action);
@@ -397,10 +398,10 @@ function scanWPorts() {
             let wln = [];
             // update wired ports
             portlist.forEach(function(port) {
-                // If Windows, strip potential leading port origin path from port path
-                if ((platform === pfWin) && (port.path.indexOf(winPortOrigin) === 0)) {port.path = port.path.slice(winPortOriginLen)}
+                // Get consistently formatted port path; If Windows, strip off possible leading port origin path for ease in comparison
+                var portPath = ((platform === pfWin) && (port.path.indexOf(winPortOrigin) === 0)) ? port.path.slice(winPortOriginLen) : port.path;
                 // Add only proper port types (platform specific and excluding bluetooth ports)
-                if ((port.path.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
+                if ((portPath.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
                     addPort({path: port.path});
                 }
             });
@@ -422,7 +423,7 @@ function sendPortList(socket) {
     let wln = [];
 //    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
     // gather separated and sorted port lists (wired names and wireless names)
-    ports.forEach(function(p) {if (p.isWired) {wn.push(p.path)} else {wln.push(p.path)}});
+    ports.forEach(function(p) {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}});
     wn.sort();
     wln.sort();
 
@@ -442,9 +443,9 @@ function helloClient(sock, baudrate) {
 
 //TODO Check send results and act accordingly?
 //TODO refactor to combine usb and wx-based port code efficiently
-function serialTerminal(sock, action, portPath, baudrate, msg) {
-  // Find port from portPath
-  let port = findPort(byPath, portPath);
+function serialTerminal(sock, action, portName, baudrate, msg) {
+  // Find port from portName
+  let port = findPort(byName, portName);
   if (port) {
       // Convert msg from string or buffer to an ArrayBuffer
       if (typeof msg === 'string') {
@@ -454,10 +455,10 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
       }
       if (action === "open") {
           // Open port for terminal use
-          openPort(sock, portPath, baudrate, 'debug')
-              .then(function() {log('Connected terminal to ' + portPath + ' at ' + baudrate + ' baud.');})
+          openPort(sock, port.name, baudrate, 'debug')
+              .then(function() {log('Connected terminal to ' + portName + ' at ' + baudrate + ' baud.');})
               .catch(function() {
-                  log('Unable to connect terminal to ' + portPath);
+                  log('Unable to connect terminal to ' + portName);
                   var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected port.'};
                   sock.send(JSON.stringify(msg_to_send));
               });
@@ -473,7 +474,7 @@ function serialTerminal(sock, action, portPath, baudrate, msg) {
           }
       }
   } else {
-      var msg_to_send = {type:'serial-terminal', msg:'Port ' + portPath + ' not found.\rPlease close this terminal and select an existing port.'};
+      var msg_to_send = {type:'serial-terminal', msg:'Port ' + portName + ' not found.\rPlease close this terminal and select an existing port.'};
       sock.send(JSON.stringify(msg_to_send));
   }
 }
