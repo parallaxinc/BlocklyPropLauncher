@@ -11,17 +11,17 @@
  ***********************************************************/
 
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
-function openPort(sock, portPath, baudrate, connMode) {
-/* Return a promise to open wired or wireless port at portPath with baudrate and connect to browser sock.  If wireless, the port is opened
+function openPort(sock, portName, baudrate, connMode) {
+/* Return a promise to open wired or wireless port at portName with baudrate and connect to browser sock.  If wireless, the port is opened
    as a Telnet-based debug service.
    sock can be null to open port without an associated browser socket
-   portPath is the string path to the wired or wireless port
+   portName is the string name of the wired or wireless port
    baudrate is optional; defaults to initialBaudrate
    connMode is the current point of the connection; 'debug', 'programming'
    Resolves (with nothing); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
-        var port = findPort(byPath, portPath);
+        var port = findPort(byName, portName);
         if (port) {
             if (port.isWired) { /*Wired port*/
                 if (port.connId) {
@@ -31,17 +31,17 @@ function openPort(sock, portPath, baudrate, connMode) {
                         .catch(function(e) {reject(e)});
                 } else {
                     //Not already open; attempt to open it
-                    chrome.serial.connect(portPath, {bitrate: baudrate, dataBits: 'eight', parityBit: 'no', stopBits: 'one', ctsFlowControl: false},
+                    chrome.serial.connect(port.path, {bitrate: baudrate, dataBits: 'eight', parityBit: 'no', stopBits: 'one', ctsFlowControl: false},
                         function (openInfo) {
                             if (!chrome.runtime.lastError) {
                                 // No error; update serial port object
                                 updatePort(port, {connId: openInfo.connectionId, bSocket: sock, mode: connMode});
                                 port.baud = baudrate;  //Update baud; does not use updatePort() to avoid unnecessary port activity
-                                log("Port " + portPath + " open with ID " + openInfo.connectionId + " at " + baudrate + " baud", mDbug);
+                                log("Port " + portName + " open with ID " + openInfo.connectionId + " at " + baudrate + " baud", mDbug);
                                 resolve();
                             } else {
                                 // Error
-                                reject(Error(notice(neCanNotOpenPort, [portPath])));
+                                reject(Error(notice(neCanNotOpenPort, [port.name])));
                             }
                         }
                     );
@@ -54,7 +54,7 @@ function openPort(sock, portPath, baudrate, connMode) {
             }
         } else {
             // Error; port record not found
-            reject(Error(notice(neCanNotFindPort, [portPath])));
+            reject(Error(notice(neCanNotFindPort, [portName])));
         }
     });
 }
@@ -113,7 +113,7 @@ function closePort(port, command) {
                     }
                 });
             } else {
-                reject(Error(notice(neCanNotClosePort, [port.path])));
+                reject(Error(notice(neCanNotClosePort, [port.name])));
             }
         }
 
@@ -123,13 +123,13 @@ function closePort(port, command) {
                 if (port.connId) {
                     chrome.serial.disconnect(port.connId, function (closeResult) {
                         if (closeResult) {
-                            log("Closed port " + port.path + " (id " + port.connId + ")", mDbug);
+                            log("Closed port " + port.name + " (id " + port.connId + ")", mDbug);
                             // Clear connection id to indicate port is closed
                             updatePort(port, {connId: null});
                             resolve();
                         } else {
-                            log("Could not close port " + port.path + " (id " + port.connId + ")", mDbug);
-                            reject(Error(notice(neCanNotClosePort, [port.path])));
+                            log("Could not close port " + port.name + " (id " + port.connId + ")", mDbug);
+                            reject(Error(notice(neCanNotClosePort, [port.name])));
                         }
                     });
                 }
@@ -152,19 +152,19 @@ function changeBaudrate(port, baudrate) {
         baudrate = baudrate ? parseInt(baudrate) : finalBaudrate;
         if (port.baud !== baudrate) {
             // Need to change current baudrate
-            log("Changing " + port.path + " to " + baudrate + " baud", mDbug);
+            log("Changing " + port.name + " to " + baudrate + " baud", mDbug);
             if (port.isWired) {
                 chrome.serial.update(port.connId, {'bitrate': baudrate}, function (updateResult) {
                     if (updateResult) {
                         port.baud = baudrate;  //Update baud; does not use updatePort() to avoid circular reference
                         resolve();
                     } else {
-                        reject(Error(notice(neCanNotSetBaudrate, [port.path, baudrate])));
+                        reject(Error(notice(neCanNotSetBaudrate, [port.name, baudrate])));
                     }
                 });
             } else {
                 //TODO Need to check for errors.
-                resetPropComm(port, 1500, sgWXResponse, notice(neCanNotSetBaudrate, [port.path, baudrate]), true);
+                resetPropComm(port, 1500, sgWXResponse, notice(neCanNotSetBaudrate, [port.name, baudrate]), true);
                 openSocket(port, true)
                     .then(function(p) {
                         let postStr = "POST /wx/setting?name=baud-rate&value=" + baudrate + " HTTP/1.1\r\n\r\n";
@@ -191,7 +191,7 @@ function setControl(port, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + port.path + "'s options: " + options])));
+            reject(Error(notice(000, ["Can not set port " + port.name + "'s options: " + options])));
           }
         });
     });
@@ -205,7 +205,7 @@ function flush(port) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error(notice(000, ["Can not flush port " + port.path + "'s transmit/receive buffer"])));
+              reject(Error(notice(000, ["Can not flush port " + port.name + "'s transmit/receive buffer"])));
             }
         });
     });
@@ -224,7 +224,7 @@ function unPause(port) {
 function ageWiredPorts() {
 // Age wired ports and remove those that haven't been seen for some time from the list
     ports.forEach(function(p) {
-        if (p.isWired && !--p.life) deletePort(byPath, p.path);
+        if (p.isWired && !--p.life) deletePort(byName, p.name);
     })
 }
 
@@ -311,7 +311,7 @@ function debugErrorReceiver(info) {
                     if (port) {updatePort(port, {phSocket: null})}
                 }
                 if (port) {
-                    log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.path + "." : "."), mDeep);
+                    log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.name + "." : "."), mDeep);
                 }
                        break;
             default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
