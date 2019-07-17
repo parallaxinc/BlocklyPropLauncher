@@ -9,6 +9,9 @@ const maxDataSize = 1392;                           //Max data packet size (for 
 const mblRespSize = 8;                              //Size of Micro Boot Loader Response (and Expected) array buffers
 const postResetDelay = 100;                         //Delay after reset and before serial stream
 
+let macPackets = new Array();                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
+                                                    //These are filled dynamically by send(), only when running on the Mac platform
+
 // propComm stage values
 const sgIdle = -1;
 const sgHandshake = 0;
@@ -17,7 +20,7 @@ const sgRAMChecksum = 2;
 const sgMBLResponse = 3;                             //NOTE: hearFromProp() requires all further to be wireless stages
 const sgWXResponse = 4;
 
-// hearFromProp data source valuse
+// hearFromProp data source values
 const dsDontCare = -1;
 const dsWired = 0;
 const dsHTTP = 1;
@@ -691,7 +694,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
     ];
 
     const rawLoaderImage = [                                                                            //Raw loader image.
-        0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x2B, 0x10, 0x00, 0x88, 0x01, 0x90, 0x01, 0x80, 0x01, 0x94, 0x01, //This is the Micro Boot Loader, a Propeller
+        0x00, 0xB4, 0xC4, 0x04, 0x6F, 0x93, 0x10, 0x00, 0x88, 0x01, 0x90, 0x01, 0x80, 0x01, 0x94, 0x01, //This is the Micro Boot Loader, a Propeller
         0x78, 0x01, 0x02, 0x00, 0x70, 0x01, 0x00, 0x00, 0x4D, 0xE8, 0xBF, 0xA0, 0x4D, 0xEC, 0xBF, 0xA0, //Application written in PASM that fits entirely into the initial
         0x51, 0xB8, 0xBC, 0xA1, 0x01, 0xB8, 0xFC, 0x28, 0xF1, 0xB9, 0xBC, 0x80, 0xA0, 0xB6, 0xCC, 0xA0, //download packet.  Once downloaded and launched, it assists with
         0x51, 0xB8, 0xBC, 0xF8, 0xF2, 0x99, 0x3C, 0x61, 0x05, 0xB6, 0xFC, 0xE4, 0x59, 0x24, 0xFC, 0x54, //the remainder of the download (at a faster speed, without the
@@ -712,7 +715,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         0x3F, 0xB4, 0xFC, 0xE4, 0x63, 0x7E, 0xFC, 0x54, 0x09, 0x00, 0x7C, 0x5C, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
         0xFF, 0xFF, 0xF9, 0xFF, 0x10, 0xC0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x40,
-        0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x10, 0x6F, 0x00, 0x00, 0x00, 0xB6, 0x02, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x10, 0x07, 0x00, 0x00, 0x00, 0xB6, 0x02, 0x00, 0x00,
         0x56, 0x00, 0x00, 0x00, 0x82, 0x00, 0x00, 0x00, 0x55, 0x73, 0xCB, 0x00, 0x18, 0x51, 0x00, 0x00,
         0x30, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x35, 0xC7, 0x08, 0x35, 0x2C, 0x32, 0x00, 0x00
@@ -846,7 +849,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
             }
             //Prepare encoded loader packet
             //Contains timing pulses + handshake + encoded Micro Boot Loader application + timing pulses
-            txData = new ArrayBuffer(txHandshake.length + 11 + encodedLoader.byteLength + timingPulses.length);
+            txData = new ArrayBuffer(txHandshake.length + 11 + loaderEncodedSize + timingPulses.length);
             txView = new Uint8Array(txData);
             txView.set(txHandshake, 0);
             var txLength = txHandshake.length;
@@ -856,7 +859,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
                 rawSize = rawSize >>> 3;
             }
             txView.set(encodedLoader, txLength);
-            txView.set(timingPulses, txLength + encodedLoader.byteLength);
+            txView.set(timingPulses, txLength + loaderEncodedSize);
         } else /*loaderType === ltCore*/ {
             //[ltUnEncCore] Prepare unencoded loader packet (for wireless downloads)
             let postStr = str2ab("POST /propeller/load?baud-rate="+initialBaudrate+"&final-baud-rate="+finalBaudrate+"&reset-pin=12&response-size=8&response-timeout=1000 HTTP/1.1\r\nContent-Length: "+patchedLoader.byteLength+"\r\n\r\n");
