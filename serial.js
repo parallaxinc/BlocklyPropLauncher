@@ -6,6 +6,10 @@
 //TODO Revisit promisify and see if it will clean up code significantly
 //TODO Study .bind for opportunities to save scope context of private functions
 
+//TODO Move this into send()? //!!!
+let macPackets = new Array();                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
+                                                    //These are filled dynamically by send(), only when running on the Mac platform
+
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/

@@ -9,9 +9,6 @@ const maxDataSize = 1392;                           //Max data packet size (for 
 const mblRespSize = 8;                              //Size of Micro Boot Loader Response (and Expected) array buffers
 const postResetDelay = 100;                         //Delay after reset and before serial stream
 
-let macPackets = new Array();                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
-                                                    //These are filled dynamically by send(), only when running on the Mac platform
-
 // propComm stage values
 const sgIdle = -1;
 const sgHandshake = 0;
