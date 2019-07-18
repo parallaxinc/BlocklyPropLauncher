@@ -6,10 +6,6 @@
 //TODO Revisit promisify and see if it will clean up code significantly
 //TODO Study .bind for opportunities to save scope context of private functions
 
-//TODO Move this into send()? //!!!
-let macPackets = new Array();                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
-                                                    //These are filled dynamically by send(), only when running on the Mac platform
-
 /***********************************************************
  *                 Serial Support Functions                *
  ***********************************************************/
@@ -248,10 +244,8 @@ function send(port, data, command) {
                     resolve();
                 });
             } else {
-                //Mac platform? Split into smaller chucks so Mac can transmit properly
-                //Clear out old packets
-                while (macPackets.length) {macPackets.pop()}
-                //Split into 1,024-byte (or less) chucks
+                //Mac platform? Split into smaller chucks (1,024-byte or less) so Mac can transmit properly
+                let macPackets = [];                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
                 let bIdx = 0;
                 while (bIdx < data.byteLength) {
                     //More data? Make size <= 1024
