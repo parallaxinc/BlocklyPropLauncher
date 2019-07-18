@@ -271,13 +271,7 @@ function send(port, data, command) {
                 };
 
                 transmit();
-
-//!!!        //Transmit all (each immediately after the other)
-//!!!        macPackets.forEach(function(pkt, idx) {
-//!!!            chrome.serial.send(cid, pkt, function() {});
-//!!!        });
             }
-
         } else {            // Wireless port
             openSocket(port, command)
                 .then(function (p) {
@@ -289,48 +283,6 @@ function send(port, data, command) {
                 .catch(function (e) {reject(e)})
         }
     })
-
-//!!!    //Split into 1,024-byte chucks so Mac's driver can transmit properly
-//!!!    let sendData1 = new ArrayBuffer(1024);
-//!!!    let view1 = new Uint8Array(sendData1);
-//!!!    view1.set((new Uint8Array(data)).slice(0, 1024), 0);
-
-//!!!    let sendData2 = new ArrayBuffer(1024);
-//!!!    let view2 = new Uint8Array(sendData2);
-//!!!    view2.set((new Uint8Array(data)).slice(1024, 1024+1023), 0);
-
-//!!!    view2 = new Uint8Array(data, 1024, 1024);
-//!!!    (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
-//!!!    (new DataView(txData, 4, 4)).setUint32(0, transmissionId, true);                                 //Store random Transmission ID
-//!!!    txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
-
-//!!!    return chrome.serial.send(cid, data, function (sendResult) {
-//!!!        chrome.serial.send(cid, data, function (sendResult) {
-//!!!        });
-//!!!    });
-
-//!!!    return chrome.serial.send(cid, data, function (sendResult) {
-//!!!    });
-
-//!!!    setTimeout(chrome.serial.send, 2, cid, macPackets[0], function() {});
-//!!!    setTimeout(chrome.serial.send, 60, cid, macPackets[1], function() {});
-//!!!    setTimeout(chrome.serial.send, 120, cid, macPackets[2], function() {});
-//!!!    setTimeout(chrome.serial.send, 180, cid, macPackets[3], function() {});
-//!!!    setTimeout(chrome.serial.send, 240, cid, macPackets[4], function() {});
-
-/*
-    chrome.serial.send(cid, macPackets[0], function() {});
-    chrome.serial.send(cid, macPackets[1], function() {});
-    chrome.serial.send(cid, macPackets[2], function() {});
-    chrome.serial.send(cid, macPackets[3], function() {});
-    chrome.serial.send(cid, macPackets[4], function() {});
-*/
-/*
-    macPackets.forEach(function(pkt, idx) {
-        log("index: " + idx, mDbug);
-        setTimeout(chrome.serial.send, 50*idx, cid, pkt, function() {});
-*/
-
 }
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
