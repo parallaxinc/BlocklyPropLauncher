@@ -238,9 +238,29 @@ function send(port, data, command) {
    command [ignored unless wireless] is true to send to Wi-Fi Module's HTTP-based command service and false to send to Propeller via Telnet service*/
     return new Promise(function(resolve, reject) {
         if (port.isWired) { // Wired port
-            chrome.serial.send(port.connId, data, function (sendResult) {
-                resolve();
-            });
+            if (platform !== pfMac) {
+                //Any platform other than Mac? Send as one full packet (any size)
+                chrome.serial.send(port.connId, data, function () {
+                    resolve();
+                });
+            } else {
+                //Mac platform? Split into smaller chucks (1,024-byte or less) so Mac can transmit properly
+                let idx, last, chunk = 1024, macPackets = [];         //Support vars plus array of small buffers to handle "baffling" limited transmission size on a Mac
+                for (idx = 0, last = data.byteLength; idx < last; idx += chunk) {
+                    let size = Math.min(chunk, last-idx);             //Make size <= 1024
+                    macPackets.push(new ArrayBuffer(size));           //Add pre-sized element to macPackets then set data into that element
+                    (new Uint8Array(macPackets[macPackets.length-1])).set((new Uint8Array(data)).slice(idx, idx+size), 0);
+                }
+                //Transmit all packets, one after another
+                let transmit = function() {
+                    if (macPackets.length) {
+                        chrome.serial.send(port.connId, macPackets.shift(), transmit);
+                    } else {
+                        resolve();
+                    }
+                };
+                transmit();
+            }
         } else {            // Wireless port
             openSocket(port, command)
                 .then(function (p) {
@@ -249,7 +269,7 @@ function send(port, data, command) {
                         resolve();
                     });
                 })
-                .catch(function (e) {reject(e)})
+                .catch(function (e) {reject(e)});
         }
     });
 }
@@ -287,7 +307,7 @@ function debugReceiver(info) {
         }
         port.packet.len = 0;
     }
-};
+}
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function debugErrorReceiver(info) {
@@ -311,13 +331,14 @@ function debugErrorReceiver(info) {
                     if (port) {updatePort(port, {phSocket: null})}
                 }
                 if (port) {
-                    log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.name + "." : "."), mDeep);
+                    log("SocketID " + info.socketId + " connection closed" + ((port) ? " for port " + port.name + "." : "."), mDeep);
                 }
-                       break;
-            default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
+                break;
+            default:
+                log("Error: SocketID " + info.socketId + " Code " + info.resultCode, mDeep);
         }
     }
-};
+}
 
 chrome.serial.onReceive.addListener(debugReceiver);
 chrome.serial.onReceiveError.addListener(debugErrorReceiver);
