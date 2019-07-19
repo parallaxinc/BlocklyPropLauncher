@@ -274,9 +274,9 @@ function send(port, data, command) {
                         resolve();
                     });
                 })
-                .catch(function (e) {reject(e)})
+                .catch(function (e) {reject(e)});
         }
-    })
+    });
 }
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
@@ -312,7 +312,7 @@ function debugReceiver(info) {
         }
         port.packet.len = 0;
     }
-};
+}
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
 function debugErrorReceiver(info) {
@@ -336,12 +336,14 @@ function debugErrorReceiver(info) {
                     if (port) {updatePort(port, {phSocket: null})}
                 }
                 if (port) {
-                    log("SocketID "+info.socketId+" connection closed" + ((port) ? " for port " + port.name + "." : "."), mDeep);
+                    log("SocketID " + info.socketId + " connection closed" + ((port) ? " for port " + port.name + "." : "."), mDeep);
                 }
-                       break;
-            default: log("Error: SocketID "+info.socketId+" Code "+info.resultCode, mDeep);
+                break;
+            default:
+                log("Error: SocketID " + info.socketId + " Code " + info.resultCode, mDeep);
         }
     }
+}
 
 chrome.serial.onReceive.addListener(debugReceiver);
 chrome.serial.onReceiveError.addListener(debugErrorReceiver);
