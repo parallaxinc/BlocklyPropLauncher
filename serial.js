@@ -245,15 +245,11 @@ function send(port, data, command) {
                 });
             } else {
                 //Mac platform? Split into smaller chucks (1,024-byte or less) so Mac can transmit properly
-                let macPackets = [];                       //Array of small buffers to handle limited transmission size on a Mac (due to a baffling limitation)
-                let bIdx = 0;
-                while (bIdx < data.byteLength) {
-                    //More data? Make size <= 1024
-                    let size = Math.min(1024, data.byteLength - bIdx);
-                    //Add pre-sized element to macPackets then set data into that element
-                    macPackets.push(new ArrayBuffer(size));
-                    (new Uint8Array(macPackets[macPackets.length-1])).set((new Uint8Array(data)).slice(bIdx, bIdx+size), 0);
-                    bIdx += size;
+                let idx, last, chunk = 1024, macPackets = [];         //Support vars plus array of small buffers to handle "baffling" limited transmission size on a Mac
+                for (idx = 0, last = data.byteLength; idx < last; idx += chunk) {
+                    let size = Math.min(chunk, last-idx);             //Make size <= 1024
+                    macPackets.push(new ArrayBuffer(size));           //Add pre-sized element to macPackets then set data into that element
+                    (new Uint8Array(macPackets[macPackets.length-1])).set((new Uint8Array(data)).slice(idx, idx+size), 0);
                 }
                 //Transmit all packets, one after another
                 let transmit = function() {
@@ -263,7 +259,6 @@ function send(port, data, command) {
                         resolve();
                     }
                 };
-
                 transmit();
             }
         } else {            // Wireless port
