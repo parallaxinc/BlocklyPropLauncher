@@ -60,10 +60,12 @@ typings/
 # Idera tools
 .idea/
 
-# Archives, node, and releases
-*.zip
+# Node modules, extracted nwjs files, releases, installers, and zip archives
 node_modules/
+package/win-resources/nwjs/dependencies/
 release/
+release_exe/
+*.zip
 
 # Windows thumb files
 Thumbs.db
