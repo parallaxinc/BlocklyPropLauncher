@@ -232,8 +232,8 @@ function updateStatus(connected) {
       $('websocket-connect').innerHTML = 'Disconnect';
       log('BlocklyProp site connected');
   } else {
-      $('connect-disconnect').innerHTML = 'Waiting to<br>connect...';
       $('connect-disconnect').className = 'status status-clear';
+      $('connect-disconnect').innerHTML = 'Waiting to<br>connect...<span class="statustiptext">To connect:<br>Open browser to BlocklyProp<br>site, then navigate to<br>View/Edit project code</span>';
       $('websocket-connect').disabled = true;
       $('websocket-connect').innerHTML = 'Waiting...';
       log('BlocklyProp site disconnected');

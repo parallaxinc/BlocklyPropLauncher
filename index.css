@@ -146,10 +146,10 @@ body {
 }
 
 .status-green {
-  height: 34px;
+  height: 31px;
   width: 118px;
   background-color: #4caf50; /* Green */
-  padding-top: 31px;
+  padding-top: 27px;
   color: white;
   border: none;
 }
@@ -160,6 +160,43 @@ body {
   background: none; /* Green */
   color: #ccc;
   border:2px solid #ddd;
+}
+
+.status-clear .statustiptext {
+  visibility: hidden;
+  width: 200px;
+  background-color: #4472c4;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 0;
+
+  /* Position the tip (left of status)*/
+  position: absolute;
+  z-index: 1;
+  top: 0px;
+  right: 105%;
+
+  /* Fade in tip - takes 1/2 second to go from 0% to 100% opac: */
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.status-clear .statustiptext::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent transparent #4472c4;
+}
+
+.status-clear:hover .statustiptext {
+  visibility: visible;
+  opacity: 1;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 .button-blue {
