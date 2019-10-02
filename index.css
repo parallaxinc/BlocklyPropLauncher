@@ -70,8 +70,8 @@ body {
 }
 
 #log {
-  height: 255px;
-  width: 278px;
+  height: 278px;
+  width: 285px;
   overflow-y: scroll;
   background: #fff;
   border: 1px solid #ccc;
@@ -79,8 +79,8 @@ body {
 }
 
 #wx-list {
-  height: 255px;
-  width: 270px;
+  height: 259px;
+  width: 267px;
   overflow-y: scroll;
   background: #fff;
   border: 1px solid #ccc;
