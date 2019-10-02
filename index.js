@@ -126,14 +126,6 @@ document.addEventListener('DOMContentLoaded', function() {
     $('sm-3').value = '0';
   }
 
-  $('websocket-connect').onclick = function() {
-    if($('websocket-connect').innerHTML === 'Connect') {
-      connect();
-    } else {
-      disconnect();
-    }
-  };
-
   $('open-browser').onclick = function() {
     chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
   };
@@ -146,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
       chrome.storage.sync.set({'s_port':$('bpc-port').value}, function() {});
       chrome.storage.sync.set({'s_url':$('bpc-url').value}, function() {});
     }
-    connect_ws($('bpc-port').value, $('bpc-url').value);
+    connect();
   };
 
   // TODO: re-write this to use onblur and/or onchange to auto-save. 
@@ -228,14 +220,10 @@ function updateStatus(connected) {
   if (connected) {
       $('connect-disconnect').innerHTML = '&#10004; Connected';
       $('connect-disconnect').className = 'status status-green';
-      $('websocket-connect').disabled = false;
-      $('websocket-connect').innerHTML = 'Disconnect';
       log('BlocklyProp site connected');
   } else {
       $('connect-disconnect').className = 'status status-clear';
       $('connect-disconnect').innerHTML = 'Waiting to<br>connect...<span class="statustiptext">To connect:<br>Open browser to BlocklyProp<br>site, then navigate to<br>View/Edit project code</span>';
-      $('websocket-connect').disabled = true;
-      $('websocket-connect').innerHTML = 'Waiting...';
       log('BlocklyProp site disconnected');
   }
 }
