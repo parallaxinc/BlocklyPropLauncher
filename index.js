@@ -218,12 +218,14 @@ function disconnect() {
 
 function updateStatus(connected) {
   if (connected) {
-      $('connect-disconnect').innerHTML = '&#10004; Connected';
-      $('connect-disconnect').className = 'status status-green';
+      $('sys-connected').style.visibility='visible';
+      $('sys-waiting').style.visibility='hidden';
+//      $('sys-connected').className = 'status status-green';
       log('BlocklyProp site connected');
   } else {
-      $('connect-disconnect').className = 'status status-clear';
-      $('connect-disconnect').innerHTML = 'Waiting to<br>connect...<span class="statustiptext">To connect:<br>Open browser to BlocklyProp<br>site, then navigate to<br>View/Edit project code</span>';
+      $('sys-waiting').style.visibility='visible';
+      $('sys-connected').style.visibility='hidden';
+//      $('sys-connected').className = 'status status-clear';
       log('BlocklyProp site disconnected');
   }
 }
