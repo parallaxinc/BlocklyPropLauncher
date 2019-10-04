@@ -218,14 +218,12 @@ function disconnect() {
 
 function updateStatus(connected) {
   if (connected) {
-      $('sys-waiting').style.zindex=-1;
       $('sys-waiting').style.visibility='hidden';
       $('sys-connected').style.visibility='visible';
       $('sys-area').className = 'status status-green';
       log('BlocklyProp site connected');
   } else {
       $('sys-connected').style.visibility='hidden';
-      $('sys-waiting').style.zindex=1;
       $('sys-waiting').style.visibility='visible';
       $('sys-area').className = 'status status-clear';
       log('BlocklyProp site disconnected');
