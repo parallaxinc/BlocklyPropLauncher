@@ -124,9 +124,29 @@ body {
   display: inline-block;
   font-size: 14px;
   margin: 4px 2px;
-  transition-duration: 0.4s;
+  transition: 0.4s;
   cursor: pointer;
   border-radius: 6px;
+}
+
+.button:hover {
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.button-blue {
+  background-color: #4472c4;
+}
+
+.button-blue:hover {
+  background-color: #335b9c;
+}
+
+.button-green {
+  background-color: #4caf50; /* Green */
+}
+
+.button-green:hover {
+  background-color: #339037; /* Green */
 }
 
 .status {
@@ -137,21 +157,8 @@ body {
   display: inline-block;
   font-size: 14px;
   margin: 4px 2px;
-  transition-duration: 0.4s;
+  transition: opacity 0.4s;
   border-radius: 6px;
-}
-
-.button:hover {
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-}
-
-.status-green {
-  height: 31px;
-  width: 118px;
-  background-color: #4caf50; /* Green */
-  padding-top: 27px;
-  color: white;
-  border: none;
 }
 
 .status-clear {
@@ -162,6 +169,15 @@ body {
   border:2px solid #ddd;
 }
 
+.status-green {
+  height: 31px;
+  width: 118px;
+  background: #4caf50; /* Green */
+  padding-top: 27px;
+  color: white;
+  border: none;
+}
+
 .status-clear .statustiptext {
   visibility: hidden;
   width: 200px;
@@ -169,17 +185,18 @@ body {
   color: #fff;
   text-align: center;
   border-radius: 6px;
-  padding: 5px 0;
+  padding-top: 3px;
+  padding-bottom: 5px;
 
   /* Position the tip (left of status)*/
   position: absolute;
   z-index: 1;
-  top: 0px;
-  right: 105%;
+  top: -7px;
+  right: 106%;
 
-  /* Fade in tip - takes 1/2 second to go from 0% to 100% opac: */
-  opacity: 0;
-  transition: opacity 0.5s;
+  /* Fade in tip - takes 4/10 second to go from 0% to 100% opacity */
+  opacity: 0.0;
+  transition: opacity 0.4s;
 }
 
 .status-clear .statustiptext::after {
@@ -195,24 +212,8 @@ body {
 
 .status-clear:hover .statustiptext {
   visibility: visible;
-  opacity: 1;
+  opacity: 1.0;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-}
-
-.button-blue {
-  background-color: #4472c4; 
-}
-
-.button-blue:hover {
-  background-color: #335b9c;
-}
-
-.button-green {
-  background-color: #4caf50; /* Green */
-}
-
-.button-green:hover {
-  background-color: #339037; /* Green */
 }
 
 .version {
