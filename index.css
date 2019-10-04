@@ -162,6 +162,15 @@ body {
   border:2px solid #ddd;
 }
 
+.status-clear2 {
+  height: 31px;
+  width: 118px;
+  background-color: none; /* Green */
+  padding-top: 27px;
+  color: white;
+  border: none;
+}
+
 .status-clear .statustiptext {
   visibility: hidden;
   width: 200px;
