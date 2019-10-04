@@ -124,7 +124,7 @@ body {
   display: inline-block;
   font-size: 14px;
   margin: 4px 2px;
-  transition-duration: 0.4s;
+  transition: 0.4s;
   cursor: pointer;
   border-radius: 6px;
 }
@@ -137,7 +137,7 @@ body {
   display: inline-block;
   font-size: 14px;
   margin: 4px 2px;
-  transition-duration: 0.4s;
+  transition: background 2s;
   border-radius: 6px;
 }
 
@@ -148,7 +148,7 @@ body {
 .status-green {
   height: 31px;
   width: 118px;
-  background-color: #4caf50; /* Green */
+  background: #4caf50; /* Green */
   padding-top: 27px;
   color: white;
   border: none;
@@ -165,7 +165,7 @@ body {
 .status-clear2 {
   height: 31px;
   width: 118px;
-  background-color: none; /* Green */
+  background: none; /* Green */
   padding-top: 27px;
   color: white;
   border: none;
