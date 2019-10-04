@@ -218,14 +218,12 @@ function disconnect() {
 
 function updateStatus(connected) {
   if (connected) {
-//      $('sys-waiting').style.visibility='hidden';
-      $('sys-connected').style.visibility='visible';
-      $('sys-area').className = 'status status-green';
+      $('sys-waiting').style.opacity=0.0;
+      $('sys-connected').style.opacity=1.0;
       log('BlocklyProp site connected');
   } else {
-//      $('sys-connected').style.visibility='hidden';
-//      $('sys-waiting').style.visibility='visible';
-      $('sys-area').className = 'status status-clear';
+      $('sys-waiting').style.opacity=1.0;
+      $('sys-connected').style.opacity=0.0;
       log('BlocklyProp site disconnected');
   }
 }
