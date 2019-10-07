@@ -149,6 +149,20 @@ body {
   background-color: #339037; /* Green */
 }
 
+.settings {
+  width: 40px;
+  padding: 5px;
+  background-color: #fff;
+  border: 2px solid #ddd;
+}
+
+.settings-active {
+  width: 40px;
+  padding: 5px;
+  background-color: #4caf50;
+  border: 1px solid #117022;
+}
+
 .status {
   word-break: break-all;
   padding: 17px 16px;

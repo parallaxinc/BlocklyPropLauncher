@@ -155,9 +155,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if($('settings-pane').style.top !== '10px') {
       setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
       $('settings-pane').style.top = '10px';
+      $('open-settings').className = 'button settings-active';
     } else {
       setTimeout(function() {$('version-text').style.visibility = 'visible'}, 350);
       $('settings-pane').style.top = '550px';
+      $('open-settings').className = 'button settings';
     }
   };
   
