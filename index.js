@@ -318,7 +318,7 @@ function connect_ws(ws_port, url_path) {
         ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
         if (!portLister.length) {
             updateStatus(false);
-            chrome.app.window.current().drawAttention();
+            // chrome.app.window.current().drawAttention();  //Disabled to prevent unnecessary user interruption
         }
       });
 
