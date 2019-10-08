@@ -105,11 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
       platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
     }
   });
-/*
-  if ($('wx-allow').checked) {
-    enableWX();
-  }
-*/
+
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
@@ -174,8 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   $('wx-allow').onclick = function() {
-    var wx_enabled = $('wx-allow').checked;
-    if(wx_enabled) {
+    if($('wx-allow').checked) {
       enableWX();
     } else {
       disableWX();
@@ -213,27 +208,17 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function connect() {
-  connect_ws($('bpc-port').value, $('bpc-url').value);
-  enableW();
-  enableWX();
+    //Connect via websocket to browser and enable wired and wireless port scanning
+    connect_ws($('bpc-port').value, $('bpc-url').value);
+    enableW();
+    enableWX();
 }
 
 function disconnect() {
-  closeSockets();
-  disableW();
-  disableWX();
-}
-
-function enableW() {
-    scanWPorts();
-    wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
-}
-
-function disableW() {
-  if(wScannerInterval) {
-      clearInterval(wScannerInterval);
-      wScannerInterval = null;
-  }
+    //Disconnect from browser and disable wired and wireless port scanning
+    closeSockets();
+    disableW();
+    disableWX();
 }
 
 function updateStatus(connected) {
@@ -275,18 +260,6 @@ function connect_ws(ws_port, url_path) {
     server.listen(port);
     isServer = true;
   
-    // Do we need this?
-    /*
-    server.addEventListener('request', function(req) {
-      var url = req.headers.url;
-      if (url == '/')
-        url = '/index.html';
-      // Serve the pages of this chrome application.
-      req.serveUrl(url);
-      return true;
-    });
-    */
-  
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
 
@@ -307,7 +280,6 @@ function connect_ws(ws_port, url_path) {
 //            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
             let s = setInterval(function() {sendPortList(socket)}, 5000);
-            console.count("portLister");
             portLister.push({socket: socket, scanner: s});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
@@ -344,56 +316,36 @@ function connect_ws(ws_port, url_path) {
       return true;
     });
   }
+}
 
+function enableW() {
+    //Enable periodic wired port scanning
+    if (!wScannerInterval) {
+        scanWPorts();
+        wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+    }
+}
 
-  //document.addEventListener('DOMContentLoaded', function() {
-
-  /*
-    log('This is a test of an HTTP and WebSocket server. This application is ' +
-        'serving its own source code on port ' + port + '. Each client ' +
-        'connects to the server on a WebSocket and all messages received on ' +
-        'one WebSocket are echoed to all connected clients - i.e. a chat ' +
-        'server. Enjoy!');
-    // FIXME: Wait for 1s so that HTTP Server socket is listening...
-    setTimeout(function() {
-      //var url_path = 'localhost';
-      var address = isServer ? 'ws://' + url_path + ':' + port + '/' :
-          window.location.href.replace('http', 'ws');
-      var ws = new WebSocket(address);
-      ws.addEventListener('open', function() {
-        log('Connected');
-      });
-      ws.addEventListener('close', function() {
-        log('Connection lost');
-        $('input').disabled = true;
-      });
-      ws.addEventListener('message', function(e) {
-        if(e.data.bread) {
-          log('got some bread!');
-        } else {
-          log(e.data);
-        }
-      });
-      $('input').addEventListener('keydown', function(e) {
-        if (ws && ws.readyState == 1 && e.keyCode == 13) {
-          ws.send(this.value);
-          this.value = '';
-        }
-      });
-    }, 1000);
-    
-    */
-    
-  //});
+function disableW() {
+    //Disable wired port scanning
+    if(wScannerInterval) {
+        clearInterval(wScannerInterval);
+        wScannerInterval = null;
+    }
 }
 
 function enableWX() {
-    console.count("enableWX");
-    scanWXPorts();
-    wxScannerInterval = setInterval(scanWXPorts, 3500);
+    //Enable periodic wireless port scanning (if allowed)
+    if ($('wx-allow').checked) {
+        if (!wxScannerInterval) {
+            scanWXPorts();
+            wxScannerInterval = setInterval(scanWXPorts, 3500);
+        }
+    }
 }
 
 function disableWX() {
+    //Disable wireless port scanning
     if(wxScannerInterval) {
         clearInterval(wxScannerInterval);
         wxScannerInterval = null;
@@ -424,10 +376,8 @@ function scanWPorts() {
 
 function scanWXPorts() {
 // Generate list of current wireless ports
-    console.count("scanWXPorts");
     discoverWirelessPorts();
     ageWirelessPorts();
-    displayWirelessPorts();
 }
 
 function sendPortList(socket) {

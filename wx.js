@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
       disc_packet += ip32bit(ip.split('.'));
       // Add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
       addPort({path: wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), mac: mac, ip: ip});
+      displayWirelessPorts();
   });
 });
 
