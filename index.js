@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   $('version-text').innerHTML = 'v'+clientVersion;
 
+  // Determine platform
   chrome.runtime.getPlatformInfo(function(platformInfo) {
     if (!chrome.runtime.lastError) {
       let os = platformInfo.os;
@@ -106,6 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Restore settings from storage (if possible)
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
@@ -113,13 +115,15 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.sync.get('sm1', function(result) {$('sm1').value = result.sm1 || '255';});
     chrome.storage.sync.get('sm2', function(result) {$('sm2').value = result.sm2 || '255';});
     chrome.storage.sync.get('sm3', function(result) {$('sm3').value = result.sm3 || '0';});
+    chrome.storage.sync.get('en_wx', function(result) {$('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : true;});
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
-    $('sm0').value = '255';
-    $('sm1').value = '255';
-    $('sm2').value = '255';
-    $('sm3').value = '0';
+    $('sm-0').value = '255';
+    $('sm-1').value = '255';
+    $('sm-2').value = '255';
+    $('sm-3').value = '0';
+    $('wx-allow').checked = true;
   }
 
   $('open-browser').onclick = function() {
@@ -169,11 +173,15 @@ document.addEventListener('DOMContentLoaded', function() {
     verboseLogging = $('bpc-trace').checked;
   };
 
+  // Enable/disable wireless (WX) port scanning; save setting
   $('wx-allow').onclick = function() {
     if($('wx-allow').checked) {
       enableWX();
     } else {
       disableWX();
+    }
+    if(chrome.storage) {
+        chrome.storage.sync.set({'en_wx': $('wx-allow').checked}, function () {});
     }
   };
 
