@@ -105,11 +105,11 @@ document.addEventListener('DOMContentLoaded', function() {
       platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
     }
   });
-
+/*
   if ($('wx-allow').checked) {
     enableWX();
   }
-
+*/
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
@@ -214,14 +214,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function connect() {
   connect_ws($('bpc-port').value, $('bpc-url').value);
-  scanWPorts();
-  wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+  enableW();
+  enableWX();
 }
 
 function disconnect() {
   closeSockets();
-  clearInterval(wScannerInterval);
-  wScannerInterval = null;
+  disableW();
+  disableWX();
+}
+
+function enableW() {
+    scanWPorts();
+    wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+}
+
+function disableW() {
+  if(wScannerInterval) {
+      clearInterval(wScannerInterval);
+      wScannerInterval = null;
+  }
 }
 
 function updateStatus(connected) {
@@ -295,6 +307,7 @@ function connect_ws(ws_port, url_path) {
 //            log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
             sendPortList(socket);
             let s = setInterval(function() {sendPortList(socket)}, 5000);
+            console.count("portLister");
             portLister.push({socket: socket, scanner: s});
           // Handle unknown messages
           } else if (ws_msg.type === "hello-browser") {
@@ -375,15 +388,18 @@ function connect_ws(ws_port, url_path) {
 }
 
 function enableWX() {
+    console.count("enableWX");
     scanWXPorts();
-    wScannerInterval = setInterval(scanWXPorts, 3500);
+    wxScannerInterval = setInterval(scanWXPorts, 3500);
 }
 
 function disableWX() {
-    if(wScannerInterval) {
-        clearInterval(wScannerInterval);
-        $('wx-list').innerHTML = '';
+    if(wxScannerInterval) {
+        clearInterval(wxScannerInterval);
+        wxScannerInterval = null;
     }
+    $('wx-list').innerHTML = '';
+    deleteAllWirelessPorts();
 }
 
 function scanWPorts() {
@@ -408,6 +424,7 @@ function scanWPorts() {
 
 function scanWXPorts() {
 // Generate list of current wireless ports
+    console.count("scanWXPorts");
     discoverWirelessPorts();
     ageWirelessPorts();
     displayWirelessPorts();

@@ -14,7 +14,7 @@ var udp_sock;
 // signaling to a module that it does not have to re-respond.
 var disc_packet = '\0\0\0\0';
 
-// Holder for the interval for discovering modules
+// Holder for the interval for discovering wireless modules
 var wxScannerInterval = null;
 
 function calcBroadcastAddr(mip) {
@@ -88,6 +88,13 @@ function displayWirelessPorts() {
       }
   })
   $('wx-list').innerHTML = wxl;
+}
+
+function deleteAllWirelessPorts() {
+// Remove all Wi-Fi modules from the list
+    ports.forEach(function(p) {
+        if (p.isWireless) deletePort(byMAC, p.mac);
+    })
 }
 
 document.addEventListener('DOMContentLoaded', function() {
