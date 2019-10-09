@@ -141,15 +141,21 @@ document.addEventListener('DOMContentLoaded', function() {
     connect();
   };
 
-  // TODO: re-write this to use onblur and/or onchange to auto-save. 
-  $('save-netmask').onclick = function() {
-    if(chrome.storage) {
-      chrome.storage.sync.set({'sm0':$('sm0').value}, function() {});
-      chrome.storage.sync.set({'sm1':$('sm1').value}, function() {});
-      chrome.storage.sync.set({'sm2':$('sm2').value}, function() {});
-      chrome.storage.sync.set({'sm3':$('sm3').value}, function() {});
+    // Save netmask changes to storage (if possible)
+    if (chrome.storage) {
+        $('sm0').onblur = function() {
+            chrome.storage.sync.set({'sm0': $('sm0').value}, function () {});
+        }
+        $('sm1').onblur = function() {
+            chrome.storage.sync.set({'sm1': $('sm1').value}, function () {});
+        }
+        $('sm2').onblur = function() {
+            chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
+        }
+        $('sm3').onblur = function() {
+            chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
+        }
     }
-  };
 
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top !== '10px') {
