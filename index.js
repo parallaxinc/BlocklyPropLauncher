@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   $('version-text').innerHTML = 'v'+clientVersion;
 
+  // Determine platform
   chrome.runtime.getPlatformInfo(function(platformInfo) {
     if (!chrome.runtime.lastError) {
       let os = platformInfo.os;
@@ -106,10 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  if ($('wx-allow').checked) {
-    enableWX();
-  }
-
+  // Restore settings from storage (if possible)
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
@@ -117,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.sync.get('sm1', function(result) {$('sm1').value = result.sm1 || '255';});
     chrome.storage.sync.get('sm2', function(result) {$('sm2').value = result.sm2 || '255';});
     chrome.storage.sync.get('sm3', function(result) {$('sm3').value = result.sm3 || '0';});
+    chrome.storage.sync.get('en_wx', function(result) {$('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : true;});
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
@@ -124,6 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $('sm1').value = '255';
     $('sm2').value = '255';
     $('sm3').value = '0';
+    $('wx-allow').checked = true;
   }
 
   $('open-browser').onclick = function() {
@@ -173,12 +173,15 @@ document.addEventListener('DOMContentLoaded', function() {
     verboseLogging = $('bpc-trace').checked;
   };
 
+  // Enable/disable wireless (WX) port scanning; save setting
   $('wx-allow').onclick = function() {
-    var wx_enabled = $('wx-allow').checked;
-    if(wx_enabled) {
+    if($('wx-allow').checked) {
       enableWX();
     } else {
       disableWX();
+    }
+    if(chrome.storage) {
+        chrome.storage.sync.set({'en_wx': $('wx-allow').checked}, function () {});
     }
   };
 
@@ -213,15 +216,17 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function connect() {
-  connect_ws($('bpc-port').value, $('bpc-url').value);
-  scanWPorts();
-  wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+    //Connect via websocket to browser and enable wired and wireless port scanning
+    connect_ws($('bpc-port').value, $('bpc-url').value);
+    enableW();
+    enableWX();
 }
 
 function disconnect() {
-  closeSockets();
-  clearInterval(wScannerInterval);
-  wScannerInterval = null;
+    //Disconnect from browser and disable wired and wireless port scanning
+    closeSockets();
+    disableW();
+    disableWX();
 }
 
 function updateStatus(connected) {
@@ -262,18 +267,6 @@ function connect_ws(ws_port, url_path) {
     // Listen for HTTP connections.
     server.listen(port);
     isServer = true;
-  
-    // Do we need this?
-    /*
-    server.addEventListener('request', function(req) {
-      var url = req.headers.url;
-      if (url == '/')
-        url = '/index.html';
-      // Serve the pages of this chrome application.
-      req.serveUrl(url);
-      return true;
-    });
-    */
   
     wsServer.addEventListener('request', function(req) {
       var socket = req.accept();
@@ -331,59 +324,42 @@ function connect_ws(ws_port, url_path) {
       return true;
     });
   }
+}
 
+function enableW() {
+    //Enable periodic wired port scanning
+    if (!wScannerInterval) {
+        scanWPorts();
+        wScannerInterval = setInterval(scanWPorts, 6010); // 6010: Scan at different intervals than send processes
+    }
+}
 
-  //document.addEventListener('DOMContentLoaded', function() {
-
-  /*
-    log('This is a test of an HTTP and WebSocket server. This application is ' +
-        'serving its own source code on port ' + port + '. Each client ' +
-        'connects to the server on a WebSocket and all messages received on ' +
-        'one WebSocket are echoed to all connected clients - i.e. a chat ' +
-        'server. Enjoy!');
-    // FIXME: Wait for 1s so that HTTP Server socket is listening...
-    setTimeout(function() {
-      //var url_path = 'localhost';
-      var address = isServer ? 'ws://' + url_path + ':' + port + '/' :
-          window.location.href.replace('http', 'ws');
-      var ws = new WebSocket(address);
-      ws.addEventListener('open', function() {
-        log('Connected');
-      });
-      ws.addEventListener('close', function() {
-        log('Connection lost');
-        $('input').disabled = true;
-      });
-      ws.addEventListener('message', function(e) {
-        if(e.data.bread) {
-          log('got some bread!');
-        } else {
-          log(e.data);
-        }
-      });
-      $('input').addEventListener('keydown', function(e) {
-        if (ws && ws.readyState == 1 && e.keyCode == 13) {
-          ws.send(this.value);
-          this.value = '';
-        }
-      });
-    }, 1000);
-    
-    */
-    
-  //});
+function disableW() {
+    //Disable wired port scanning
+    if(wScannerInterval) {
+        clearInterval(wScannerInterval);
+        wScannerInterval = null;
+    }
 }
 
 function enableWX() {
-    scanWXPorts();
-    wScannerInterval = setInterval(scanWXPorts, 3500);
+    //Enable periodic wireless port scanning (if allowed)
+    if ($('wx-allow').checked) {
+        if (!wxScannerInterval) {
+            scanWXPorts();
+            wxScannerInterval = setInterval(scanWXPorts, 3500);
+        }
+    }
 }
 
 function disableWX() {
-    if(wScannerInterval) {
-        clearInterval(wScannerInterval);
-        $('wx-list').innerHTML = '';
+    //Disable wireless port scanning
+    if(wxScannerInterval) {
+        clearInterval(wxScannerInterval);
+        wxScannerInterval = null;
     }
+    $('wx-list').innerHTML = '';
+    deleteAllWirelessPorts();
 }
 
 function scanWPorts() {
@@ -410,7 +386,6 @@ function scanWXPorts() {
 // Generate list of current wireless ports
     discoverWirelessPorts();
     ageWirelessPorts();
-    displayWirelessPorts();
 }
 
 function sendPortList(socket) {
