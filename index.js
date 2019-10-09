@@ -119,10 +119,10 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
-    $('sm-0').value = '255';
-    $('sm-1').value = '255';
-    $('sm-2').value = '255';
-    $('sm-3').value = '0';
+    $('sm0').value = '255';
+    $('sm1').value = '255';
+    $('sm2').value = '255';
+    $('sm3').value = '0';
     $('wx-allow').checked = true;
   }
 
