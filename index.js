@@ -113,17 +113,17 @@ document.addEventListener('DOMContentLoaded', function() {
   if(chrome.storage) {
     chrome.storage.sync.get('s_port', function(result) {$('bpc-port').value = result.s_port || '6009';});
     chrome.storage.sync.get('s_url', function(result) {$('bpc-url').value = result.s_url || 'localhost';});
-    chrome.storage.sync.get('sm-0', function(result) {$('sm-0').value = result.s_url || '255';});
-    chrome.storage.sync.get('sm-1', function(result) {$('sm-1').value = result.s_url || '255';});
-    chrome.storage.sync.get('sm-2', function(result) {$('sm-2').value = result.s_url || '255';});
-    chrome.storage.sync.get('sm-3', function(result) {$('sm-3').value = result.s_url || '0';});
+    chrome.storage.sync.get('sm0', function(result) {$('sm0').value = result.sm0 || '255';});
+    chrome.storage.sync.get('sm1', function(result) {$('sm1').value = result.sm1 || '255';});
+    chrome.storage.sync.get('sm2', function(result) {$('sm2').value = result.sm2 || '255';});
+    chrome.storage.sync.get('sm3', function(result) {$('sm3').value = result.sm3 || '0';});
   } else {
     $('bpc-port').value = '6009';
     $('bpc-url').value = 'localhost';
-    $('sm-0').value = '255';
-    $('sm-1').value = '255';
-    $('sm-2').value = '255';
-    $('sm-3').value = '0';
+    $('sm0').value = '255';
+    $('sm1').value = '255';
+    $('sm2').value = '255';
+    $('sm3').value = '0';
   }
 
   $('open-browser').onclick = function() {
@@ -141,15 +141,21 @@ document.addEventListener('DOMContentLoaded', function() {
     connect();
   };
 
-  // TODO: re-write this to use onblur and/or onchange to auto-save. 
-  $('save-netmask').onclick = function() {
-    if(chrome.storage) {
-      chrome.storage.sync.set({'sm-0':$('sm-0').value}, function() {});
-      chrome.storage.sync.set({'sm-1':$('sm-1').value}, function() {});
-      chrome.storage.sync.set({'sm-2':$('sm-2').value}, function() {});
-      chrome.storage.sync.set({'sm-3':$('sm-3').value}, function() {});
+    // Save netmask changes to storage (if possible)
+    if (chrome.storage) {
+        $('sm0').onblur = function() {
+            chrome.storage.sync.set({'sm0': $('sm0').value}, function () {});
+        }
+        $('sm1').onblur = function() {
+            chrome.storage.sync.set({'sm1': $('sm1').value}, function () {});
+        }
+        $('sm2').onblur = function() {
+            chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
+        }
+        $('sm3').onblur = function() {
+            chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
+        }
     }
-  };
 
   $('open-settings').onclick = function() {
     if($('settings-pane').style.top !== '10px') {

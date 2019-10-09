@@ -19,10 +19,10 @@ var wxScannerInterval = null;
 
 function calcBroadcastAddr(mip) {
 // Calculate a broadcast IP from a given address and subnet mask
-  return ((parseInt(mip[0]) | (~parseInt($('sm-0').value))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[1]) | (~parseInt($('sm-1').value))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[2]) | (~parseInt($('sm-2').value))) & 0xFF).toString(10) + '.' +
-         ((parseInt(mip[3]) | (~parseInt($('sm-3').value))) & 0xFF).toString(10);
+  return ((parseInt(mip[0]) | (~parseInt($('sm0').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[1]) | (~parseInt($('sm1').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[2]) | (~parseInt($('sm2').value))) & 0xFF).toString(10) + '.' +
+         ((parseInt(mip[3]) | (~parseInt($('sm3').value))) & 0xFF).toString(10);
 }
 
 function ip32bit(mip) {
