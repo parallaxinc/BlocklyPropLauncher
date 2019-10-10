@@ -145,30 +145,14 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
     // Save netmask changes to storage (if possible)
-
-    $('sm0').onblur = function() {
-        if (chrome.storage) {
+    if (chrome.storage) {
+        $('netmask').addEventListener("blur", function() {
             chrome.storage.sync.set({'sm0': $('sm0').value}, function () {});
-            resetWX();
-        }
-    }
-    $('sm1').onblur = function() {
-        if (chrome.storage) {
             chrome.storage.sync.set({'sm1': $('sm1').value}, function () {});
-            resetWX();
-        }
-    }
-    $('sm2').onblur = function() {
-        if (chrome.storage) {
             chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
-            resetWX();
-        }
-    }
-    $('sm3').onblur = function() {
-        if (chrome.storage) {
             chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
             resetWX();
-        }
+        }, true);
     }
 
   $('open-settings').onclick = function() {
