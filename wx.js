@@ -108,9 +108,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Add found Wi-Fi Module's IP to the packet to prevent responses to subsequent packets.    //!!! Need to reconsider this global operation
       disc_packet += ip32bit(ip.split('.'));
-      // Add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
-      addPort({path: wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), mac: mac, ip: ip});
-      displayWirelessPorts();
+      // If allowed, add (or update) it's port record; limit name to 32 characters without leading/trailing whitespace
+      // Note: WX support could have been turned off during discovery operation- thus responses may arrive after communication was willfully ended
+      if ($('wx-allow').checked) {
+          addPort({path: wx_info.name.substr(0,32).replace(/(^\s+|\s+$)/g,''), mac: mac, ip: ip});
+          displayWirelessPorts();
+      }
   });
 });
 
