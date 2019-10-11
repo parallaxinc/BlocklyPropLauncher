@@ -33,11 +33,6 @@ function ip32bit(mip) {
          String.fromCharCode(parseInt(mip[3]));
 }
 
-function sm32bit() {
-// Convert current subnet mask (string form) to a 32-bit (4-byte) value
-    return (parseInt($('sm0').value) << 24) + (parseInt($('sm1').value) << 16) + (parseInt($('sm2').value) << 8) + parseInt($('sm3').value);
-}
-
 // TODO Add error handling and reporting to these functions
 chrome.sockets.udp.create(function (s_info) {
   udp_sock = s_info.socketId;
