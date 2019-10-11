@@ -34,11 +34,8 @@ function ip32bit(mip) {
 }
 
 function sm32bit() {
-// Convert current subnet mask to a 32-bit (4-byte) chunk
-    return String.fromCharCode(parseInt($('sm0').value)) +
-           String.fromCharCode(parseInt($('sm1').value)) +
-           String.fromCharCode(parseInt($('sm2').value)) +
-           String.fromCharCode(parseInt($('sm3').value));
+// Convert current subnet mask (string form) to a 32-bit (4-byte) value
+    return (parseInt($('sm0').value) << 24) + (parseInt($('sm1').value) << 16) + (parseInt($('sm2').value) << 8) + parseInt($('sm3').value);
 }
 
 // TODO Add error handling and reporting to these functions
