@@ -61,7 +61,7 @@ function addPort(alist) {
         updatePort(port, alist);
     } else {
         // else, add it as a new port record (all fields included; many with default values to be updated later)
-        log("Adding port: " + alist.path, mDbug);
+        log("Found port: " + alist.path, mDbug);
         ports.push({
             name       : makePortName(alist.path),                     /*[<>""] Friendly port name; never empty, does not include path*/
             path       : alist.path,                                   /*[<>""] Wired port path+name, or wireless port's custom name, or fabricated name; never empty*/
@@ -183,7 +183,7 @@ function deletePort(type, clue) {
      byName / alphanumeric name (wired/wireless port identifier)*/
     let idx = findPortIdx(type, clue);
     if (idx > -1) {
-        log("Deleting port: " + ports[idx].path, mDbug);
+        log("Removed port: " + ports[idx].path, mDbug);
         ports.splice(idx, 1);
     }
 }
