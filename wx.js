@@ -28,9 +28,17 @@ function calcBroadcastAddr(mip) {
 function ip32bit(mip) {
 // convert an IP address to a single 32-bit (4-byte) chunk
   return String.fromCharCode(parseInt(mip[0])) +
-         String.fromCharCode(parseInt(mip[1])) + 
-         String.fromCharCode(parseInt(mip[2])) + 
+         String.fromCharCode(parseInt(mip[1])) +
+         String.fromCharCode(parseInt(mip[2])) +
          String.fromCharCode(parseInt(mip[3]));
+}
+
+function sm32bit() {
+// Convert current subnet mask to a 32-bit (4-byte) chunk
+    return String.fromCharCode(parseInt($('sm0').value)) +
+           String.fromCharCode(parseInt($('sm1').value)) +
+           String.fromCharCode(parseInt($('sm2').value)) +
+           String.fromCharCode(parseInt($('sm3').value));
 }
 
 // TODO Add error handling and reporting to these functions

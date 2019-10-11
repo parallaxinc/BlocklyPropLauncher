@@ -129,6 +129,9 @@ document.addEventListener('DOMContentLoaded', function() {
     $('wx-allow').checked = true;
   }
 
+  // Save mask for future comparison
+  var sm = sm32bit();
+
   $('open-browser').onclick = function() {
     chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
   };
@@ -147,11 +150,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Save netmask changes to storage (if possible)
     if (chrome.storage) {
         $('netmask').addEventListener("blur", function() {
-            chrome.storage.sync.set({'sm0': $('sm0').value}, function () {});
-            chrome.storage.sync.set({'sm1': $('sm1').value}, function () {});
-            chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
-            chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
-            resetWX();
+            if (sm32bit() !== sm) {
+                // if subnet mask changed, save it and re-discover WX
+                chrome.storage.sync.set({'sm0': $('sm0').value}, function () {});
+                chrome.storage.sync.set({'sm1': $('sm1').value}, function () {});
+                chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
+                chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
+                resetWX();
+            }
         }, true);
     }
 
