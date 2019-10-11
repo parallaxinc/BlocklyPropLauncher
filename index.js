@@ -157,6 +157,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 chrome.storage.sync.set({'sm2': $('sm2').value}, function () {});
                 chrome.storage.sync.set({'sm3': $('sm3').value}, function () {});
                 resetWX();
+                // Save new mask for future comparison
+                sm = sm32bit();
             }
         }, true);
     }
