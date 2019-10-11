@@ -240,7 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function sm32bit() {
 // Convert current subnet mask (string form) to a 32-bit (4-byte) value
-    console.log("Converting");
     return (parseInt($('sm0').value) << 24) + (parseInt($('sm1').value) << 16) + (parseInt($('sm2').value) << 8) + parseInt($('sm3').value);
 }
 
@@ -446,7 +445,7 @@ function sendPortList(socket) {
     var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
-        console.log(chrome.runtime.lastError);
+        log(chrome.runtime.lastError, mDbug);
     }
 }
 
