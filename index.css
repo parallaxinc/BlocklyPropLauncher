@@ -108,10 +108,14 @@ body {
 .button-label {
   position: absolute;
   text-align: center;
-  left: 325px;
+  left: 323px;
   width: 160px;
   font-family: Baloo Bhaina;
   font-size: 20px;
+}
+
+.button-label-small {
+  font-size: 14px;
 }
 
 .button {
