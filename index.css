@@ -154,35 +154,9 @@ body {
 }
 
 .button .tooltip {
-  visibility: hidden;
   width: 130px;
-  background-color: #117022;
-  color: #fff;
-  text-align: center;
-  border-radius: 6px;
-  padding-top: 3px;
-  padding-bottom: 5px;
-
   /* Position the tip (left of button)*/
-  position: absolute;
-  z-index: 1;
   top: 12px;
-  right: 106%;
-
-  /* Fade in tip - takes 4/10 second to go from 0% to 100% opacity */
-  opacity: 0.0;
-  transition: opacity 0.4s;
-}
-
-.button .tooltip::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  margin-top: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: transparent transparent transparent #117022;
 }
 
 .button:hover .tooltip {
@@ -232,9 +206,21 @@ body {
 .status-clear {
   height: 38px;
   width: 114px;
-  background: none; /* Green */
+  background: none;
   color: #ccc;
   border:2px solid #ddd;
+}
+
+.status-clear .tooltip {
+  width: 200px;
+  /* Position the tip (left of status)*/
+  top: -7px;
+}
+
+.status-clear:hover .tooltip {
+  visibility: visible;
+  opacity: 1.0;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 .status-green {
@@ -246,9 +232,13 @@ body {
   border: none;
 }
 
-.status-clear .tooltip {
+/*----------*/
+/* Tool Tip */
+/*----------*/
+
+.tooltip {
   visibility: hidden;
-  width: 200px;
+  width: 100px;              /* Default size */
   background-color: #117022;
   color: #fff;
   text-align: center;
@@ -256,10 +246,10 @@ body {
   padding-top: 3px;
   padding-bottom: 5px;
 
-  /* Position the tip (left of status)*/
+  /* Position the tip (left of button)*/
   position: absolute;
   z-index: 1;
-  top: -7px;
+  top: 10px;                /* Default position */
   right: 106%;
 
   /* Fade in tip - takes 4/10 second to go from 0% to 100% opacity */
@@ -267,7 +257,7 @@ body {
   transition: opacity 0.4s;
 }
 
-.status-clear .tooltip::after {
+.tooltip::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -276,12 +266,6 @@ body {
   border-width: 5px;
   border-style: solid;
   border-color: transparent transparent transparent #117022;
-}
-
-.status-clear:hover .tooltip {
-  visibility: visible;
-  opacity: 1.0;
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 /*-------------*/
