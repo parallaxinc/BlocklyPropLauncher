@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     $('open-blocklypropsolo').onclick = function() {
-        chrome.browser.openTab({ url: "http://solo.parallax.com/"});
+        chrome.browser.openTab({ url: "https://solo.parallax.com/"});
     };
 
     $('open-blocklyprop').onclick = function() {
