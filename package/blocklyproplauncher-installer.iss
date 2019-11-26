@@ -3,7 +3,7 @@
 
 #define MyAppName "BlocklyProp Launcher"
 #define MyAppStartMenuName "BlocklyProp"
-#define MyAppVersion "0.10.0"
+#define MyAppVersion "0.11.0"
 #define MyAppPublisher "Parallax Inc."
 #define MyAppStartMenu "Parallax Inc"
 #define MyAppURL "http://blockly.parallax.com/"
