@@ -109,16 +109,16 @@ body {
   outline: none;
 }
 
-/*---------------*/
-/* Browse Buttons*/
-/*---------------*/
+/*----------------*/
+/* Browse Buttons */
+/*--------------- */
 
 .button-label {
   position: absolute;
   text-align: center;
   left: 323px;
   width: 160px;
-  font-family: Baloo Bhaina;
+  font-family: Baloo Bhaina, sans-serif;
   font-size: 20px;
 }
 
@@ -155,14 +155,8 @@ body {
 
 .button .tooltip {
   width: 130px;
-  /* Position the tip (left of button)*/
+  /* Vertically position the tip in relation to the button*/
   top: 12px;
-}
-
-.button:hover .tooltip {
-  visibility: visible;
-  opacity: 1.0;
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 /*-----------------*/
@@ -213,14 +207,8 @@ body {
 
 .status-clear .tooltip {
   width: 200px;
-  /* Position the tip (left of status)*/
+  /* Vertically position the tip in relation to the button*/
   top: -7px;
-}
-
-.status-clear:hover .tooltip {
-  visibility: visible;
-  opacity: 1.0;
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 .status-green {
@@ -266,6 +254,12 @@ body {
   border-width: 5px;
   border-style: solid;
   border-color: transparent transparent transparent #117022;
+}
+
+*:hover > .tooltip {
+  visibility: visible;
+  opacity: 1.0;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 /*-------------*/
