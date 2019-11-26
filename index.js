@@ -152,7 +152,11 @@ document.addEventListener('DOMContentLoaded', function() {
         sm = sm32bit();
     }
 
-    $('open-browser').onclick = function() {
+    $('open-blocklypropsolo').onclick = function() {
+        chrome.browser.openTab({ url: "https://solo.parallax.com/"});
+    };
+
+    $('open-blocklyprop').onclick = function() {
         chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
     };
   

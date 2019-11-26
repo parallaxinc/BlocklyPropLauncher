@@ -69,23 +69,26 @@
     </div>
     
     <div style="top:70px;" class="button-label">
-      Click:
+      Open Browser:
     </div>
     <div style="position:absolute; top:100px; left:325px;">
-      <button id="open-browser" class="button button-blue">Open Browser</button>
+      <button id="open-blocklypropsolo" class="button button-open">BlocklyProp Solo<span class="tooltip">No login required</span></button>
     </div>
-    <div style="top:170px;" class="button-label">
+    <div style="top:142px;" class="button-label button-label-small">
+      --or--
+    </div>
+    <div style="position:absolute; top:162px; left:325px;">
+      <button id="open-blocklyprop" class="button button-open">BlocklyProp<span class="tooltip">Login required</span></button>
+    </div>
+    <div style="top:220px;" class="button-label">
       Status:
     </div>
-    <div style="position:absolute; top:200px; left:325px;">
+    <div style="position:absolute; top:250px; left:325px;">
       <div>
         <span id="sys-connected" class="status status-green" style="opacity:0.0;">&#10004; Connected</span>
-        <span id="sys-waiting" class="status status-clear" style="opacity:1.0; position:absolute; top: 0px; left: 0px;">Waiting to<br>connect...<span class="statustiptext">To connect:<br>Open browser to BlocklyProp<br>site, then navigate to<br>View/Edit project code</span></span>
+        <span id="sys-waiting" class="status status-clear" style="opacity:1.0; position:absolute; top: 0px; left: 0px;">Waiting to<br>connect...<span class="tooltip">To connect:<br>Open browser to desired<br>site, then navigate to<br>View/Edit project code</span></span>
       </div>
     </div>
-    <!--
-      <button id="connect-menu" class="button button-blue" style="position:absolute; top:230px; left:476px; z-index:3; text-align:left; padding-left:5px; height:55px;">&#8942;</button>
-    -->
     <div style="position:absolute; top:380px; left:240px;">
       <span id="version-text" class="version">v0.0.0</span>
     </div>

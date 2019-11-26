@@ -13,6 +13,10 @@ body {
   background-repeat: no-repeat;
 }
 
+/*---------------*/
+/* Settings Pane */
+/*---------------*/
+
 .tab-selected {
   color: #000;
   padding-bottom: 5px;
@@ -105,13 +109,21 @@ body {
   outline: none;
 }
 
+/*----------------*/
+/* Browse Buttons */
+/*--------------- */
+
 .button-label {
   position: absolute;
   text-align: center;
-  left: 325px;
+  left: 323px;
   width: 160px;
-  font-family: Baloo Bhaina;
+  font-family: Baloo Bhaina, sans-serif;
   font-size: 20px;
+}
+
+.button-label-small {
+  font-size: 14px;
 }
 
 .button {
@@ -133,21 +145,23 @@ body {
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
-.button-blue {
+.button-open {
   background-color: #4472c4;
 }
 
-.button-blue:hover {
+.button-open:hover {
   background-color: #335b9c;
 }
 
-.button-green {
-  background-color: #4caf50; /* Green */
+.button .tooltip {
+  width: 130px;
+  /* Vertically position the tip in relation to the button*/
+  top: 12px;
 }
 
-.button-green:hover {
-  background-color: #339037; /* Green */
-}
+/*-----------------*/
+/* Settings button */
+/*-----------------*/
 
 .settings {
   width: 40px;
@@ -162,6 +176,14 @@ body {
   background-color: #4caf50;
   border: 1px solid #117022;
 }
+
+.settings-active:hover {
+  background-color: #339037; /* Green */
+}
+
+/*-------------------*/
+/* Connection status */
+/*-------------------*/
 
 .status {
   word-break: break-all;
@@ -178,9 +200,15 @@ body {
 .status-clear {
   height: 38px;
   width: 114px;
-  background: none; /* Green */
+  background: none;
   color: #ccc;
   border:2px solid #ddd;
+}
+
+.status-clear .tooltip {
+  width: 200px;
+  /* Vertically position the tip in relation to the button*/
+  top: -7px;
 }
 
 .status-green {
@@ -192,20 +220,24 @@ body {
   border: none;
 }
 
-.status-clear .statustiptext {
+/*----------*/
+/* Tool Tip */
+/*----------*/
+
+.tooltip {
   visibility: hidden;
-  width: 200px;
-  background-color: #4472c4;
+  width: 100px;              /* Default size */
+  background-color: #117022;
   color: #fff;
   text-align: center;
   border-radius: 6px;
   padding-top: 3px;
   padding-bottom: 5px;
 
-  /* Position the tip (left of status)*/
+  /* Position the tip (left of button)*/
   position: absolute;
   z-index: 1;
-  top: -7px;
+  top: 10px;                /* Default position */
   right: 106%;
 
   /* Fade in tip - takes 4/10 second to go from 0% to 100% opacity */
@@ -213,7 +245,7 @@ body {
   transition: opacity 0.4s;
 }
 
-.status-clear .statustiptext::after {
+.tooltip::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -221,14 +253,18 @@ body {
   margin-top: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: transparent transparent transparent #4472c4;
+  border-color: transparent transparent transparent #117022;
 }
 
-.status-clear:hover .statustiptext {
+*:hover > .tooltip {
   visibility: visible;
   opacity: 1.0;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
+
+/*-------------*/
+/* App version */
+/*-------------*/
 
 .version {
   color: #999999;
