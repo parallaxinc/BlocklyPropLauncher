@@ -153,10 +153,10 @@ body {
   background-color: #335b9c;
 }
 
-.button .statustiptext {
+.button .tooltip {
   visibility: hidden;
   width: 130px;
-  background-color: #339037;
+  background-color: #117022;
   color: #fff;
   text-align: center;
   border-radius: 6px;
@@ -174,7 +174,7 @@ body {
   transition: opacity 0.4s;
 }
 
-.button .statustiptext::after {
+.button .tooltip::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -182,10 +182,10 @@ body {
   margin-top: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: transparent transparent transparent #4472c4;
+  border-color: transparent transparent transparent #117022;
 }
 
-.button:hover .statustiptext {
+.button:hover .tooltip {
   visibility: visible;
   opacity: 1.0;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
@@ -246,10 +246,10 @@ body {
   border: none;
 }
 
-.status-clear .statustiptext {
+.status-clear .tooltip {
   visibility: hidden;
   width: 200px;
-  background-color: #339037;
+  background-color: #117022;
   color: #fff;
   text-align: center;
   border-radius: 6px;
@@ -267,7 +267,7 @@ body {
   transition: opacity 0.4s;
 }
 
-.status-clear .statustiptext::after {
+.status-clear .tooltip::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -275,10 +275,10 @@ body {
   margin-top: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: transparent transparent transparent #4472c4;
+  border-color: transparent transparent transparent #117022;
 }
 
-.status-clear:hover .statustiptext {
+.status-clear:hover .tooltip {
   visibility: visible;
   opacity: 1.0;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
