@@ -69,3 +69,6 @@ release_exe/
 
 # Windows thumb files
 Thumbs.db
+
+# Mac finder files
+.DS_Store
