@@ -63,9 +63,13 @@ typings/
 # Node modules, extracted nwjs files, releases, installers, and zip archives
 node_modules/
 package/win-resources/nwjs/dependencies/
+package/mac-resources/nwjs/
 release/
 release_exe/
 *.zip
 
 # Windows thumb files
 Thumbs.db
+
+# Mac finder files
+.DS_Store
