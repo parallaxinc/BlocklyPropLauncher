@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<installer-gui-script minSpecVersion="1">
+    <pkg-ref id="com.ParallaxInc.BlocklyProp Launcher"/>
+    <pkg-ref id="com.FTDI.driver.FTDIUSBSerialDriver"/>
+    <options customize="never" require-scripts="false"/>
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.ParallaxInc.BlocklyProp Launcher"/>
+            <line choice="com.FTDI.driver.FTDIUSBSerialDriver"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="com.ParallaxInc.BlocklyProp Launcher" visible="false">
+        <pkg-ref id="com.ParallaxInc.BlocklyProp Launcher"/>
+    </choice>
+    <pkg-ref id="com.ParallaxInc.BlocklyProp Launcher" version="0.11.0" onConclusion="none">BlocklyProp%20Launcher.pkg</pkg-ref>
+    <choice id="com.FTDI.driver.FTDIUSBSerialDriver" visible="false">
+        <pkg-ref id="com.FTDI.driver.FTDIUSBSerialDriver"/>
+    </choice>
+    <pkg-ref id="com.FTDI.driver.FTDIUSBSerialDriver" version="0.11.0" onConclusion="none">FTDIUSBSerialDriver.pkg</pkg-ref>
+</installer-gui-script>

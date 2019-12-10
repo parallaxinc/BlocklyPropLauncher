@@ -380,7 +380,7 @@ pkgbuild --root "${DISTRIBUTION}${APP_BUNDLE}" \
 #
 # Write a synthesized distribution xml directly (NO LONGER USED, BUT CAN PROVIDE A DISTRIBUTION XML FILE AS A TEMPLATE)
 #
-productbuild --synthesize --sign "$INST_IDENTITY" --timestamp=none --package "${DISTRIBUTION}${APP_NAME}.pkg" --package FTDIUSBSerialDriver.pkg ${RESOURCES}${DIST_SRC}
+#productbuild --synthesize --sign "$INST_IDENTITY" --timestamp=none --package "${DISTRIBUTION}${APP_NAME}.pkg" --package ${DISTRIBUTION}FTDIUSBSerialDriver.pkg ${RESOURCES}${DIST_SRC}
 #
 
 #
