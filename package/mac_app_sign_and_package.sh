@@ -57,7 +57,7 @@ EOF
 # Resource paths
 #
 RESOURCES="./mac-resources/"
-DISTRIBUTION="../dist/BlocklyProp Launcher/"
+DISTRIBUTION="../dist/"
 
 #
 # Default installation locations
@@ -341,14 +341,14 @@ touch ${DISTRIBUTION}*
 if [[ ${FTDI} == true ]]
 then
 #   is the FTDI Driver kext available?
-    if [[ -e ../drivers/${FTDIDRIVER_KEXT} ]]
+    if [[ -e ./drivers/${FTDIDRIVER_KEXT} ]]
     then
         echo; echo "Found FTDI USB Serial Driver kext"
         DIST_SRC=DistributionFTDI.xml
 #
 #       build the FTDI Driver component package
         echo; echo "Building FTDI USB Driver package..."
-        pkgbuild    --root ../drivers/${FTDIDRIVER_KEXT} \
+        pkgbuild    --root ./drivers/${FTDIDRIVER_KEXT} \
                     --identifier ${FTDI_IDENTIFIER}.${FTDIDRIVER} \
                     --timestamp \
                     --install-location ${FTDIDRIVER_DEST_DIR}${FTDIDRIVER_KEXT} \
@@ -380,7 +380,7 @@ pkgbuild --root "${DISTRIBUTION}${APP_BUNDLE}" \
 #
 # Write a synthesized distribution xml directly (NO LONGER USED, BUT CAN PROVIDE A DISTRIBUTION XML FILE AS A TEMPLATE)
 #
-#productbuild --synthesize --sign "$INST_IDENTITY" --timestamp=none --package "${APP_NAME}.pkg" --package FTDIUSBSerialDriver.pkg ${RESOURCES}${DIST_SRC}
+productbuild --synthesize --sign "$INST_IDENTITY" --timestamp=none --package "${DISTRIBUTION}${APP_NAME}.pkg" --package FTDIUSBSerialDriver.pkg ${RESOURCES}${DIST_SRC}
 #
 
 #
