@@ -66,6 +66,7 @@ package/win-resources/nwjs/dependencies/
 package/mac-resources/nwjs/
 release/
 release_exe/
+dist/
 *.zip
 
 # Windows thumb files
