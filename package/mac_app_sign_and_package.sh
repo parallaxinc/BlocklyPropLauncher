@@ -12,7 +12,7 @@
 #   All other parameters are optional: (FTDI driver installer, restart requirement, developer identities, deploy package request)
 #
 #   These files and folders must exist in the paths show below (in relation to this script's folder):
-#      ../drivers/FTDIUSBSerialDriver.kext
+#      ./drivers/FTDIUSBSerialDriver.kext
 #      ../dist/|application_bundle_name|.app
 #
 #   To update the driver, 
@@ -57,7 +57,7 @@ EOF
 # Resource paths
 #
 RESOURCES="./mac-resources/"
-DISTRIBUTION="../app/dist/Parallax-IDE-mac-x64/"
+DISTRIBUTION="../dist/Parallax-IDE-mac-x64/"
 
 #
 # Default installation locations
