@@ -57,7 +57,7 @@ EOF
 # Resource paths
 #
 RESOURCES="./mac-resources/"
-DISTRIBUTION="../dist/Parallax-IDE-mac-x64/"
+DISTRIBUTION="../dist/BlocklyProp Launcher/"
 
 #
 # Default installation locations
