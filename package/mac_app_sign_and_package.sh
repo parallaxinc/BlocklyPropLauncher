@@ -417,11 +417,11 @@ productbuild    --distribution ${RESOURCES}${DIST_DST} \
 
 echo
 
-# if [[ -e ${RESOURCES}${DIST_DST} ]]
-# then
-#     echo "Cleaning up temporary files..."   
-#     rm ${RESOURCES}${DIST_DST}
-# fi
+if [[ -e ${RESOURCES}${DIST_DST} ]]
+then
+    echo "Cleaning up temporary files..."   
+    rm ${RESOURCES}${DIST_DST}
+fi
 
 echo
 echo "Done!"
