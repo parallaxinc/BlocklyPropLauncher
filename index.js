@@ -477,7 +477,7 @@ function serialTerminal(sock, action, portName, baudrate, msg) {
                 .then(function() {log('Connected terminal to ' + portName + ' at ' + baudrate + ' baud.');})
                 .catch(function() {
                     log('Unable to connect terminal to ' + portName);
-                    var msg_to_send = {type:'serial-terminal', msg:'Failed to connect.\rPlease close this terminal and select a connected port.'};
+                    var msg_to_send = {type:'serial-terminal', msg:btoa('Failed to connect to ' + portName + '.\rPlease close this terminal and select a connected port.')};
                     sock.send(JSON.stringify(msg_to_send));
                 });
         } else if (action === "close") {
@@ -492,7 +492,7 @@ function serialTerminal(sock, action, portName, baudrate, msg) {
             }
         }
     } else {
-        var msg_to_send = {type:'serial-terminal', msg:'Port ' + portName + ' not found.\rPlease close this terminal and select an existing port.'};
+        var msg_to_send = {type:'serial-terminal', msg:btoa('No device connected.\rPlease close this terminal and select an existing port.')};
         sock.send(JSON.stringify(msg_to_send));
     }
 }
