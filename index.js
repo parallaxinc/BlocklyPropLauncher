@@ -319,7 +319,7 @@ function connect_ws(ws_port, url_path) {
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
-                    serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
+                    serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, atob(ws_msg.msg)); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
 //                  log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
@@ -455,7 +455,7 @@ function sendPortList(socket) {
 
 
 function helloClient(sock, baudrate) {
-    var msg_to_send = {type:'hello-client', version:clientVersion};
+    var msg_to_send = {type:'hello-client', version:clientVersion, rxBase64:true};
     sock.send(JSON.stringify(msg_to_send));
 }
 
