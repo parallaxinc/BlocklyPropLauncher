@@ -60,12 +60,14 @@ typings/
 # Idera tools
 .idea/
 
-# Node modules, extracted nwjs files, releases, installers, and zip archives
+# Node modules, extracted nwjs files, releases, installers, modified xml, and zip archives
 node_modules/
 package/win-resources/nwjs/dependencies/
 package/mac-resources/nwjs/
 release/
 release_exe/
+dist/
+*MOD.xml
 *.zip
 
 # Windows thumb files
