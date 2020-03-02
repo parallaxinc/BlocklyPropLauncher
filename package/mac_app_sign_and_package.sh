@@ -18,7 +18,7 @@
 #   To update the driver, 
 #      - download and install driver (from http://www.ftdichip.com/Drivers/VCP.htm)
 #        - select the currently supported Mac OS X VCP driver from that page (i.e. x64 (64-bit))
-#        - or use: http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_3.dmg
+#        - or use: http://www.ftdichip.com/Drivers/VCP/MacOSX/FTDIUSBSerialDriver_v2_4.2.dmg
 #        - install FTDI's driver package onto the development Mac OS X system
 #      - copy the FTDIUSBSerialDriver.kext from /Library/Extensions/ to the ../drivers/ folder
 #
