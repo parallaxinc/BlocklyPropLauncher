@@ -420,7 +420,7 @@ function scanWPorts() {
                 // Get consistently formatted port path; If Windows, strip off possible leading port origin path for ease in comparison
                 var portPath = ((platform === pfWin) && (port.path.indexOf(winPortOrigin) === 0)) ? port.path.slice(winPortOriginLen) : port.path;
                 // Add only proper port types (platform specific and excluding bluetooth ports)
-                if ((portPath.indexOf(portPattern[platform]) === 0) && (port.displayName.indexOf(' bt ') === -1 && port.displayName.indexOf('bluetooth') === -1)) {
+                if ((portPath.indexOf(portPattern[platform]) === 0) && (port.displayName.toLowerCase().indexOf(' bt ') === -1 && port.displayName.toLowerCase().indexOf('bluetooth') === -1)) {
                     addPort({path: port.path});
                 }
             });
