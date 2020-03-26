@@ -272,8 +272,8 @@ echo
 #
 # Attempt to deeply codesign the app bundle
 #
-echo "Code signing the application bundle (hardened runtime with entitlements): ${DISTRIBUTION}${APP_BUNDLE} with identity: \"${APP_IDENTITY}\""
-codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "./mac-resources/neededToRun.entitlements" "${DISTRIBUTION}${APP_BUNDLE}"
+echo "Code signing the application bundle (without hardened runtime entitlements): ${DISTRIBUTION}${APP_BUNDLE} with identity: \"${APP_IDENTITY}\""
+codesign -s "$APP_IDENTITY" --deep -f -v --timestamp "${DISTRIBUTION}${APP_BUNDLE}"
 if [ "$?" != "0" ]; then
     echo "[Error] Codesigning the application bundle failed!" 1>&2
     exit 1    
