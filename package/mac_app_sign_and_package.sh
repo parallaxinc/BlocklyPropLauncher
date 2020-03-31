@@ -9,10 +9,11 @@
 #     IMPORTANT: Application bundle must exist in folder noted below
 #   User must specify the package version: (example: "-v 1.0.56")
 #   
-#   All other parameters are optional: (FTDI driver installer, restart requirement, developer identities, deploy package request)
+#   All other parameters are optional: (FTDI driver installer, restart requirement, developer identities)
 #
 #   These files and folders must exist in the paths show below (in relation to this script's folder):
 #      ./drivers/FTDIUSBSerialDriver.kext
+#      ./mac-resources/neededToRun.entitlements
 #      ../dist/|application_bundle_name|.app
 #
 #   To update the driver, 
@@ -23,7 +24,7 @@
 #      - copy the FTDIUSBSerialDriver.kext from /Library/Extensions/ to the ../drivers/ folder
 #
 #   The ../dist/|application_bundle_name|.app will be modified by this script to digitally sign it with the default or optional
-#       application developer identity certificate
+#       application developer identity certificate as well as with the given runtime entitlements (neededToRun.entitlements)
 #
 
 usage()
@@ -56,13 +57,21 @@ EOF
 #
 # Resource paths
 #
+# Notes: 
+#   * All are paths relative to this script.
+#   * NWJS_FW_LIBRARIES (NW.js Framework Libraries) is the path inside of APP_BUNDLE (defined later)
+#
 RESOURCES="./mac-resources/"
 DISTRIBUTION="../dist/"
+NWJS_FW="/Contents/Frameworks/nwjs Framework.framework/"
+NWJS_FW_LIBRARIES="${NWJS_FW}Versions/Current/Libraries/"
+ENTITLEMENTS="${RESOURCES}neededToRun.entitlements"
 
 #
 # Default installation locations
 #
-# note: the FTDI kext used to be in "/System/Library/Extensions/" per Apple's previous suggestion (before Mavericks?)
+# Note: the FTDI kext used to be in "/System/Library/Extensions/" per Apple's previous suggestion (before Mavericks?)
+#
 FTDIDRIVER_DEST_DIR="/Library/Extensions/"
 DEFAULT_APP_DIR="/Applications/"
 
@@ -75,7 +84,8 @@ FTDIDRIVER_KEXT=${FTDIDRIVER}.kext
 #
 # Modified temporary distro xml
 #
-# note: will contain copied or sed-modified version of template DistributionXXXX.xml
+# Note: will contain copied or sed-modified version of template DistributionXXXX.xml
+#
 DIST_DST=DistributionMOD.xml
 
 #
@@ -270,13 +280,61 @@ fi
 echo
 
 #
+# Attempt to deeply codesign the known-to-be-unsigned nwjs libraries and nwjs framework
+#
+echo "Code signing nwjs libraries and framework within the application bundle: ${DISTRIBUTION}${APP_BUNDLE} with identity: \"${APP_IDENTITY}\""
+#
+# signing libEGL.dylib
+#
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libEGL.dylib"
+if [ "$?" != "0" ]; then
+    echo "[Error] Code signing nwjs library failed!" 1>&2
+    exit 1
+fi
+#
+# libGLESv2.dylib
+#
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libGLESv2.dylib"
+if [ "$?" != "0" ]; then
+    echo "[Error] Code signing nwjs library failed!" 1>&2
+    exit 1
+fi
+#
+# libswiftshader_libEGL.dylib
+#
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libswiftshader_libEGL.dylib"
+if [ "$?" != "0" ]; then
+    echo "[Error] Code signing nwjs library failed!" 1>&2
+    exit 1
+fi
+#
+# libswiftshader_libGLESv2.dylib
+#
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libswiftshader_libGLESv2.dylib"
+if [ "$?" != "0" ]; then
+    echo "[Error] Code signing nwjs library failed!" 1>&2
+    exit 1
+fi
+#
+# nwjs Framework
+#
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW}nwjs Framework"
+if [ "$?" != "0" ]; then
+    echo "[Error] Code signing nwjs framework failed!" 1>&2
+    exit 1
+fi
+
+
+echo
+
+#
 # Attempt to deeply codesign the app bundle
 #
 echo "Code signing the application bundle (hardened runtime with entitlements): ${DISTRIBUTION}${APP_BUNDLE} with identity: \"${APP_IDENTITY}\""
-codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "./mac-resources/neededToRun.entitlements" "${DISTRIBUTION}${APP_BUNDLE}"
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}"
 if [ "$?" != "0" ]; then
-    echo "[Error] Codesigning the application bundle failed!" 1>&2
-    exit 1    
+    echo "[Error] Code signing the application bundle failed!" 1>&2
+    exit 1
 fi
 
 echo
