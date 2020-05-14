@@ -157,7 +157,6 @@ function loadPropeller(sock, portName, action, payload, debug) {
                     updatePort(port, {mode: "none"});                                                               //  Clear port mode
                     if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
                 }
-                resumeTimedEvents();                                                                                // Resume timed events that were halted earlier
             })                                                                                                      //Error? Disable listener and display error
             .catch(function(e) {
                 listen(port, false);
@@ -165,11 +164,12 @@ function loadPropeller(sock, portName, action, payload, debug) {
                 log(notice(neDownloadFailed), mAll, sock);
                 updatePort(port, {mode: "none"});
                 if ((port.isWired && port.connId) || port.isWireless) {return changeBaudrate(port, originalBaudrate)}
-                resumeTimedEvents();                                                                                // Resume timed events that were halted earlier
             })
             .catch(function(e) {log(e.message, mAll, sock)})
             .then(function() {if (port.isWireless) return closePort(port, false)})
-            .catch(function(e) {log(e.message, mAll, sock);});
+            .catch(function(e) {log(e.message, mAll, sock)})
+            .then(function() {resumeTimedEvents()})                                                                 // Resume timed events that were halted earlier
+            .catch(function() {resumeTimedEvents()});
     } else {
         // Port not found
         log(notice(neCanNotFindPort, [portName]), mAll, sock);
