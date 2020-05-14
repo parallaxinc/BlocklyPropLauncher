@@ -363,7 +363,7 @@ function addPortLister(socket) {
 
 function startPortListerScanner(idx) {
 //Start portLister idx's scanner timer
-    if (Idx > -1) {
+    if (idx > -1) {
         portLister[idx].scanner = setInterval(function() {sendPortList(portLister[idx].socket)}, portListSendInterval)
         sendPortList(portLister[idx].socket);
     };
@@ -371,7 +371,7 @@ function startPortListerScanner(idx) {
 
 function stopPortListerScanner(idx) {
 //Stop (clear) portLister (idx) scanner timer
-    if (Idx > -1) {
+    if (idx > -1) {
         if (portLister[idx].scanner) {
             clearInterval(portLister[idx].scanner);
             portLister[idx].scanner = null;
@@ -381,7 +381,7 @@ function stopPortListerScanner(idx) {
 
 function deletePortLister(idx) {
 //Clear scanner timer and delete portLister (idx)
-    if (Idx > -1) {
+    if (idx > -1) {
         stopPortListerScanner(idx);
         portLister.splice(idx, 1);
     }
