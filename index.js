@@ -272,7 +272,7 @@ function updateStatus(socketId) {
     // toggle waiting/connected image depending on if at least one browser socket is connected
     $('sys-waiting').style.opacity=(portLister.length ? 0.0 : 1.0);
     $('sys-connected').style.opacity=(portLister.length ? 1.0 : 0.0);
-    log('[S:'+math.abs(socketId)+'] - site ' + (socketId < 0 ? 'disconnected' : 'connected'), mDbug);
+    log('[S:'+Math.abs(socketId)+'] - Site ' + (socketId < 0 ? 'disconnected' : 'connected'), mDbug);
 }
 
 function closeServer() {
@@ -316,7 +316,7 @@ function connect_ws(ws_port, url_path) {
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
-                    log('[S:'+socket.pSocket_.socketId+'] -> requested port list', mDbug);
+                    log('[S:'+socket.pSocket_.socketId+'] -> Site requested port list', mDbug);
                     addPortLister(socket);
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
@@ -340,7 +340,7 @@ function connect_ws(ws_port, url_path) {
             // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
             deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
-            if (!portLister.length) {updateStatus(-socket.pSocket_.socketId)}
+            updateStatus(-socket.pSocket_.socketId);
         });
 
         return true;
