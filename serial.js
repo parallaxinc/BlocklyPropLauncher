@@ -99,7 +99,7 @@ function closePort(port, command) {
                 updatePort(port, {[socket]: null});
                 // Disconnect and/or close socket (if necessary)
                 chrome.sockets.tcp.getInfo(sID, function(info) {
-                    log("Closed socket " + sID, mDbug);
+                    log("Closing wireless port socket " + sID, mDbug);
                     if (info.connected) {
                         chrome.sockets.tcp.disconnect(sID, function() {
                             chrome.sockets.tcp.close(sID, function() {
@@ -310,8 +310,8 @@ function debugReceiver(info) {
 }
 
 //TODO !!! This is no longer a pure-wired-serial function; decide what to do long-term
-function debugErrorReceiver(info) {
-// Wired and wireless receive error listener.
+function serialError(info) {
+// Wired and wireless serial error listener.
     if (info.hasOwnProperty("connectionId")) {
         switch (info.error) {
             case "disconnected":
@@ -341,4 +341,4 @@ function debugErrorReceiver(info) {
 }
 
 chrome.serial.onReceive.addListener(debugReceiver);
-chrome.serial.onReceiveError.addListener(debugErrorReceiver);
+chrome.serial.onReceiveError.addListener(serialError);
