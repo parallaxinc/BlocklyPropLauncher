@@ -97,7 +97,7 @@ var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
-// Timer(s) to scan and send the port list
+// Timer(s) to scan wired ports and send the port list to browser sockets (wireless port scanning defined in wx.js)
 var wScannerInterval = null;
 var portLister = [];
 
@@ -285,16 +285,13 @@ function closeServer() {
 }
 
 function closeSockets() {
-// Close all sockets and remove them from the ports and portLister lists
+// Close all browser sockets, remove them from ports list and delete their portLister list item
     ports.forEach(function(p) {
         if (p.bSocket) {
             p.bSocket.close();
             p.bSocket = null;
         }});
-    while (portLister.length) {
-        clearInterval(portLister[0].scanner);
-        portLister.splice(0, 1);
-    }
+    while (portLister.length) {deletePortLister(0)}
 }
 
 function connect_ws(ws_port, url_path) {
@@ -323,8 +320,7 @@ function connect_ws(ws_port, url_path) {
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
                     log('[S:'+socket.pSocket_.socketId+'] -> requested port list', mDbug);
-                    sendPortList(socket);
-                    portLister.push({socket: socket, scanner: setInterval(function() {sendPortList(socket)}, portListSendInterval)});
+                    addPortLister(socket);
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
                     helloClient(socket, ws_msg.baudrate || 115200);
@@ -345,21 +341,50 @@ function connect_ws(ws_port, url_path) {
 
         socket.addEventListener('close', function() {
             // Browser socket closed; terminate its port scans and remove it from list of ports.
-            let Idx = portLister.findIndex(function(s) {return s.socket === socket});
-            if (Idx > -1) {
-                clearInterval(portLister[Idx].scanner);
-                portLister.splice(Idx, 1);
-            }
+            deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
             if (!portLister.length) {
                 updateStatus(false, socket);
-                // chrome.app.window.current().drawAttention();  //Disabled to prevent unnecessary user interruption
             }
         });
 
         return true;
     });
   }
+}
+
+// Port Lister management functions
+// The Port Lister items are timers (and sockets) to automatically send wired/wireless port updates to connected browser sockets
+function addPortLister(socket) {
+//Create new port lister (to send port lists to browser on a timed interval).
+//socket is the browser socket to send updates to.
+    startPortListerScanner(portLister.push({socket: socket})-1);
+}
+
+function startPortListerScanner(idx) {
+//Start portLister idx's scanner timer
+    if (Idx > -1) {
+        portLister[idx].scanner = setInterval(function() {sendPortList(portLister[idx].socket)}, portListSendInterval)
+        sendPortList(portLister[idx].socket);
+    };
+}
+
+function stopPortListerScanner(idx) {
+//Stop (clear) portLister (idx) scanner timer
+    if (Idx > -1) {
+        if (portLister[idx].scanner) {
+            clearInterval(portLister[idx].scanner);
+            portLister[idx].scanner = null;
+        }
+    }
+}
+
+function deletePortLister(idx) {
+//Clear scanner timer and delete portLister (idx)
+    if (Idx > -1) {
+        stopPortListerScanner(idx);
+        portLister.splice(idx, 1);
+    }
 }
 
 function enableW() {
@@ -413,24 +438,20 @@ function resetWX() {
 
 function haltTimedEvents() {
 //Halt timed events.  Restart with resumeTimedEvents().
-    return new Promise(function(resolve) {
-        //Disable wired and wireless port scanning
-        log('Halting timed events', mDbug);
-        disableW();
-        disableWX(true);
-        resolve();
-    })
+    //Disable wired and wireless port scanning
+    log('Halting timed events', mDbug);
+    disableW();
+    disableWX(true);
+    portLister.forEach(function(p, idx) {stopPortListerScanner(idx)});
 }
 
 function resumeTimedEvents() {
 //Resume timed events that were stopped via haltTimedEvents().
-    return new Promise(function(resolve) {
-        //Enable wired and wireless port scanning
-        log('Resuming timed events', mDbug);
-        enableW();
-        enableWX();
-        resolve();
-    })
+    //Enable wired and wireless port scanning
+    log('Resuming timed events', mDbug);
+    enableW();
+    enableWX();
+    portLister.forEach(function(p, idx) {startPortListerScanner(idx)});
 }
 
 function scanWPorts() {
