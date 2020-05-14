@@ -338,7 +338,9 @@ function connect_ws(ws_port, url_path) {
 
         socket.addEventListener('close', function() {
             // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
+            log('[S:'+socket.pSocket_.socketId+'] - Site socket closing', mDbug);
             deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
+            log('passed deletePortLister()', mDbug);
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
             updateStatus(-socket.pSocket_.socketId);
         });
@@ -359,9 +361,9 @@ function addPortLister(socket) {
 function startPortListerScanner(idx) {
 //Start portLister idx's scanner timer
     if (idx > -1) {
-        portLister[idx].scanner = setInterval(function() {sendPortList(portLister[idx].socket)}, portListSendInterval)
+        portLister[idx].scanner = setInterval(function() {sendPortList(portLister[idx].socket)}, portListSendInterval);
         sendPortList(portLister[idx].socket);
-    };
+    }
 }
 
 function stopPortListerScanner(idx) {
@@ -376,6 +378,7 @@ function stopPortListerScanner(idx) {
 
 function deletePortLister(idx) {
 //Clear scanner timer and delete portLister (idx)
+    log('Deleting portLister index '+idx+'.', mDbug);
     if (idx > -1) {
         stopPortListerScanner(idx);
         portLister.splice(idx, 1);
@@ -451,7 +454,7 @@ function resumeTimedEvents() {
 
 function scanWPorts() {
 // Generate list of current wired ports (filtered according to platform and type)
-    log('Scanning wired ports', mDbug);
+    //log('Scanning wired ports', mDbug);
     chrome.serial.getDevices(
         function(portlist) {
             let wn = [];
@@ -472,7 +475,7 @@ function scanWPorts() {
 
 function scanWXPorts() {
 // Generate list of current wireless ports
-    log('Scanning wireless ports', mDbug);
+    //log('Scanning wireless ports', mDbug);
     discoverWirelessPorts();
     ageWirelessPorts();
 }
@@ -481,7 +484,6 @@ function sendPortList(socket) {
 // Find and send list of communication ports (filtered according to platform and type) to browser via socket
     let wn = [];
     let wln = [];
-    log('[S:'+socket.pSocket_.socketId+'] <- Sending port list', mDbug);
     // gather separated and sorted port lists (wired names and wireless names)
     ports.forEach(function(p) {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}});
     wn.sort();
@@ -489,6 +491,7 @@ function sendPortList(socket) {
 
     // report back to editor
     var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
+    log('[S:'+socket.pSocket_.socketId+'] <- Sending port list (qty '+(wn.length+wln.length)+')', mDbug);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
