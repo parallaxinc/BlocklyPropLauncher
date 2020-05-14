@@ -266,16 +266,13 @@ function disconnect() {
     disableWX();
 }
 
-function updateStatus(connected, socket) {
-    if (connected) {
-        $('sys-waiting').style.opacity=0.0;
-        $('sys-connected').style.opacity=1.0;
-        log('[S:'+socket.pSocket_.socketId+'] - site connected');
-    } else {
-        $('sys-waiting').style.opacity=1.0;
-        $('sys-connected').style.opacity=0.0;
-        log('[S:'+socket.pSocket_.socketId+'] - site disconnected');
-    }
+function updateStatus(socketId) {
+/* Update visible status of browser connection.
+   socketId - positive indicates the newly-connected browser socket; negative is newly-disconnected. */
+    // toggle waiting/connected image depending on if at least one browser socket is connected
+    $('sys-waiting').style.opacity=(portLister.length ? 0.0 : 1.0);
+    $('sys-connected').style.opacity=(portLister.length ? 1.0 : 0.0);
+    log('[S:'+math.abs(socketId)+'] - site ' + (socketId < 0 ? 'disconnected' : 'connected'), mDbug);
 }
 
 function closeServer() {
@@ -324,7 +321,7 @@ function connect_ws(ws_port, url_path) {
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
                     helloClient(socket, ws_msg.baudrate || 115200);
-                    updateStatus(true, socket);
+                    updateStatus(socket.pSocket_.socketId);
                 } else if (ws_msg.type === "debug-cts") {
                     // Handle clear-to-send
                     //TODO Add clear-to-send handling code
@@ -340,12 +337,10 @@ function connect_ws(ws_port, url_path) {
 
 
         socket.addEventListener('close', function() {
-            // Browser socket closed; terminate its port scans and remove it from list of ports.
+            // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
             deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
-            if (!portLister.length) {
-                updateStatus(false, socket);
-            }
+            if (!portLister.length) {updateStatus(-socket.pSocket_.socketId)}
         });
 
         return true;
