@@ -361,7 +361,7 @@ function addPortLister(socket) {
 function startPortListerScanner(idx) {
 //Start portLister idx's scanner timer
     if (idx > -1) {
-        portLister[idx].scanner = setInterval(function() {sendPortList(portLister[idx].socket)}, portListSendInterval);
+        portLister[idx].scanner = setInterval(sendPortList, portListSendInterval, portLister[idx].socket);
         sendPortList(portLister[idx].socket);
     }
 }
