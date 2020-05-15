@@ -395,7 +395,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                 }
 
                 //Set up continuous progress indicator during this phase
-                progress = setInterval(function() {log(notice(nsDownloading), mUser, sock)}, 1000);
+                progress = setInterval(log, 1000, notice(nsDownloading), mUser, sock);
 
                 sendInstructionPacket()
                     .then(function() {clearInterval(progress); return resolve();})
