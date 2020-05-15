@@ -270,8 +270,9 @@ function updateStatus(socketId) {
 /* Update visible status of browser connection.
    socketId - positive indicates the newly-connected browser socket; negative is newly-disconnected. */
     // toggle waiting/connected image depending on if at least one browser socket is connected
-    $('sys-waiting').style.opacity=(portLister.length ? 0.0 : 1.0);
-    $('sys-connected').style.opacity=(portLister.length ? 1.0 : 0.0);
+    let connected = (socketId > 0) || (portLister.length);
+    $('sys-waiting').style.opacity=(connected ? 0.0 : 1.0);
+    $('sys-connected').style.opacity=(connected ? 1.0 : 0.0);
     log('[S:'+Math.abs(socketId)+'] - Site ' + (socketId < 0 ? 'disconnected' : 'connected'), mDbug);
 }
 
@@ -338,9 +339,7 @@ function connect_ws(ws_port, url_path) {
 
         socket.addEventListener('close', function() {
             // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
-            log('[S:'+socket.pSocket_.socketId+'] - Site socket closing', mDbug);
             deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
-            log('passed deletePortLister()', mDbug);
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
             updateStatus(-socket.pSocket_.socketId);
         });
@@ -378,7 +377,6 @@ function stopPortListerScanner(idx) {
 
 function deletePortLister(idx) {
 //Clear scanner timer and delete portLister (idx)
-    log('Deleting portLister index '+idx+'.', mDbug);
     if (idx > -1) {
         stopPortListerScanner(idx);
         portLister.splice(idx, 1);
