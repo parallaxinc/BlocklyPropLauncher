@@ -329,12 +329,13 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         prepForMBLResponse(userDeliveryTime, notice(neCommunicationLost));
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
-                        txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
+                        txData = new ArrayBuffer(txPacketLength * 4);                                         //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
                         propComm.mblEPacketId[0] = packetId-1;                                                           //Set next expected packetId
-                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                                  //Set next random Transmission ID
+                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                               //Set next random Transmission ID
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                        //Store random Transmission ID
+                        log('Sending PID/TID: '+txView.subarray(0, 4)+'/'+txView.subarray(4, 8), mDeep);
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
                         send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
@@ -459,8 +460,7 @@ function hearFromProp(info) {
 
     // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
     let stream = (dataSource === dsHTTP) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    log("Received " + info.data.byteLength + " bytes", mDeep);
-//    console.log(stream);
+    log("Received " + info.data.byteLength + " bytes:" + ((info.data.byteLength < 9) ? " " : "\n") + stream.toString(), mDeep);
 
     var sIdx = 0;
 
