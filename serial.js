@@ -240,6 +240,7 @@ function send(port, data, command) {
         if (port.isWired) { // Wired port
             if (platform !== pfMac) {
                 //Any platform other than Mac? Send as one full packet (any size)
+                //log('send(): '+new Uint8Array(data), mDeep) //.subarray(0, 4)+'/'+txView.subarray(4, 8), mDeep);
                 chrome.serial.send(port.connId, data, function () {
                     resolve();
                 });
