@@ -44,18 +44,23 @@ const mDbug     = mcStatus              +              mdLog + mdConsole;
 const mDeep     = mcVerbose             +                      mdConsole;
 const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 
+//TODO determine if more messages should be converted to mUser - instead of manually socket.send()'ing them
 //TODO allow this to be further filtered with includes/excludes set by app options at runtime
 //TODO provide mechanism for this to be a downloadable date-stamped file.
 //TODO should filters apply to downloadable file?  Not sure yet.
-function log(text = "", type = mStat, socket = null) {
+function log(text = "", type = mStat, socket = null, direction = 0) {
 /* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to the type (which describes a category and destination).
    text is the message to convey.
    type [optional; default mStat] - category and destination(s) that the message applies to.
-   socket [optional; default null] - the websocket message received from, or to send an mUser message to; ignored unless type is mdUser or verbose logging enabled.*/
+   socket [optional; default null] - the websocket message received from, or to send an mUser message to; ignored unless type is mdUser or verbose logging enabled.
+   direction [optional; default 0] - -1 = prepend '<-' (indicates outgoing socket event); 1 = prepend '->' (indicates incoming socket event)*/
 
-    function timeStamp(condition) {return (condition) ? Date.now().toString().slice(-5) + ': ' : ''}
-
-    function socketStamp(condition) {return (condition && (socket !== null)) ? '[S:'+Math.abs(socket.pSocket_.socketId)+'] ' : ''}
+    function stamp(condition) {
+        let timeStamp = (condition) ? Date.now().toString().slice(-5) + ': ' : '';
+        let socketStamp = (condition && (socket !== null)) ? '[S:'+Math.abs(socket.pSocket_.socketId)+'] ' : '';
+        let directionStamp = (!direction) ? '' : ((direction > 0) ? '-> ' : '<- ');
+        return timeStamp + socketStamp + directionStamp;
+    }
 
     if (type & (mcUser | mcStatus | mcVerbose)) {
     // Proper type provided
@@ -72,11 +77,11 @@ function log(text = "", type = mStat, socket = null) {
             let logView = $('log');
             //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
             let scroll = (logView.scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
-            logView.innerHTML += timeStamp(verboseLogging) + socketStamp(verboseLogging) + text + '<br>';
+            logView.innerHTML += stamp(verboseLogging) + text + '<br>';
             if (scroll) {logView.scrollTo(0, logView.scrollHeight)}
         }
         //Send to Launcher console window
-        if (type & mdConsole) {console.log(timeStamp(true) + socketStamp(true) + text)}
+        if (type & mdConsole) {console.log(stamp(true) + text)}
     }
 }
 
@@ -329,14 +334,14 @@ function connect_ws(ws_port, url_path) {
 
                 if (ws_msg.type === "load-prop") {
                     // load the propeller
-                    log('-> Received Propeller Application for ' + ws_msg.action, mStat, socket);
+                    log('Received Propeller Application for ' + ws_msg.action, mDbug, socket, 1);
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
-                    log('-> Site requested port list', mDbug, socket);
+                    log('Site requested port list', mDbug, socket, 1);
                     addPortLister(socket);
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
@@ -347,11 +352,11 @@ function connect_ws(ws_port, url_path) {
                     //TODO Add clear-to-send handling code
                 } else {
                     // Handle unknown messages
-                    log('-> Unknown JSON message: ' + e.data, mStat, socket);
+                    log('Unknown JSON message: ' + e.data, mDeep, socket, 1);
                 }
             } else {
                 // Handle unknown format
-                log('-> Unknown message type: ' + e.data, mStat, socket);
+                log('Unknown message type: ' + e.data, mDeep, socket, 1);
             }
         });
 
@@ -508,7 +513,7 @@ function sendPortList(socket) {
 
     // report back to editor
     var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-    log('<- Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket);
+    log('Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
