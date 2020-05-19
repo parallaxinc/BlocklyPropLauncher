@@ -58,11 +58,19 @@ function log(text = "", type = mStat, socket = null) {
         if (verboseLogging) {type |= mdLog}
         //Deliver categorized message to proper destination(s)
         if ((type & mdDisplay) && socket !== null) {
+            //Send to browser display
             let dispText = text !== "." ? '\r' + text : text;
             socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
         }
-        if (type & mdLog) {$('log').innerHTML += text + '<br>'; $('log').scrollTo(0, $('log').scrollHeight, 'smooth');}
-
+        if (type & mdLog) {
+            //Send to Launcher log view
+            let logView = $('log');
+            //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
+            let scroll = (logView.scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
+            logView.innerHTML += text + '<br>';
+            if (scroll) {logView.scrollTo(0, logView.scrollHeight)}
+        }
+        //Send to Launcher console window
         if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
     }
 }
