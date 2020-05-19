@@ -34,8 +34,8 @@ const mcVerbose = 4;       // Deep developer status message
 
 // [Message Destinations]
 const mdDisplay = 8;       // BP browser display
-const mdLog     = 16;      // BP local log
-const mdConsole = 32;      // BP local console
+const mdLog     = 16;      // BP Launcher local log
+const mdConsole = 32;      // BP Launcher local console
 
 // [Messages]     --- Category(ies) ---   ------- Destination(s) ------
 const mUser     = mcUser                +  mdDisplay;
@@ -48,17 +48,21 @@ const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 //TODO provide mechanism for this to be a downloadable date-stamped file.
 //TODO should filters apply to downloadable file?  Not sure yet.
 function log(text = "", type = mStat, socket = null) {
-/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to destination and filter type(s).
+/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to the type (which describes a category and destination).
    text is the message to convey.
    type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
    socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
     if (type & (mcUser | mcStatus | mcVerbose)) {
-    // Deliver categorized message to proper destination
+    // Proper type provided
+        //Elevate all messages when verbose logging enabled
+        if (verboseLogging) {type |= mdLog}
+        //Deliver categorized message to proper destination(s)
         if ((type & mdDisplay) && socket !== null) {
             let dispText = text !== "." ? '\r' + text : text;
             socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
         }
-        if (type & mdLog) {$('log').innerHTML += text + '<br>'}
+        if (type & mdLog) {$('log').innerHTML += text + '<br>'; $('log').scrollTo(0, $('log').scrollHeight, 'smooth');}
+
         if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
     }
 }
