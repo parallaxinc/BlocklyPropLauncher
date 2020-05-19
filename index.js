@@ -17,6 +17,7 @@ const defaultSM1 = '255';
 const defaultSM2 = '255';
 const defaultSM3 = '0';
 const defaultWX = true;
+const defaultVerboseLogging = false;
 
 // Communication metrics (ensure intervals don't coincide)
 const portListSendInterval = 5000;
@@ -126,8 +127,8 @@ var portLister = [];
 // Timer to manage possible disableWX/enableWX cycling (resetWX)
 var wxEnableDelay = null;
 
-// Is verbose loggin turned on?
-var verboseLogging = false;
+// Default logging (could be overridden by stored setting)
+var verboseLogging = defaultVerboseLogging;
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -156,6 +157,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('sm2').value = result.sm2 || defaultSM2;
                 $('sm3').value = result.sm3 || defaultSM3;
                 $('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : defaultWX;
+                verboseLogging = (result.en_vlog !== undefined) ? result.en_vlog : defaultVerboseLogging;
+                $('verbose-logging').checked = verboseLogging;
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
@@ -170,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sm2').value = defaultSM2;
         $('sm3').value = defaultSM3;
         $('wx-allow').checked = defaultWX;
+        $('verbose-logging').checked = defaultVerboseLogging;
         // Save subnet mask for future comparison
         sm = sm32bit();
     }
@@ -218,9 +222,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
   
-    $('bpc-trace').onclick = function() {
-        verboseLogging = $('bpc-trace').checked;
+    $('verbose-logging').onclick = function() {
+        verboseLogging = $('verbose-logging').checked;
         log((verboseLogging) ? 'Verbose logging enabled' : 'Verbose logging disabled');
+        if(chrome.storage) {
+            chrome.storage.sync.set({'en_vlog': verboseLogging}, function () {if (chrome.runtime.lastError) {storageError()}});
+        }
     };
 
     // Enable/disable wireless (WX) port scanning; save setting
