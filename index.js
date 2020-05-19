@@ -182,10 +182,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.browser.openTab({ url: "https://solo.parallax.com/"});
     };
 
-    $('open-blocklyprop').onclick = function() {
-        chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
-    };
-  
     // TODO: re-write this to use onblur and/or onchange to auto-save.
     $('refresh-connection').onclick = function() {
         disconnect();
