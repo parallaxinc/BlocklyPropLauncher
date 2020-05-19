@@ -17,6 +17,7 @@ const defaultSM1 = '255';
 const defaultSM2 = '255';
 const defaultSM3 = '0';
 const defaultWX = true;
+const defaultVerboseLogging = false;
 
 // Communication metrics (ensure intervals don't coincide)
 const portListSendInterval = 5000;
@@ -34,8 +35,8 @@ const mcVerbose = 4;       // Deep developer status message
 
 // [Message Destinations]
 const mdDisplay = 8;       // BP browser display
-const mdLog     = 16;      // BP local log
-const mdConsole = 32;      // BP local console
+const mdLog     = 16;      // BP Launcher local log
+const mdConsole = 32;      // BP Launcher local console
 
 // [Messages]     --- Category(ies) ---   ------- Destination(s) ------
 const mUser     = mcUser                +  mdDisplay;
@@ -44,22 +45,44 @@ const mDbug     = mcStatus              +              mdLog + mdConsole;
 const mDeep     = mcVerbose             +                      mdConsole;
 const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 
+//TODO determine if more messages should be converted to mUser - instead of manually socket.send()'ing them
 //TODO allow this to be further filtered with includes/excludes set by app options at runtime
 //TODO provide mechanism for this to be a downloadable date-stamped file.
 //TODO should filters apply to downloadable file?  Not sure yet.
-function log(text = "", type = mStat, socket = null) {
-/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to destination and filter type(s).
+function log(text = "", type = mStat, socket = null, direction = 0) {
+/* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to the type (which describes a category and destination).
    text is the message to convey.
-   type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
-   socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
+   type [optional; default mStat] - category and destination(s) that the message applies to.
+   socket [optional; default null] - the websocket message received from, or to send an mUser message to; ignored unless type is mdUser or verbose logging enabled.
+   direction [optional; default 0] - -1 = prepend '<-' (indicates outgoing socket event); 1 = prepend '->' (indicates incoming socket event)*/
+
+    function stamp(condition) {
+        let timeStamp = (condition) ? Date.now().toString().slice(-5) + ': ' : '';
+        let socketStamp = (condition && (socket !== null)) ? '[S:'+Math.abs(socket.pSocket_.socketId)+'] ' : '';
+        let directionStamp = (!direction) ? '' : ((direction > 0) ? '-> ' : '<- ');
+        return timeStamp + socketStamp + directionStamp;
+    }
+
     if (type & (mcUser | mcStatus | mcVerbose)) {
-    // Deliver categorized message to proper destination
+    // Proper type provided
+        //Elevate all messages when verbose logging enabled
+        if (verboseLogging) {type |= mdLog}
+        //Deliver categorized message to proper destination(s)
         if ((type & mdDisplay) && socket !== null) {
+            //Send to browser display
             let dispText = text !== "." ? '\r' + text : text;
-            socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
+            socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}));
         }
-        if (type & mdLog) {$('log').innerHTML += text + '<br>'}
-        if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
+        if (type & mdLog) {
+            //Send to Launcher log view
+            let logView = $('log');
+            //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
+            let scroll = (logView.scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
+            logView.innerHTML += stamp(verboseLogging) + text + '<br>';
+            if (scroll) {logView.scrollTo(0, logView.scrollHeight)}
+        }
+        //Send to Launcher console window
+        if (type & mdConsole) {console.log(stamp(true) + text)}
     }
 }
 
@@ -97,15 +120,15 @@ var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 var isServer = false;
 
-// Timer(s) to scan and send the port list
+// Timer(s) to scan wired ports and send the port list to browser sockets (wireless port scanning defined in wx.js)
 var wScannerInterval = null;
 var portLister = [];
 
 // Timer to manage possible disableWX/enableWX cycling (resetWX)
 var wxEnableDelay = null;
 
-// Is verbose loggin turned on?
-var verboseLogging = false;
+// Default logging (could be overridden by stored setting)
+var verboseLogging = defaultVerboseLogging;
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -134,6 +157,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('sm2').value = result.sm2 || defaultSM2;
                 $('sm3').value = result.sm3 || defaultSM3;
                 $('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : defaultWX;
+                verboseLogging = (result.en_vlog !== undefined) ? result.en_vlog : defaultVerboseLogging;
+                $('verbose-logging').checked = verboseLogging;
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
@@ -148,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sm2').value = defaultSM2;
         $('sm3').value = defaultSM3;
         $('wx-allow').checked = defaultWX;
+        $('verbose-logging').checked = defaultVerboseLogging;
         // Save subnet mask for future comparison
         sm = sm32bit();
     }
@@ -196,8 +222,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
   
-    $('bpc-trace').onclick = function() {
-        verboseLogging = $('bpc-trace').checked;
+    $('verbose-logging').onclick = function() {
+        verboseLogging = $('verbose-logging').checked;
+        log((verboseLogging) ? 'Verbose logging enabled' : 'Verbose logging disabled');
+        if(chrome.storage) {
+            chrome.storage.sync.set({'en_vlog': verboseLogging}, function () {if (chrome.runtime.lastError) {storageError()}});
+        }
     };
 
     // Enable/disable wireless (WX) port scanning; save setting
@@ -266,16 +296,15 @@ function disconnect() {
     disableWX();
 }
 
-function updateStatus(connected) {
-    if (connected) {
-        $('sys-waiting').style.opacity=0.0;
-        $('sys-connected').style.opacity=1.0;
-        log('BlocklyProp site connected');
-    } else {
-        $('sys-waiting').style.opacity=1.0;
-        $('sys-connected').style.opacity=0.0;
-        log('BlocklyProp site disconnected');
-    }
+function updateStatus(socket, connected) {
+/* Update visible status of browser connection.
+   socket is the socket associated with this event
+   connected - true = newly-connected browser socket; false = newly-disconnected. */
+    log((connected ? '+ Site connected' : '- Site disconnected'), mDbug, socket);
+    // toggle waiting/connected image depending on if at least one browser socket is connected
+    connected |= portLister.length;
+    $('sys-waiting').style.opacity=(connected ? 0.0 : 1.0);
+    $('sys-connected').style.opacity=(connected ? 1.0 : 0.0);
 }
 
 function closeServer() {
@@ -285,16 +314,13 @@ function closeServer() {
 }
 
 function closeSockets() {
-// Close all sockets and remove them from the ports and portLister lists
+// Close all browser sockets, remove them from ports list and delete their portLister list item
     ports.forEach(function(p) {
         if (p.bSocket) {
             p.bSocket.close();
             p.bSocket = null;
         }});
-    while (portLister.length) {
-        clearInterval(portLister[0].scanner);
-        portLister.splice(0, 1);
-    }
+    while (portLister.length) {deletePortLister(0)}
 }
 
 function connect_ws(ws_port, url_path) {
@@ -315,52 +341,77 @@ function connect_ws(ws_port, url_path) {
 
                 if (ws_msg.type === "load-prop") {
                     // load the propeller
-                    log('Received Propeller Application for ' + ws_msg.action);
+                    log('Received Propeller Application for ' + ws_msg.action, mDbug, socket, 1);
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
-//                  log("Browser requested port-list for socket " + socket.pSocket_.socketId, mDbug);
-                    sendPortList(socket);
-                    portLister.push({socket: socket, scanner: setInterval(function() {sendPortList(socket)}, portListSendInterval)});
+                    log('Site requested port list', mDbug, socket, 1);
+                    addPortLister(socket);
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
                     helloClient(socket, ws_msg.baudrate || 115200);
-                    updateStatus(true);
+                    updateStatus(socket, true);
                 } else if (ws_msg.type === "debug-cts") {
                     // Handle clear-to-send
                     //TODO Add clear-to-send handling code
                 } else {
                     // Handle unknown messages
-                    log('Unknown JSON message: ' + e.data);
+                    log('Unknown JSON message: ' + e.data, mDeep, socket, 1);
                 }
             } else {
                 // Handle unknown format
-                log('Unknown message type: ' + e.data);
+                log('Unknown message type: ' + e.data, mDeep, socket, 1);
             }
         });
 
 
         socket.addEventListener('close', function() {
-            // Browser socket closed; terminate its port scans and remove it from list of ports.
-            log("Browser socket closing: " + socket.pSocket_.socketId, mDbug);
-            let Idx = portLister.findIndex(function(s) {return s.socket === socket});
-            if (Idx > -1) {
-                clearInterval(portLister[Idx].scanner);
-                portLister.splice(Idx, 1);
-            }
+            // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
+            deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
-            if (!portLister.length) {
-                updateStatus(false);
-                // chrome.app.window.current().drawAttention();  //Disabled to prevent unnecessary user interruption
-            }
+            updateStatus(socket, false);
         });
 
         return true;
     });
   }
+}
+
+// Port Lister management functions
+// The Port Lister items are timers (and sockets) to automatically send wired/wireless port updates to connected browser sockets
+function addPortLister(socket) {
+//Create new port lister (to send port lists to browser on a timed interval).
+//socket is the browser socket to send updates to.
+    startPortListerScanner(portLister.push({socket: socket})-1);
+}
+
+function startPortListerScanner(idx) {
+//Start portLister idx's scanner timer
+    if (idx > -1) {
+        portLister[idx].scanner = setInterval(sendPortList, portListSendInterval, portLister[idx].socket);
+        sendPortList(portLister[idx].socket);
+    }
+}
+
+function stopPortListerScanner(idx) {
+//Stop (clear) portLister (idx) scanner timer
+    if (idx > -1) {
+        if (portLister[idx].scanner) {
+            clearInterval(portLister[idx].scanner);
+            portLister[idx].scanner = null;
+        }
+    }
+}
+
+function deletePortLister(idx) {
+//Clear scanner timer and delete portLister (idx)
+    if (idx > -1) {
+        stopPortListerScanner(idx);
+        portLister.splice(idx, 1);
+    }
 }
 
 function enableW() {
@@ -393,14 +444,17 @@ function enableWX() {
     }
 }
 
-function disableWX() {
-//Disable wireless port scanning
+function disableWX(retainWXPorts) {
+/* Disable wireless port scanning
+   retainWXPorts [optional] - true = keep list of existing wireless ports; false (default) = delete list of existing wireless ports */
     if(wxScannerInterval) {
         clearInterval(wxScannerInterval);
         wxScannerInterval = null;
     }
-    $('wx-list').innerHTML = '';
-    deleteAllWirelessPorts();
+    if (!retainWXPorts) {
+        $('wx-list').innerHTML = '';
+        deleteAllWirelessPorts();
+    }
 }
 
 function resetWX() {
@@ -409,8 +463,27 @@ function resetWX() {
     wxEnableDelay = setTimeout(enableWX, 500);
 }
 
+function haltTimedEvents() {
+//Halt timed events.  Restart with resumeTimedEvents().
+    //Disable wired and wireless port scanning
+    log('Halting timed events', mDbug);
+    disableW();
+    disableWX(true);
+    portLister.forEach(function(p, idx) {stopPortListerScanner(idx)});
+}
+
+function resumeTimedEvents() {
+//Resume timed events that were stopped via haltTimedEvents().
+    //Enable wired and wireless port scanning
+    log('Resuming timed events', mDbug);
+    enableW();
+    enableWX();
+    portLister.forEach(function(p, idx) {startPortListerScanner(idx)});
+}
+
 function scanWPorts() {
 // Generate list of current wired ports (filtered according to platform and type)
+    //log('Scanning wired ports', mDbug);
     chrome.serial.getDevices(
         function(portlist) {
             let wn = [];
@@ -431,6 +504,7 @@ function scanWPorts() {
 
 function scanWXPorts() {
 // Generate list of current wireless ports
+    //log('Scanning wireless ports', mDbug);
     discoverWirelessPorts();
     ageWirelessPorts();
 }
@@ -439,7 +513,6 @@ function sendPortList(socket) {
 // Find and send list of communication ports (filtered according to platform and type) to browser via socket
     let wn = [];
     let wln = [];
-//    log("sendPortList() for socket " + socket.pSocket_.socketId, mDbug);
     // gather separated and sorted port lists (wired names and wireless names)
     ports.forEach(function(p) {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}});
     wn.sort();
@@ -447,6 +520,7 @@ function sendPortList(socket) {
 
     // report back to editor
     var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
+    log('Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
