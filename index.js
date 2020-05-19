@@ -50,8 +50,13 @@ const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 function log(text = "", type = mStat, socket = null) {
 /* Messaging conduit.  Delivers text to one, or possibly many, destination(s) according to the type (which describes a category and destination).
    text is the message to convey.
-   type is an optional category and destination(s) that the message applies too; defaults to mStat (log status).
-   socket is the websocket to send an mUser message to; ignored unless message is an mcUser category.*/
+   type [optional; default mStat] - category and destination(s) that the message applies to.
+   socket [optional; default null] - the websocket message received from, or to send an mUser message to; ignored unless type is mdUser or verbose logging enabled.*/
+
+    function timeStamp(condition) {return (condition) ? Date.now().toString().slice(-5) + ': ' : ''}
+
+    function socketStamp(condition) {return (condition && (socket !== null)) ? '[S:'+Math.abs(socket.pSocket_.socketId)+'] ' : ''}
+
     if (type & (mcUser | mcStatus | mcVerbose)) {
     // Proper type provided
         //Elevate all messages when verbose logging enabled
@@ -60,18 +65,18 @@ function log(text = "", type = mStat, socket = null) {
         if ((type & mdDisplay) && socket !== null) {
             //Send to browser display
             let dispText = text !== "." ? '\r' + text : text;
-            socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}))
+            socket.send(JSON.stringify({type:'ui-command', action:'message-compile', msg:dispText}));
         }
         if (type & mdLog) {
             //Send to Launcher log view
             let logView = $('log');
             //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
             let scroll = (logView.scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
-            logView.innerHTML += text + '<br>';
+            logView.innerHTML += timeStamp(verboseLogging) + socketStamp(verboseLogging) + text + '<br>';
             if (scroll) {logView.scrollTo(0, logView.scrollHeight)}
         }
         //Send to Launcher console window
-        if (type & mdConsole) {console.log(Date.now().toString().slice(-5) + ': ' + text)}
+        if (type & mdConsole) {console.log(timeStamp(true) + socketStamp(true) + text)}
     }
 }
 
@@ -210,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
     $('bpc-trace').onclick = function() {
         verboseLogging = $('bpc-trace').checked;
+        log((verboseLogging) ? 'Verbose logging enabled' : 'Verbose logging disabled');
     };
 
     // Enable/disable wireless (WX) port scanning; save setting
@@ -278,14 +284,15 @@ function disconnect() {
     disableWX();
 }
 
-function updateStatus(socketId) {
+function updateStatus(socket, connected) {
 /* Update visible status of browser connection.
-   socketId - positive indicates the newly-connected browser socket; negative is newly-disconnected. */
+   socket is the socket associated with this event
+   connected - true = newly-connected browser socket; false = newly-disconnected. */
+    log((connected ? '+ Site connected' : '- Site disconnected'), mDbug, socket);
     // toggle waiting/connected image depending on if at least one browser socket is connected
-    let connected = (socketId > 0) || (portLister.length);
+    connected |= portLister.length;
     $('sys-waiting').style.opacity=(connected ? 0.0 : 1.0);
     $('sys-connected').style.opacity=(connected ? 1.0 : 0.0);
-    log('[S:'+Math.abs(socketId)+'] - Site ' + (socketId < 0 ? 'disconnected' : 'connected'), mDbug);
 }
 
 function closeServer() {
@@ -322,29 +329,29 @@ function connect_ws(ws_port, url_path) {
 
                 if (ws_msg.type === "load-prop") {
                     // load the propeller
-                    log('Received Propeller Application for ' + ws_msg.action);
+                    log('-> Received Propeller Application for ' + ws_msg.action, mStat, socket);
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
-                    log('[S:'+socket.pSocket_.socketId+'] -> Site requested port list', mDbug);
+                    log('-> Site requested port list', mDbug, socket);
                     addPortLister(socket);
                 } else if (ws_msg.type === "hello-browser") {
                     // handle unknown messages
                     helloClient(socket, ws_msg.baudrate || 115200);
-                    updateStatus(socket.pSocket_.socketId);
+                    updateStatus(socket, true);
                 } else if (ws_msg.type === "debug-cts") {
                     // Handle clear-to-send
                     //TODO Add clear-to-send handling code
                 } else {
                     // Handle unknown messages
-                    log('Unknown JSON message: ' + e.data);
+                    log('-> Unknown JSON message: ' + e.data, mStat, socket);
                 }
             } else {
                 // Handle unknown format
-                log('Unknown message type: ' + e.data);
+                log('-> Unknown message type: ' + e.data, mStat, socket);
             }
         });
 
@@ -353,7 +360,7 @@ function connect_ws(ws_port, url_path) {
             // Browser socket closed; terminate its port scans, remove it from list of ports, and update visible status.
             deletePortLister(portLister.findIndex(function(s) {return s.socket === socket}));
             ports.forEach(function(p) {if (p.bSocket === socket) {p.bSocket = null}});
-            updateStatus(-socket.pSocket_.socketId);
+            updateStatus(socket, false);
         });
 
         return true;
@@ -501,7 +508,7 @@ function sendPortList(socket) {
 
     // report back to editor
     var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-    log('[S:'+socket.pSocket_.socketId+'] <- Sending port list (qty '+(wn.length+wln.length)+')', mDbug);
+    log('<- Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
