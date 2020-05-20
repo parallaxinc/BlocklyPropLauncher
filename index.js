@@ -276,9 +276,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function updatePreferredPort(port) {
-    preferredPort = port;
-    if (chrome.storage) {
-        chrome.storage.sync.set({'pref_port': preferredPort}, function () {if (chrome.runtime.lastError) {storageError()}});
+// Remember new preferred port (if not null)
+    if (port && port !== preferredPort) {
+        preferredPort = port;
+        if (chrome.storage) {
+            chrome.storage.sync.set({'pref_port': preferredPort}, function () {if (chrome.runtime.lastError) {storageError()}});
+        }
     }
 }
 

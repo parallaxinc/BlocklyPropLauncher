@@ -173,6 +173,7 @@ function loadPropeller(sock, portName, action, payload, debug) {
     } else {
         // Port not found
         log(notice(neCanNotFindPort, [portName]), mAll, sock, -1);
+        log(notice(neDownloadFailed), mAll, sock, -1);
     }
 }
 
