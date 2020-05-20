@@ -128,8 +128,9 @@ var portLister = [];
 // Timer to manage possible disableWX/enableWX cycling (resetWX)
 var wxEnableDelay = null;
 
-// Default logging (could be overridden by stored setting)
+// Default logging and preferred port (could be overridden by stored setting)
 var verboseLogging = defaultVerboseLogging;
+var preferredPort = '';
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -161,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : defaultWX;
                 verboseLogging = (result.en_vlog !== undefined) ? result.en_vlog : defaultVerboseLogging;
                 $('verbose-logging').checked = verboseLogging;
+                preferredPort = (result.pref_port !== undefined) ? result.pref_port : '';
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
@@ -176,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sm3').value = defaultSM3;
         $('wx-allow').checked = defaultWX;
         $('verbose-logging').checked = defaultVerboseLogging;
+        preferredPort = '';
         // Save subnet mask for future comparison
         sm = sm32bit();
     }
@@ -272,6 +275,13 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(connect, 500);
 });
 
+function updatePreferredPort(port) {
+    preferredPort = port;
+    if (chrome.storage) {
+        chrome.storage.sync.set({'pref_port': preferredPort}, function () {if (chrome.runtime.lastError) {storageError()}});
+    }
+}
+
 function sm32bit() {
 // Convert current subnet mask (string form) to a 32-bit (4-byte) value
     return (parseInt($('sm0').value) << 24) + (parseInt($('sm1').value) << 16) + (parseInt($('sm2').value) << 8) + parseInt($('sm3').value);
@@ -342,9 +352,11 @@ function connect_ws(ws_port, url_path) {
                 if (ws_msg.type === "load-prop") {
                     // load the propeller
                     log('Received Propeller Application for ' + ws_msg.action, mDbug, socket, 1);
+                    updatePreferredPort(ws_msg.portPath);
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
+                    updatePreferredPort(ws_msg.portPath);
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
@@ -511,16 +523,17 @@ function scanWXPorts() {
 
 function sendPortList(socket) {
 // Find and send list of communication ports (filtered according to platform and type) to browser via socket
-    let wn = [];
-    let wln = [];
-    // gather separated and sorted port lists (wired names and wireless names)
-    ports.forEach(function(p) {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}});
+    let pp = [];  //Peferred port
+    let wn = [];  //Wired port
+    let wln = []; //Wireless port
+    // gather separated and sorted port lists (preferred port (if any) wired names and wireless names)
+    ports.forEach(function(p) {if (p.name === preferredPort) {pp.push(p.name)} else {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}}});
     wn.sort();
     wln.sort();
 
-    // report back to editor
-    var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-    log('Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket, -1);
+    // report back to editor; preferred port first (if any) followed by wired then wireless ports
+    var msg_to_send = {type:'port-list',ports:pp.concat(wn.concat(wln))};
+    log('Sending port list (qty '+(pp.length+wn.length+wln.length)+')', mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
