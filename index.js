@@ -105,6 +105,7 @@ const pfLin = 2;
 const pfMac = 3;
 const pfWin = 4;
 var platform = pfUnk;
+var platformStr = ['Unknown', 'Chrome', 'Linux', 'macOS', 'Windows'];
 
 // Windows default port origin
 const winPortOrigin = '\\\\.\\';
@@ -135,15 +136,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Previous subnet mask (for future comparison)
     var sm = null;
 
-    $('version-text').innerHTML = 'v'+clientVersion;
-
     // Determine platform
     chrome.runtime.getPlatformInfo(function(platformInfo) {
         if (!chrome.runtime.lastError) {
-        let os = platformInfo.os;
-        platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
+            let os = platformInfo.os;
+            platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
+            $('for-os').innerHTML = 'for ' + platformStr[platform];
         }
     });
+
+    $('version-text').innerHTML = 'v' + clientVersion;
 
     // Restore settings from storage (if possible)
     if(chrome.storage) {
@@ -208,10 +210,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     $('open-settings').onclick = function() {
         if($('settings-pane').style.top !== '10px') {
+            setTimeout(function() {$('for-os').style.visibility = 'hidden'}, 200);
             setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
             $('settings-pane').style.top = '10px';
             $('open-settings').className = 'button settings-active';
         } else {
+            setTimeout(function() {$('for-os').style.visibility = 'visible'}, 350);
             setTimeout(function() {$('version-text').style.visibility = 'visible'}, 350);
             $('settings-pane').style.top = '550px';
             $('open-settings').className = 'button settings';
