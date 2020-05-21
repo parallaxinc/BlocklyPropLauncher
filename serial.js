@@ -191,7 +191,7 @@ function setControl(port, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + port.name + "'s options: " + options])));
+            reject(Error(notice(000, ["Can not set port " + port.name + "'s options" + (options.hasOwnProperty('dtr') ? " - DTR: " + options.dtr : "")])));
           }
         });
     });
