@@ -364,6 +364,10 @@ function connect_ws(ws_port, url_path) {
                     // open or close the serial port for terminal/debug
                     updatePreferredPort(ws_msg.portPath);
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
+                } else if (ws_msg.type === "pref-port") {
+                    // user selected a new preferred port (may not be needed; adding for safety in case in will improve user experience)
+                    updatePreferredPort(ws_msg.portPath);
+                    log('User selected preferred port' + ws_msg.portPath, mDbug, socket, 1);
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
                     log('Site requested port list', mDbug, socket, 1);
