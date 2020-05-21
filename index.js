@@ -558,7 +558,7 @@ function sendPortList(socket) {
     qty = pp.length+nwp.length+owp.length+nwlp.length+owlp.length;
 
     // Remember when the preferredPort exists; otherwise if preferredPort just disappeared, clear all "new" port statuses - we only care about new-arrivals since last preferred port selection
-    if (pp.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}
+    if (pp.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}}
 
     // report back to editor; blank (rarely), preferred port first (if any), new wired ports (if any), old wired ports, new wireless ports (if any), and finally old wireless ports
     if (qty && !pp.length && !nwp.length) {bp.push("")}  // Send leading blank port only if > 0 ports found, none match the preferred port, and there are no new wired ports
