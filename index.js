@@ -534,9 +534,9 @@ function sendPortList(socket) {
     let bp = [];      // Either empty (common) or blank string (rarely)
     let pp = [];      // Peferred port name (qty 0 or 1)
     let nwp = [];     // New wired port name list (often qty 0 or 1)
-    let wp = [];      // Old wired port name list (> 0 often)
+    let owp = [];     // Old wired port name list (> 0 often)
     let nwlp = [];    // New wireless port name list (=> 0)
-    let wlp = [];     // Old Wireless port (=> 0)
+    let owlp = [];    // Old Wireless port (=> 0)
     let qty = 0;      // Quantity of ports found
 
     // gather separated port lists (preferred port (if any), new wired/wireless ports (if any), old wired/wireless ports, then sort them)
@@ -545,24 +545,24 @@ function sendPortList(socket) {
             pp.push(p.name)
         } else {
             if (p.isWired) {
-                if (p.new) {nwp.push(p.name)} else {wp.push(p.name)}
+                if (p.new) {nwp.push(p.name)} else {owp.push(p.name)}
             } else {
-                if (p.new) {nwlp.push(p.name)} else {wlp.push(p.name)}
+                if (p.new) {nwlp.push(p.name)} else {owlp.push(p.name)}
             }
         }
     });
     nwp.sort();
-    wp.sort();
+    owp.sort();
     nwlp.sort();
-    wlp.sort();
-    qty = pp.length+nwp.length+wp.length+nwlp.length+wlp.length;
+    owlp.sort();
+    qty = pp.length+nwp.length+owp.length+nwlp.length+owlp.length;
 
     // Remember when the preferredPort exists; otherwise if preferredPort just disappeared, clear all "new" port statuses - we only care about new-arrivals since last preferred port selection
     if (pp.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}
 
     // report back to editor; blank (rarely), preferred port first (if any), new wired ports (if any), old wired ports, new wireless ports (if any), and finally old wireless ports
     if (qty && !pp.length && !nwp.length) {bp.push("")}  // Send leading blank port only if > 0 ports found, none match the preferred port, and there are no new wired ports
-    var msg_to_send = {type:'port-list',ports:bp.concat(pp.concat(nwp.concat(wp.concat(nwlp.concat(wlp))))};
+    var msg_to_send = {type:'port-list',ports:bp.concat(pp.concat(nwp.concat(owp.concat(nwlp.concat(owlp)))))};
     log('Sending port list (qty '+qty+')', mDbug, socket, -1);
     console.log(msg_to_send);
     socket.send(JSON.stringify(msg_to_send));
