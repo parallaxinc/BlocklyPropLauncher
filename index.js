@@ -189,13 +189,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // TODO: re-write this to use onblur and/or onchange to auto-save.
     $('refresh-connection').onclick = function() {
-        updatePreferredPort("NONE");
-//        disconnect();
-//        closeServer();
-//        if(chrome.storage) {
-//            chrome.storage.sync.set({'s_port':$('bpc-port').value, 's_url':$('bpc-url').value}, function() {if (chrome.runtime.lastError) {storageError()}});
-//        }
-//        connect();
+        disconnect();
+        closeServer();
+        if(chrome.storage) {
+            chrome.storage.sync.set({'s_port':$('bpc-port').value, 's_url':$('bpc-url').value}, function() {if (chrome.runtime.lastError) {storageError()}});
+        }
+        connect();
     };
 
     $('netmask').addEventListener("blur", function() {
@@ -414,6 +413,8 @@ function startPortListerScanner(idx) {
 //Start portLister idx's scanner timer
     if (idx > -1) {
         portLister[idx].scanner = setInterval(sendPortList, portListSendInterval, portLister[idx].socket);
+        // Fresh start; clear "new" status of ports before sending
+        clearNewPortStatus();
         sendPortList(portLister[idx].socket);
     }
 }
@@ -567,8 +568,8 @@ function sendPortList(socket) {
     // report back to editor; blank (rarely), preferred port first (if any), new wired ports (if any), old wired ports, new wireless ports (if any), and finally old wireless ports
     if (qty && !pp.length && !nwp.length) {bp.push("")}  // Send leading blank port only if > 0 ports found, none match the preferred port, and there are no new wired ports
     var msg_to_send = {type:'port-list',ports:bp.concat(pp.concat(nwp.concat(owp.concat(nwlp.concat(owlp)))))};
-    log('Sending port list (qty '+qty+')', mDbug, socket, -1);
-    console.log(msg_to_send);
+
+    log('Sending port list' + (!verboseLogging ? ' (qty '+qty+')' : ': ' + msg_to_send.ports.toString()), mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {log(chrome.runtime.lastError, mDbug)}
 }
