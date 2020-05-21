@@ -191,7 +191,7 @@ function setControl(port, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + port.name + "'s options: " + options])));
+            reject(Error(notice(000, ["Can not set port " + port.name + "'s options" + (options.hasOwnProperty('dtr') ? " - DTR: " + options.dtr : "")])));
           }
         });
     });
@@ -222,9 +222,9 @@ function unPause(port) {
 }
 
 function ageWiredPorts() {
-// Age wired ports and remove those that haven't been seen for some time from the list
+// Age wired ports, remove those that haven't been seen for some time from the list
     ports.forEach(function(p) {
-        if (p.isWired && !--p.life) deletePort(byName, p.name);
+        if (p.isWired && !--p.life) {deletePort(byName, p.name)}
     })
 }
 

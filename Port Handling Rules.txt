@@ -1,0 +1,44 @@
+Launcher Rules:
+  * New download or terminal request (from browser)?  Launcher records port as the "preferred device."
+  * Newly-arrived ports are marked as new and stay "new" until a different preferred port is selected or the existing preferred port disappears.  This allows certain new-since-selection-change events to occur.
+
+  Port Updated:
+  * 0 devices found?
+    * send an empty port list.  This allows system to say "no devices found."
+  * 1+ devices found?
+    * 0 match preferred port?
+      * 0 are new, or 1+ are new but are not wired ports?
+        * send a blank port followed by the others.  This makes the system choose the blank port (user must select a port if desired).
+      * 1+ wired port is new?
+        * send 1st new wired port, followed by all the others.  This makes the system choose the first (new) port and follow it.
+    * 1 matches perferred port?
+      * send preferred port first, followed by any other.  This makes the system choose the first (preferred) port and follow it.
+
+
+Should wireless new devices always be ignored?
+
+System Scenarios (results in parentheses):
+  * Start up with no devices ("no devices found") then a new non-preferred device arrives (new device automatically selected and followed).
+  * Start up with no devices ("no devices found") then a new preferred device arrives (new device automatically selected and followed).
+  * Start up with 1 preferred device (automatically selected and followed).
+  * Start up with 1 preferred device and 1+ other devices (preferred automatically selected and followed).
+  * Start up with 1+ non-preferred device(s) (no port selected).
+  * Non-preferred device already selected then new device arrives (new is listed at top but system continues to follow the selected device).
+  * Preferred device already selected then new device arrives (preferred is listed at top, followed by new, but system continues to follow the selected device).
+  * Device (preferred or not) already selected, new device(s) arrive (new, or the preferred port followed-by new, is listed at top, system continues to follow the selected device), then the selected device disappears
+    (all new ports are now marked as existing [not new], system shows no port selected until either the previously-selected port returns or a new wired port arrives in which case system automatically selectes the new-arrived wired port).
+  * Preferred, wireless device, selected then disappears and no wired devices exist (system shows no port selected until either the previously-selected port returns or a new wired port arrives in which case system automatically selects the new-arrived wired port).
+
+New Browser Behavior:
+  * If the user chooses a new port from the list (ie: not an automatically-browser-chosen port), the browser should send Launcher a "pref-port" message that includes the port name as the portPath.  Launcher will
+    remember this as the preferred port.
+
+
+* If there is no device found, send an empty port list.  This allows system to say "no devices found."
+* If there are any devices found, none match the preferred port, and none are new, send a blank port followed by the devices.  The makes system choose the blank port (user must select a port if desired).
+* If there are any devices found, none match the preferred port, and one is new, send the new device first, followed by the rest.  The makes system choose the new port and follow it.
+
+
+
+* If there are multiple devices found and none match the preferred port and none are new, send a blank port followed by the devices.  This makes system choose the blank port (user must select a port if desired).
+

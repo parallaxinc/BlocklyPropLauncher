@@ -105,6 +105,7 @@ const pfLin = 2;
 const pfMac = 3;
 const pfWin = 4;
 var platform = pfUnk;
+var platformStr = ['Unknown', 'Chrome', 'Linux', 'macOS', 'Windows'];
 
 // Windows default port origin
 const winPortOrigin = '\\\\.\\';
@@ -127,23 +128,25 @@ var portLister = [];
 // Timer to manage possible disableWX/enableWX cycling (resetWX)
 var wxEnableDelay = null;
 
-// Default logging (could be overridden by stored setting)
+// Default logging and preferred port (could be overridden by stored setting)
 var verboseLogging = defaultVerboseLogging;
+var preferredPort = [{name: '', exists: false}];
 
 document.addEventListener('DOMContentLoaded', function() {
 
     // Previous subnet mask (for future comparison)
     var sm = null;
 
-    $('version-text').innerHTML = 'v'+clientVersion;
-
     // Determine platform
     chrome.runtime.getPlatformInfo(function(platformInfo) {
         if (!chrome.runtime.lastError) {
-        let os = platformInfo.os;
-        platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
+            let os = platformInfo.os;
+            platform = (os === "cros" ? pfChr : (os === "linux" ? pfLin : (os === "mac" ? pfMac : (os === "win" ? pfWin : pfUnk))));
+            $('for-os').innerHTML = 'for ' + platformStr[platform];
         }
     });
+
+    $('version-text').innerHTML = 'v' + clientVersion;
 
     // Restore settings from storage (if possible)
     if(chrome.storage) {
@@ -159,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : defaultWX;
                 verboseLogging = (result.en_vlog !== undefined) ? result.en_vlog : defaultVerboseLogging;
                 $('verbose-logging').checked = verboseLogging;
+                preferredPort.name = (result.pref_port !== undefined) ? result.pref_port : '';
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
@@ -174,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sm3').value = defaultSM3;
         $('wx-allow').checked = defaultWX;
         $('verbose-logging').checked = defaultVerboseLogging;
+        preferredPort.name = '';
         // Save subnet mask for future comparison
         sm = sm32bit();
     }
@@ -182,10 +187,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.browser.openTab({ url: "https://solo.parallax.com/"});
     };
 
-    $('open-blocklyprop').onclick = function() {
-        chrome.browser.openTab({ url: "https://blockly.parallax.com/"});
-    };
-  
     // TODO: re-write this to use onblur and/or onchange to auto-save.
     $('refresh-connection').onclick = function() {
         disconnect();
@@ -212,10 +213,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     $('open-settings').onclick = function() {
         if($('settings-pane').style.top !== '10px') {
+            setTimeout(function() {$('for-os').style.visibility = 'hidden'}, 200);
             setTimeout(function() {$('version-text').style.visibility = 'hidden'}, 200);
             $('settings-pane').style.top = '10px';
             $('open-settings').className = 'button settings-active';
         } else {
+            setTimeout(function() {$('for-os').style.visibility = 'visible'}, 350);
             setTimeout(function() {$('version-text').style.visibility = 'visible'}, 350);
             $('settings-pane').style.top = '550px';
             $('open-settings').className = 'button settings';
@@ -271,6 +274,18 @@ document.addEventListener('DOMContentLoaded', function() {
     //Connect automatically upon opening
     setTimeout(connect, 500);
 });
+
+function updatePreferredPort(port) {
+// Remember new preferred port (if not null)
+    if (port && port !== preferredPort.name) {
+        preferredPort.name = port;
+        if (chrome.storage) {
+            chrome.storage.sync.set({'pref_port': preferredPort.name}, function () {if (chrome.runtime.lastError) {storageError()}});
+        }
+        // A "new" port selection was made; set all existing ports to non-new status
+        clearNewPortStatus();
+    }
+}
 
 function sm32bit() {
 // Convert current subnet mask (string form) to a 32-bit (4-byte) value
@@ -342,10 +357,16 @@ function connect_ws(ws_port, url_path) {
                 if (ws_msg.type === "load-prop") {
                     // load the propeller
                     log('Received Propeller Application for ' + ws_msg.action, mDbug, socket, 1);
+                    updatePreferredPort(ws_msg.portPath);
                     setTimeout(function() {loadPropeller(socket, ws_msg.portPath, ws_msg.action, ws_msg.payload, ws_msg.debug)}, 10);  // success is a JSON that the browser generates and expects back to know if the load was successful or not
                 } else if (ws_msg.type === "serial-terminal") {
                     // open or close the serial port for terminal/debug
+                    updatePreferredPort(ws_msg.portPath);
                     serialTerminal(socket, ws_msg.action, ws_msg.portPath, ws_msg.baudrate, ws_msg.msg); // action is "open", "close" or "msg"
+                } else if (ws_msg.type === "pref-port") {
+                    // user selected a new preferred port
+                    updatePreferredPort(ws_msg.portPath);
+                    log('User selected preferred port' + ws_msg.portPath, mDbug, socket, 1);
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
                     log('Site requested port list', mDbug, socket, 1);
@@ -392,6 +413,8 @@ function startPortListerScanner(idx) {
 //Start portLister idx's scanner timer
     if (idx > -1) {
         portLister[idx].scanner = setInterval(sendPortList, portListSendInterval, portLister[idx].socket);
+        // Fresh start; clear "new" status of ports before sending
+        clearNewPortStatus();
         sendPortList(portLister[idx].socket);
     }
 }
@@ -510,21 +533,45 @@ function scanWXPorts() {
 }
 
 function sendPortList(socket) {
-// Find and send list of communication ports (filtered according to platform and type) to browser via socket
-    let wn = [];
-    let wln = [];
-    // gather separated and sorted port lists (wired names and wireless names)
-    ports.forEach(function(p) {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}});
-    wn.sort();
-    wln.sort();
+/* Send current list of communication ports to browser via socket.
+   List is ordered as: blank (rarely) or preferred (if any) followed by sorted... new wired, old wired, new wireless, then old wireless ports.
+   New means newly-arrived (since last port selection changed); old means existing since before last port selection changed.*/
+    let bp = [];      // Either empty (common) or blank string (rarely)
+    let pp = [];      // Peferred port name (qty 0 or 1)
+    let nwp = [];     // New wired port name list (often qty 0 or 1)
+    let owp = [];     // Old wired port name list (> 0 often)
+    let nwlp = [];    // New wireless port name list (=> 0)
+    let owlp = [];    // Old Wireless port (=> 0)
+    let qty = 0;      // Quantity of ports found
 
-    // report back to editor
-    var msg_to_send = {type:'port-list',ports:wn.concat(wln)};
-    log('Sending port list (qty '+(wn.length+wln.length)+')', mDbug, socket, -1);
+    // gather separated port lists (preferred port (if any), new wired/wireless ports (if any), old wired/wireless ports, then sort them)
+    ports.forEach(function(p) {
+        if (p.name === preferredPort.name) {
+            pp.push(p.name)
+        } else {
+            if (p.isWired) {
+                if (p.new) {nwp.push(p.name)} else {owp.push(p.name)}
+            } else {
+                if (p.new) {nwlp.push(p.name)} else {owlp.push(p.name)}
+            }
+        }
+    });
+    nwp.sort();
+    owp.sort();
+    nwlp.sort();
+    owlp.sort();
+    qty = pp.length+nwp.length+owp.length+nwlp.length+owlp.length;
+
+    // Remember when the preferredPort exists; otherwise if preferredPort just disappeared, clear all "new" port statuses - we only care about new-arrivals since last preferred port selection
+    if (pp.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}}
+
+    // report back to editor; blank (rarely), preferred port first (if any), new wired ports (if any), old wired ports, new wireless ports (if any), and finally old wireless ports
+    if (qty && !pp.length && !nwp.length) {bp.push("")}  // Send leading blank port only if > 0 ports found, none match the preferred port, and there are no new wired ports
+    var msg_to_send = {type:'port-list',ports:bp.concat(pp.concat(nwp.concat(owp.concat(nwlp.concat(owlp)))))};
+
+    log('Sending port list' + (!verboseLogging ? ' (qty '+qty+')' : ': ' + msg_to_send.ports.toString()), mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
-    if (chrome.runtime.lastError) {
-        log(chrome.runtime.lastError, mDbug);
-    }
+    if (chrome.runtime.lastError) {log(chrome.runtime.lastError, mDbug)}
 }
 
 
