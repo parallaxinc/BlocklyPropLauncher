@@ -222,9 +222,11 @@ function unPause(port) {
 }
 
 function ageWiredPorts() {
-// Age wired ports and remove those that haven't been seen for some time from the list
+// Age wired ports, remove those that haven't been seen for some time from the list, and transition new ports towards old
     ports.forEach(function(p) {
-        if (p.isWired && !--p.life) deletePort(byName, p.name);
+        if (p.isWired) {
+            if (!--p.life) {deletePort(byName, p.name)} else {if (p.new) {--p.new}}
+        }
     })
 }
 

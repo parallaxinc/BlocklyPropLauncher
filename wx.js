@@ -70,9 +70,11 @@ function discoverWirelessPorts() {
 }
 
 function ageWirelessPorts() {
-// Age Wi-Fi modules and remove those that haven't been seen for some time from the list
-  ports.forEach(function(p) {
-    if (p.isWireless && !--p.life) deletePort(byMAC, p.mac);
+// Age Wi-Fi modules, remove those that haven't been seen for some time from the list, and transition new ports towards old
+    ports.forEach(function(p) {
+    if (p.isWireless) {
+        if (!--p.life) {deletePort(byMAC, p.mac)} else {if (p.new) {--p.new}}
+    }
   })
 }
 

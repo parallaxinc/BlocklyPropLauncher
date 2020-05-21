@@ -9,9 +9,12 @@ const byMAC = "mac";               //Represents alphanumeric MAC address type
 const byPath = "path";             //Represents alphanumeric path (wired/wireless port identifier) type
 const byName = "name";             //Represents alphanumeric name (wired/wireless port identifier) type
 
+// Port's new flag
+const wwlNew = 2;                  //Starts at 2; is decremented right away by ageWirexxxxPorts(), leaving 1 to indicate it's a new port
+
 // Port's max lifetime
-const wLife = 2;
-const wlLife = 3;
+const wLife = 2;                   //Starts at 2; is decremented right away by ageWiredPorts(), leaving a life of 1
+const wlLife = 3;                  //Starts at 3; is decremented right away by ageWirelessPorts(), leaving a life of 2
 
 // Container for attributes of connected ports (wired or wireless)
 // See addPort() for a description of the attributes
@@ -69,6 +72,7 @@ function addPort(alist) {
             connId     : get("connId", alist, null),                 /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
             mac        : get("mac", alist, ""),                      /*[""+] Holds wireless port's MAC address*/
             ip         : get("ip", alist, ""),                       /*[""+] Wireless port's IP address; */
+            new        : wwlNew,                                                 /*[>0] Initial "new" value flag; wired and wireless (0 = not new, >0 = new)*/
             life       : (!get("ip", alist, "")) ? wLife : wlLife,   /*[>=0] Initial life value; wired and wireless*/
             bSocket    : null,                                                   /*[null+] Socket to browser (persistent)*/
             phSocket   : null,                                                   /*[null+] Socket to Propeller's HTTP service (not persistent)*/

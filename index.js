@@ -525,18 +525,21 @@ function scanWXPorts() {
 }
 
 function sendPortList(socket) {
-// Find and send list of communication ports (filtered according to platform and type) to browser via socket
-    let pp = [];  //Peferred port
-    let wn = [];  //Wired port
-    let wln = []; //Wireless port
-    // gather separated and sorted port lists (preferred port (if any) wired names and wireless names)
-    ports.forEach(function(p) {if (p.name === preferredPort) {pp.push(p.name)} else {if (p.isWired) {wn.push(p.name)} else {wln.push(p.name)}}});
+/* Send current list of communication ports to browser via socket.
+   List is ordered as preferred, new, other sorted wired, then other sorted wireless ports.
+   NOTE: Only new wired ports are prioritized; new wireless stay low in list. */
+    let pn = [];  //Peferred port name (0 or 1)
+    let nn = [];  //New port name list (often 0 or 1)
+    let wn = [];  //Wired port name list (> 0 often)
+    let wln = []; //Wireless port (=> 0)
+    // gather separated port lists (preferred port (if any), new wired port (if any), and sorted wired port names and sorted wireless port names)
+    ports.forEach(function(p) {if (p.name === preferredPort) {pn.push(p.name)} else {if (p.isWired) {if (p.new) {nn.push(p.name)} else {wn.push(p.name)}} else {wln.push(p.name)}}});
     wn.sort();
     wln.sort();
 
-    // report back to editor; preferred port first (if any) followed by wired then wireless ports
-    var msg_to_send = {type:'port-list',ports:pp.concat(wn.concat(wln))};
-    log('Sending port list (qty '+(pp.length+wn.length+wln.length)+')', mDbug, socket, -1);
+    // report back to editor; preferred port first (if any), new ports (if any), then other wired and wireless ports
+    var msg_to_send = {type:'port-list',ports:pn.concat(nn.concat(wn.concat(wln)))};
+    log('Sending port list (qty '+(pn.length+nn.length+wn.length+wln.length)+')', mDbug, socket, -1);
     socket.send(JSON.stringify(msg_to_send));
     if (chrome.runtime.lastError) {
         log(chrome.runtime.lastError, mDbug);
