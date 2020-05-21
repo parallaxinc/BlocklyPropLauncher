@@ -529,27 +529,44 @@ function scanWXPorts() {
 
 function sendPortList(socket) {
 /* Send current list of communication ports to browser via socket.
-   List is ordered as preferred, new, other sorted wired, then other sorted wireless ports.
-   NOTE: Only new wired ports are prioritized; new wireless stay low in list. */
-    let pn = [];  //Peferred port name (0 or 1)
-    let nn = [];  //New port name list (often 0 or 1)
-    let wn = [];  //Wired port name list (> 0 often)
-    let wln = []; //Wireless port (=> 0)
-    // gather separated port lists (preferred port (if any), new wired port (if any), and sorted wired port names and sorted wireless port names)
-    ports.forEach(function(p) {if (p.name === preferredPort.name) {pn.push(p.name)} else {if (p.isWired) {if (p.new) {nn.push(p.name)} else {wn.push(p.name)}} else {wln.push(p.name)}}});
-    wn.sort();
-    wln.sort();
-    // Remember if preferredPort exists / clear existing port status if preferredPort just disappeared
-    if (pn.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}
+   List is ordered as: blank (rarely) or preferred (if any) followed by sorted... new wired, old wired, new wireless, then old wireless ports.
+   New means newly-arrived (since last port selection changed); old means existing since before last port selection changed.*/
+    let bp = [];      // Either empty (common) or blank string (rarely)
+    let pp = [];      // Peferred port name (qty 0 or 1)
+    let nwp = [];     // New wired port name list (often qty 0 or 1)
+    let wp = [];      // Old wired port name list (> 0 often)
+    let nwlp = [];    // New wireless port name list (=> 0)
+    let wlp = [];     // Old Wireless port (=> 0)
+    let qty = 0;      // Quantity of ports found
 
-    // report back to editor; preferred port first (if any), new ports (if any), then other wired and wireless ports
-    var msg_to_send = {type:'port-list',ports:pn.concat(nn.concat(wn.concat(wln)))};
-    log('Sending port list (qty '+(pn.length+nn.length+wn.length+wln.length)+')', mDbug, socket, -1);
+    // gather separated port lists (preferred port (if any), new wired/wireless ports (if any), old wired/wireless ports, then sort them)
+    ports.forEach(function(p) {
+        if (p.name === preferredPort.name) {
+            pp.push(p.name)
+        } else {
+            if (p.isWired) {
+                if (p.new) {nwp.push(p.name)} else {wp.push(p.name)}
+            } else {
+                if (p.new) {nwlp.push(p.name)} else {wlp.push(p.name)}
+            }
+        }
+    });
+    nwp.sort();
+    wp.sort();
+    nwlp.sort();
+    wlp.sort();
+    qty = pp.length+nwp.length+wp.length+nwlp.length+wlp.length;
+
+    // Remember when the preferredPort exists; otherwise if preferredPort just disappeared, clear all "new" port statuses - we only care about new-arrivals since last preferred port selection
+    if (pp.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}
+
+    // report back to editor; blank (rarely), preferred port first (if any), new wired ports (if any), old wired ports, new wireless ports (if any), and finally old wireless ports
+    if (qty && !pp.length && !nwp.length) {bp.push("")}  // Send leading blank port only if > 0 ports found, none match the preferred port, and there are no new wired ports
+    var msg_to_send = {type:'port-list',ports:bp.concat(pp.concat(nwp.concat(wp.concat(nwlp.concat(wlp))))};
+    log('Sending port list (qty '+qty+')', mDbug, socket, -1);
     console.log(msg_to_send);
     socket.send(JSON.stringify(msg_to_send));
-    if (chrome.runtime.lastError) {
-        log(chrome.runtime.lastError, mDbug);
-    }
+    if (chrome.runtime.lastError) {log(chrome.runtime.lastError, mDbug)}
 }
 
 
