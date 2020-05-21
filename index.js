@@ -130,7 +130,7 @@ var wxEnableDelay = null;
 
 // Default logging and preferred port (could be overridden by stored setting)
 var verboseLogging = defaultVerboseLogging;
-var preferredPort = '';
+var preferredPort = [{name: '', exists: false}];
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 $('wx-allow').checked = (result.en_wx !== undefined) ? result.en_wx : defaultWX;
                 verboseLogging = (result.en_vlog !== undefined) ? result.en_vlog : defaultVerboseLogging;
                 $('verbose-logging').checked = verboseLogging;
-                preferredPort = (result.pref_port !== undefined) ? result.pref_port : '';
+                preferredPort.name = (result.pref_port !== undefined) ? result.pref_port : '';
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sm3').value = defaultSM3;
         $('wx-allow').checked = defaultWX;
         $('verbose-logging').checked = defaultVerboseLogging;
-        preferredPort = '';
+        preferredPort.name = '';
         // Save subnet mask for future comparison
         sm = sm32bit();
     }
@@ -278,11 +278,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function updatePreferredPort(port) {
 // Remember new preferred port (if not null)
-    if (port && port !== preferredPort) {
-        preferredPort = port;
+    if (port && port !== preferredPort.name) {
+        preferredPort.name = port;
         if (chrome.storage) {
-            chrome.storage.sync.set({'pref_port': preferredPort}, function () {if (chrome.runtime.lastError) {storageError()}});
+            chrome.storage.sync.set({'pref_port': preferredPort.name}, function () {if (chrome.runtime.lastError) {storageError()}});
         }
+        // A "new" port selection was made; set all existing ports to non-new status
+        clearNewPortStatus();
     }
 }
 
@@ -534,9 +536,11 @@ function sendPortList(socket) {
     let wn = [];  //Wired port name list (> 0 often)
     let wln = []; //Wireless port (=> 0)
     // gather separated port lists (preferred port (if any), new wired port (if any), and sorted wired port names and sorted wireless port names)
-    ports.forEach(function(p) {if (p.name === preferredPort) {pn.push(p.name)} else {if (p.isWired) {if (p.new) {nn.push(p.name)} else {wn.push(p.name)}} else {wln.push(p.name)}}});
+    ports.forEach(function(p) {if (p.name === preferredPort.name) {pn.push(p.name)} else {if (p.isWired) {if (p.new) {nn.push(p.name)} else {wn.push(p.name)}} else {wln.push(p.name)}}});
     wn.sort();
     wln.sort();
+    // Remember if preferredPort exists / clear existing port status if preferredPort just disappeared
+    if (pn.length) {preferredPort.exists = true} else {if (preferredPort.exists) {preferredPort.exists = false; clearNewPortStatus();}
 
     // report back to editor; preferred port first (if any), new ports (if any), then other wired and wireless ports
     var msg_to_send = {type:'port-list',ports:pn.concat(nn.concat(wn.concat(wln)))};

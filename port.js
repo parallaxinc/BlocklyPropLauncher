@@ -9,9 +9,6 @@ const byMAC = "mac";               //Represents alphanumeric MAC address type
 const byPath = "path";             //Represents alphanumeric path (wired/wireless port identifier) type
 const byName = "name";             //Represents alphanumeric name (wired/wireless port identifier) type
 
-// Port's new flag
-const wwlNew = 2;                  //Starts at 2; is decremented right away by ageWirexxxxPorts(), leaving 1 to indicate it's a new port
-
 // Port's max lifetime
 const wLife = 2;                   //Starts at 2; is decremented right away by ageWiredPorts(), leaving a life of 1
 const wlLife = 3;                  //Starts at 3; is decremented right away by ageWirelessPorts(), leaving a life of 2
@@ -72,7 +69,7 @@ function addPort(alist) {
             connId     : get("connId", alist, null),                 /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
             mac        : get("mac", alist, ""),                      /*[""+] Holds wireless port's MAC address*/
             ip         : get("ip", alist, ""),                       /*[""+] Wireless port's IP address; */
-            new        : wwlNew,                                                 /*[>0] Initial "new" value flag; wired and wireless (0 = not new, >0 = new)*/
+            new        : true,                                                   /*[true/false] indicates port is newly-arrived (compared to rest)*/
             life       : (!get("ip", alist, "")) ? wLife : wlLife,   /*[>=0] Initial life value; wired and wireless*/
             bSocket    : null,                                                   /*[null+] Socket to browser (persistent)*/
             phSocket   : null,                                                   /*[null+] Socket to Propeller's HTTP service (not persistent)*/
@@ -142,6 +139,11 @@ function updatePort(port, alist) {
 function exists(attr, src) {
 /*Returns true if attr exists in src*/
   return src.hasOwnProperty(attr);
+}
+
+function clearNewPortStatus() {
+/* Sets all existing ports to non-new arrival status */
+    ports.forEach(function(p) {p.new = false})
 }
 
 function findPortIdx(type, clue) {
