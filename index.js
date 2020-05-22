@@ -5,6 +5,45 @@ function $(id) {
   return document.getElementById(id);
 }
 
+/*
+Launcher Communication Port Rules:
+  * New download, terminal/graphic request, or "pref-port" message from browser?  Launcher records portPath as the preferred device.
+  * Newly-arrived ports (since the last port selection) are marked as new and stay "new" until a different preferred port is selected or the existing preferred port disappears.
+    This affords the user certain new-since-selection-change actions.
+  * Ports in list are prioritized in this order: preferred (if any), new wired, old wired, new wireless, old wireless.  This elevates the most likely targets higher in the list
+    for the user to quickly spot and select, and also takes advantage of browser app behavior to auto-select a port only when we want that to happen.
+  * A port is auto-selected (using the preferred and/or browser-side logic) if it is 1) the preferred wired/wireless port, if it exists, or 2) a newly-arrived wired port, if no
+    port was already selected (ie: blank port was selected).  This infers intent-to-connect upon direct-wired ports (a natural workflow) while preventing frequent unintended
+    connections to wireless ports (since there can be many arriving/departing frequently in large networks or school classrooms).
+
+Port List Updated; sendPortList():
+  * 0 ports found?
+    * send an empty port list.  This allows system to say "no devices found."
+  * 1+ ports found?
+    * 0 match preferred port?
+      * 0 are new or 1+ are new but are not wired ports?
+        * send a blank port (empty string "") followed by the other ports.  This makes the system choose the blank port (user can select a port if desired, or wait for port
+          new wired port (or previous port) to arrive).
+      * 1+ wired port is new?
+        * send new wired port, followed by all the other ports.  This makes the system automatically choose the first (new) port and follow it.
+    * 1 matches perferred port?
+      * send preferred port first, followed by all the other ports.  This makes the system automatically choose the first (preferred) port and follow it.
+
+System Scenarios (results in parentheses):
+  * Start up with no ports ("Searching...") then a new port (preferred or not) arrives (new port automatically selected and followed).
+  * Start up with 1 preferred port (automatically selected and followed).
+  * Start up with 1 preferred port and 1+ other ports (preferred automatically selected and followed).
+  * Start up with 1+ non-preferred ports (no port selected).
+  * Non-preferred port already selected then new port arrives (new is listed at top but system continues to follow the selected port).
+  * Preferred port already selected then new port arrives (preferred is listed at top, followed by new, but system continues to follow the selected port).
+  * Port (preferred or not) already selected, new ports arrive (new, or the preferred port followed by new, is listed at top, system continues to follow the selected port),
+    then the selected port disappears (all new ports are now marked as old, system shows no port selected, blank, until either the previously-selected port returns or a new
+    wired port arrives in which case system automatically selects the new-arrived wired port).
+  * Preferred wireless port selected then disappears and other ports, wired or wireless, may or may not exist (system shows no port selected until either the
+    previously-selected port returns or a new wired port arrives in which case system automatically selects the new-arrived wired port.)  User can choose to select a different
+    port rather than wait for a port return or new wired port arrival.
+*/
+
 // Programming metrics
 const initialBaudrate = 115200;                     //Initial Propeller communication baud rate (standard boot loader)
 const finalBaudrate = 921600;                       //Final Propeller communication baud rate (Micro Boot Loader)
@@ -366,7 +405,7 @@ function connect_ws(ws_port, url_path) {
                 } else if (ws_msg.type === "pref-port") {
                     // user selected a new preferred port
                     updatePreferredPort(ws_msg.portPath);
-                    log('User selected preferred port' + ws_msg.portPath, mDbug, socket, 1);
+                    log('User selected preferred port: ' + ws_msg.portPath, mDbug, socket, 1);
                 } else if (ws_msg.type === "port-list-request") {
                     // send an updated port list (and continue on scheduled interval)
                     log('Site requested port list', mDbug, socket, 1);
@@ -534,6 +573,7 @@ function scanWXPorts() {
 
 function sendPortList(socket) {
 /* Send current list of communication ports to browser via socket.
+   (See "Launcher Communication Port Rules," above, for detailed rules and scenarios this function (and ports.js and index.js) implements.)
    List is ordered as: blank (rarely) or preferred (if any) followed by sorted... new wired, old wired, new wireless, then old wireless ports.
    New means newly-arrived (since last port selection changed); old means existing since before last port selection changed.*/
     let bp = [];      // Either empty (common) or blank string (rarely)
