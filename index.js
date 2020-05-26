@@ -18,7 +18,7 @@ Launcher Communication Port Rules:
 
 Port List Updated; sendPortList():
   * 0 ports found?
-    * send an empty port list.  This allows system to say "no devices found."
+    * send an empty port list.  This allows system to say "Searching..."
   * 1+ ports found?
     * 0 match preferred port?
       * 0 are new or 1+ are new but are not wired ports?
