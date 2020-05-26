@@ -4,9 +4,10 @@ BlocklyProp Launcher
 Introduction
 ------------
 
-The BlocklyProp Launcher is a companion to the web-based BlocklyProp system; http://blockly.parallax.com and also
-http://solo.parallax.com.  It loads your programs into the Parallax Propeller and creates a serial connection from
-the browser to the Propeller.
+The BlocklyProp Launcher is a companion to the web-based BlocklyProp system - http://solo.parallax.com.
+
+It loads your programs into the Parallax Propeller and creates a serial debugger connection from the browser
+to the Propeller.
 
 
 Requirements

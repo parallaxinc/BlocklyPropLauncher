@@ -120,6 +120,9 @@ function loadPropeller(sock, portName, action, payload, debug) {
         let connect;
         let originalBaudrate;
 
+        // Halt timed events that may interfere with download
+        haltTimedEvents();
+
         if (port.isWired) {
             if (port.connId) {
                 // Connection exists, prep to reuse it
@@ -140,34 +143,37 @@ function loadPropeller(sock, portName, action, payload, debug) {
         // Use connection to download application to the Propeller
         connect()
             .then(function() {listen(port, true)})                                                                  //Enable listener
-            .then(function() {log(notice(000, ["Scanning port " + portName]), mUser, sock)})                        //Notify what port we're using
+            .then(function() {log(notice(000, ["Scanning port " + portName]), mUser, sock, -1)})                    //Notify what port we're using
             .then(function() {return talkToProp(sock, port, binImage, action === 'EEPROM')})                        //Download user application to RAM or EEPROM
             .then(function() {return changeBaudrate(port, originalBaudrate)})                                       //Restore original baudrate
             .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
                 listen(port, false);                                                                                //Disable listener
                 port.mode = (debug !== "none") ? "debug" : "programming";
-                log(notice(nsDownloadSuccessful), mAll, sock);
+                log(notice(nsDownloadSuccessful), mAll, sock, -1);
                 if (sock && debug !== "none") {                                                                     //If debug needed, open terminal/graph
                     sock.send(JSON.stringify({type:"ui-command", action:(debug === "term") ? "open-terminal" : "open-graph"}));
                     sock.send(JSON.stringify({type:"ui-command", action:"close-compile"}));
                 } else {                                                                                            //Else
                     updatePort(port, {mode: "none"});                                                               //  Clear port mode
-                    if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock);})    //  Close Telnet port (if wireless)
+                    if (port.isWireless) closePort(port, false).catch(function(e) {log(e.message, mAll, sock, -1);})//  Close Telnet port (if wireless)
                 }
             })                                                                                                      //Error? Disable listener and display error
             .catch(function(e) {
                 listen(port, false);
-                log(e.message, mAll, sock);
-                log(notice(neDownloadFailed), mAll, sock);
+                log(e.message, mAll, sock, -1);
+                log(notice(neDownloadFailed), mAll, sock, -1);
                 updatePort(port, {mode: "none"});
                 if ((port.isWired && port.connId) || port.isWireless) {return changeBaudrate(port, originalBaudrate)}
             })
-            .catch(function(e) {log(e.message, mAll, sock)})
+            .catch(function(e) {log(e.message, mAll, sock, -1)})
             .then(function() {if (port.isWireless) return closePort(port, false)})
-            .catch(function(e) {log(e.message, mAll, sock);});
+            .catch(function(e) {log(e.message, mAll, sock, -1)})
+            .then(function() {resumeTimedEvents()})                                                                 // Resume timed events that were halted earlier
+            .catch(function() {resumeTimedEvents()});
     } else {
         // Port not found
-        log(notice(neCanNotFindPort, [portName]), mAll, sock);
+        log(notice(neCanNotFindPort, [portName]), mAll, sock, -1);
+        log(notice(neDownloadFailed), mAll, sock, -1);
     }
 }
 
@@ -274,15 +280,15 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         }
                         //Prep for expected packetID:transmissionId response (Micro-Boot-Loader's "Ready" signal)
                         propComm.mblEPacketId[0] = packetId;
-                        propComm.mblETransId[0] = 0;                                                     //MBL transmission's Id is always 0
+                        propComm.mblETransId[0] = 0;                                                         //MBL transmission's Id is always 0
                         //Send Micro Boot Loader package and get response; if wired port, unpause (may be auto-paused by incoming data error); wireless ports, carry on immediately
                         log("Transmitting Micro Boot Loader package", mDeep);
                         send(port, txData, true)
-                            .then(function() {if (port.isWired) {return unPause(port)}})                 //Unpause port (if wired)
-                            .then(function() {return propComm.response})                                 //Wait for response (may timeout with rejection)
-                            .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock)}) //Succeeded!
+                            .then(function() {if (port.isWired) {return unPause(port)}})                     //Unpause port (if wired)
+                            .then(function() {return propComm.response})                                     //Wait for response (may timeout with rejection)
+                            .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock, -1)}) //Succeeded!
                             .then(function() {return resolve()})
-                            .catch(function(e) {return reject(e)});                                      //Failed!
+                            .catch(function(e) {return reject(e)});                                          //Failed!
                     });
                 }
 
@@ -320,16 +326,17 @@ function talkToProp(sock, port, binImage, toEEPROM) {
 
                     return new Promise(function(resolve, reject) {
                         log((totalPackets-packetId+1) + " of " + totalPackets, mDbug);
-                        log(notice(nsDownloading), mUser, sock);
+                        log(notice(nsDownloading), mUser, sock, -1);
                         prepForMBLResponse(userDeliveryTime, notice(neCommunicationLost));
                         var txPacketLength = 2 +                                                                         //Determine packet length (in longs); header + packet limit or remaining data length
                             Math.min(Math.trunc(maxDataSize / 4) - 2, Math.trunc(binImage.byteLength / 4) - pIdx);
-                        txData = new ArrayBuffer(txPacketLength * 4);                                                    //Set packet length (in longs)}
+                        txData = new ArrayBuffer(txPacketLength * 4);                                         //Set packet length (in longs)}
                         txView = new Uint8Array(txData);
                         propComm.mblEPacketId[0] = packetId-1;                                                           //Set next expected packetId
-                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                                  //Set next random Transmission ID
+                        propComm.mblETransId[0] = Math.floor(Math.random()*4294967296);                               //Set next random Transmission ID
                         (new DataView(txData, 0, 4)).setUint32(0, packetId, true);                                       //Store Packet ID
                         (new DataView(txData, 4, 4)).setUint32(0, propComm.mblETransId[0], true);                        //Store random Transmission ID
+                        //log('Sending PID/TID: '+txView.subarray(0, 4)+'/'+txView.subarray(4, 8), mDeep);
                         txView.set((new Uint8Array(binImage)).slice(pIdx * 4, pIdx * 4 + (txPacketLength - 2) * 4), 8);  //Store section of binary image
                         send(port, txData, false)                                                                        //Transmit packet
                             .then(function() {pIdx += txPacketLength - 2; packetId--; resolve();});                      //Increment image index, decrement Packet ID (to next packet), resolve
@@ -361,7 +368,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                 function sendInstructionPacket() {
                     return new Promise(function(resolve, reject) {
                         next = instPacket.next();
-                        log(next.value.sendLog, mAll, sock);
+                        log(next.value.sendLog, mAll, sock, -1);
 
                         generateLoaderPacket(next.value.type, packetId);                                           //Generate next executable packet
 
@@ -390,7 +397,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                 }
 
                 //Set up continuous progress indicator during this phase
-                progress = setInterval(function() {log(notice(nsDownloading), mUser, sock)}, 1000);
+                progress = setInterval(log, 1000, notice(nsDownloading), mUser, sock);
 
                 sendInstructionPacket()
                     .then(function() {clearInterval(progress); return resolve();})
@@ -454,8 +461,7 @@ function hearFromProp(info) {
 
     // Parse HTTP-command responses into proper object, or treat wired and Telnet-wireless streams as an unformatted array
     let stream = (dataSource === dsHTTP) ? parseHTTP(info.data) : new Uint8Array(info.data)
-    log("Received " + info.data.byteLength + " bytes", mDeep);
-//    console.log(stream);
+    //log("Received " + info.data.byteLength + " bytes:" + ((info.data.byteLength < 9) ? " " : "\n") + stream.toString(), mDeep);
 
     var sIdx = 0;
 
@@ -819,7 +825,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         fBitTime.setUint32(0, Math.round(clockSpeed / finalBaudrate), true);                   //Final Bit Time (baudrate in clock cycles)
         bitTime1_5.setUint32(0, Math.round(((1.5 * clockSpeed) / finalBaudrate) - maxRxSenseError), true);  //1.5x Final Bit Time minus maximum start bit sense error
         failsafe.setUint32(0, 2 * Math.trunc(clockSpeed / (3 * 4)), true);                     //Failsafe Timeout (seconds-worth of Loader's Receive loop iterations)
-        endOfPacket.setUint32(0, Math.round(2 * clockSpeed / finalBaudrate * 10 / 12), true);  //EndOfPacket Timeout (2 bytes worth of Loader's Receive loop iterations)
+        endOfPacket.setUint32(0, Math.round(500 * clockSpeed / finalBaudrate * 10 / 12), true);  //EndOfPacket Timeout (500 bytes worth of Loader's Receive loop iterations)
         sTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);            //Minimum EEPROM Start/Stop Condition setup/hold time (400 KHz = 1/0.6 µS); Minimum 14 cycles}
         sclHighTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);      //Minimum EEPROM SCL high time (400 KHz = 1/0.6 µS); Minimum 14 cycles
         sclLowTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000013), 14), true);       //Minimum EEPROM SCL low time (400 KHz = 1/1.3 µS); Minimum 26 cycles

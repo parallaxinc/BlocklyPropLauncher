@@ -70,9 +70,9 @@ function discoverWirelessPorts() {
 }
 
 function ageWirelessPorts() {
-// Age Wi-Fi modules and remove those that haven't been seen for some time from the list
-  ports.forEach(function(p) {
-    if (p.isWireless && !--p.life) deletePort(byMAC, p.mac);
+// Age Wi-Fi modules, remove those that haven't been seen for some time from the list
+    ports.forEach(function(p) {
+    if (p.isWireless && !--p.life) {deletePort(byMAC, p.mac)}
   })
 }
 
@@ -178,7 +178,7 @@ function isValidWiFiVersion(response) {
 }
 
 chrome.sockets.tcp.onReceive.addListener(debugReceiver);
-chrome.sockets.tcp.onReceiveError.addListener(debugErrorReceiver);
+chrome.sockets.tcp.onReceiveError.addListener(serialError);
 
 /*
  function loadPropellerWX(portPath, action, payload, debug) {

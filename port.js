@@ -10,10 +10,11 @@ const byPath = "path";             //Represents alphanumeric path (wired/wireles
 const byName = "name";             //Represents alphanumeric name (wired/wireless port identifier) type
 
 // Port's max lifetime
-const wLife = 2;
-const wlLife = 3;
+const wLife = 2;                   //Starts at 2; is decremented right away by ageWiredPorts(), leaving a life of 1
+const wlLife = 3;                  //Starts at 3; is decremented right away by ageWirelessPorts(), leaving a life of 2
 
 // Container for attributes of connected ports (wired or wireless)
+// See addPort() for a description of the attributes
 var ports = [];
 
 // Serial packet handling (for transmissions to browser's terminal)
@@ -63,20 +64,21 @@ function addPort(alist) {
         // else, add it as a new port record (all fields included; many with default values to be updated later)
         log("Found port: " + alist.path, mDbug);
         ports.push({
-            name       : makePortName(alist.path),                     /*[<>""] Friendly port name; never empty, does not include path*/
-            path       : alist.path,                                   /*[<>""] Wired port path+name, or wireless port's custom name, or fabricated name; never empty*/
-            connId     : get("connId", alist, null),                   /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
-            mac        : get("mac", alist, ""),                        /*[""+] Holds wireless port's MAC address*/
-            ip         : get("ip", alist, ""),                         /*[""+] Wireless port's IP address; */
-            life       : (!get("ip", alist, "")) ? wLife : wlLife,     /*[>=0] Initial life value; wired and wireless*/
-            bSocket    : null,                                         /*[null+] Socket to browser (persistent)*/
-            phSocket   : null,                                         /*[null+] Socket to Propeller's HTTP service (not persistent)*/
-            ptSocket   : null,                                         /*[null+] Socket to Propeller's Telnet service (persistent)*/
-            mode       : "none",                                       /*["none"+] Intention of the connection; "none", "debug", or "programming"*/
-            baud       : 0,                                            /*[>=0] Wired port's data rate*/
-            packet     : {},                                           /*[...] Packet buffer for socket*/
-            isWired    : !Boolean(get("ip", alist, "")),               /*[true/false] indicates if port is wired or not*/
-            isWireless : Boolean(get("ip", alist, ""))                 /*[true/false] indicates if port is wireless or not*/
+            name       : makePortName(alist.path),                               /*[<>""] Friendly port name; never empty, does not include path*/
+            path       : alist.path,                                             /*[<>""] Wired port path+name, or wireless port's custom name, or fabricated name; never empty*/
+            connId     : get("connId", alist, null),                 /*[null+] Holds wired serial port's connection id (if open), null (if closed)*/
+            mac        : get("mac", alist, ""),                      /*[""+] Holds wireless port's MAC address*/
+            ip         : get("ip", alist, ""),                       /*[""+] Wireless port's IP address; */
+            new        : true,                                                   /*[true/false] indicates port is newly-arrived (compared to rest)*/
+            life       : (!get("ip", alist, "")) ? wLife : wlLife,   /*[>=0] Initial life value; wired and wireless*/
+            bSocket    : null,                                                   /*[null+] Socket to browser (persistent)*/
+            phSocket   : null,                                                   /*[null+] Socket to Propeller's HTTP service (not persistent)*/
+            ptSocket   : null,                                                   /*[null+] Socket to Propeller's Telnet service (persistent)*/
+            mode       : "none",                                                 /*["none"+] Intention of the connection; "none", "debug", or "programming"*/
+            baud       : 0,                                                      /*[>=0] Wired port's data rate*/
+            packet     : {},                                                     /*[...] Packet buffer for socket*/
+            isWired    : !Boolean(get("ip", alist, "")),             /*[true/false] indicates if port is wired or not*/
+            isWireless : Boolean(get("ip", alist, ""))               /*[true/false] indicates if port is wireless or not*/
         });
         // Give it its own packet object and buffer
         Object.assign(ports[ports.length-1].packet, serPacket);
@@ -137,6 +139,11 @@ function updatePort(port, alist) {
 function exists(attr, src) {
 /*Returns true if attr exists in src*/
   return src.hasOwnProperty(attr);
+}
+
+function clearNewPortStatus() {
+/* Sets all existing ports to non-new arrival status */
+    ports.forEach(function(p) {p.new = false})
 }
 
 function findPortIdx(type, clue) {
