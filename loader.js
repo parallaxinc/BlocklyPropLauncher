@@ -828,7 +828,7 @@ function generateLoaderPacket(loaderType, packetId, clockSpeed, clockMode) {
         fBitTime.setUint32(0, Math.round(clockSpeed / finalBaudrate), true);                   //Final Bit Time (baudrate in clock cycles)
         bitTime1_5.setUint32(0, Math.round(((1.5 * clockSpeed) / finalBaudrate) - maxRxSenseError), true);  //1.5x Final Bit Time minus maximum start bit sense error
         failsafe.setUint32(0, 2 * Math.trunc(clockSpeed / (3 * 4)), true);                     //Failsafe Timeout (seconds-worth of Loader's Receive loop iterations)
-        endOfPacket.setUint32(0, Math.round(500 * clockSpeed / finalBaudrate * 10 / 12), true);  //EndOfPacket Timeout (500 bytes worth of Loader's Receive loop iterations)
+        endOfPacket.setUint32(0, Math.round(1000 * clockSpeed / finalBaudrate * 10 / 12), true);  //EndOfPacket Timeout (1000 bytes worth of Loader's Receive loop iterations)
         sTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);            //Minimum EEPROM Start/Stop Condition setup/hold time (400 KHz = 1/0.6 µS); Minimum 14 cycles}
         sclHighTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000006), 14), true);      //Minimum EEPROM SCL high time (400 KHz = 1/0.6 µS); Minimum 14 cycles
         sclLowTime.setUint32(0, Math.max(Math.round(clockSpeed * 0.0000013), 14), true);       //Minimum EEPROM SCL low time (400 KHz = 1/1.3 µS); Minimum 26 cycles
