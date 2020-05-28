@@ -84,6 +84,7 @@ const mDbug     = mcStatus              +              mdLog + mdConsole;
 const mDeep     = mcVerbose             +                      mdConsole;
 const mAll      = mcUser                +  mdDisplay + mdLog + mdConsole;
 
+let logLines = [];
 //TODO determine if more messages should be converted to mUser - instead of manually socket.send()'ing them
 //TODO allow this to be further filtered with includes/excludes set by app options at runtime
 //TODO provide mechanism for this to be a downloadable date-stamped file.
@@ -116,9 +117,13 @@ function log(text = "", type = mStat, socket = null, direction = 0) {
             //Send to Launcher log view
             let logView = $('log');
             //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
-            let scroll = (logView.scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
-            logView.innerHTML += stamp(verboseLogging) + text + '<br>';
-            if (scroll) {logView.scrollTo(0, logView.scrollHeight)}
+//            console.log(logView.scrollTop);
+            let scrollTop = logView.scrollTop;
+            let scroll = (scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
+            logLines.push(stamp(verboseLogging) + text + '<br>');
+            if (logLines.length > 250) {logLines.shift()}
+            logView.innerHTML = logLines.join('');
+            if (scroll) {logView.scrollTo(0, logView.scrollHeight)} //else {if (scrollTop !== logView.ScrollTop) {logView.scrollTo(0, scrollTop-(logView.scrollTop-scrollTop))}}
         }
         //Send to Launcher console window
         if (type & mdConsole) {console.log(stamp(true) + text)}
