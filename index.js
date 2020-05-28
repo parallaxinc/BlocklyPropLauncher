@@ -116,14 +116,16 @@ function log(text = "", type = mStat, socket = null, direction = 0) {
         if (type & mdLog) {
             //Send to Launcher log view
             let logView = $('log');
-            //Note scroll position (to see if user has scrolled up), append message, then auto-scroll (down) if bottom was previously in view
-//            console.log(logView.scrollTop);
-            let scrollTop = logView.scrollTop;
-            let scroll = (scrollTop+1 >= logView.scrollHeight-logView.clientHeight);
+            //Note scroll position to maintain current view (user-set or auto-scroll)
+            let scrollPosition = logView.scrollTop;
+            let autoScroll = (scrollPosition+1 >= logView.scrollHeight-logView.clientHeight);
+            //Add log message, delete oldest (if necessary), update display, and reposition view (if necessary)
             logLines.push(stamp(verboseLogging) + text + '<br>');
-            if (logLines.length > 250) {logLines.shift()}
+            let logIsMax = logLines.length > 250;
+            //TODO adjust scrollPosition by calculated line height
+            if (logIsMax) {logLines.shift(); scrollPosition -= 12;}
             logView.innerHTML = logLines.join('');
-            if (scroll) {logView.scrollTo(0, logView.scrollHeight)} //else {if (scrollTop !== logView.ScrollTop) {logView.scrollTo(0, scrollTop-(logView.scrollTop-scrollTop))}}
+            if (autoScroll) {logView.scrollTo(0, logView.scrollHeight)} else {if (logIsMax) {logView.scrollTo(0, scrollPosition)}}
         }
         //Send to Launcher console window
         if (type & mdConsole) {console.log(stamp(true) + text)}
@@ -214,6 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
     } else {
+        log('Launcher settings unavailable - using defaults', mDbug);
         $('bpc-port').value = defaultPort;
         $('bpc-url').value = defaultURL;
         $('sm0').value = defaultSM0;
@@ -338,7 +341,7 @@ function sm32bit() {
 
 function storageError() {
 // Log Chrome Storage error
-    log("Settings Error: " + chrome.runtime.lastError, mDbug);
+    log("Launcher Settings Error: " + chrome.runtime.lastError, mDbug);
 }
 
 function connect() {
