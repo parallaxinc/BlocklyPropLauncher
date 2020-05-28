@@ -140,6 +140,7 @@ function loadPropeller(sock, portName, action, payload, debug) {
             updatePort(port, {mode: "programming", bSocket: sock});
             connect = function() {return Promise.resolve()};
         }
+        let startTime = Date.now();
         // Use connection to download application to the Propeller
         connect()
             .then(function() {listen(port, true)})                                                                  //Enable listener
@@ -168,7 +169,9 @@ function loadPropeller(sock, portName, action, payload, debug) {
             .catch(function(e) {log(e.message, mAll, sock, -1)})
             .then(function() {if (port.isWireless) return closePort(port, false)})
             .catch(function(e) {log(e.message, mAll, sock, -1)})
+            .then(function() {let stopTime = Date.now(); log('Processing time: ' + (stopTime-startTime).toString().slice(-5));})
             .then(function() {resumeTimedEvents()})                                                                 // Resume timed events that were halted earlier
+            .catch(function() {let stopTime = Date.now(); log('Processing time: ' + (stopTime-startTime).toString().slice(-5));})
             .catch(function() {resumeTimedEvents()});
     } else {
         // Port not found
