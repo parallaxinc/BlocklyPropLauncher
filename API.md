@@ -1,17 +1,22 @@
-# BlocklyProp Launcher REST API
+# BlocklyProp Launcher REST API (v1) <a name="page-top"></a> 
 
 This document provides details of the API available in the BlocklyProp Launcher. These calls are
 available through a websocket interface. The client system should send API requests as JSON packet
-messages as described below.
+messages. These messages are listed here and described below.
+* [Open Channel](#open-channel-message)
+* [Load Propeller](#load-propeller-message)
+* Serial Terminal
 
-## Open Channel
+
+## Open Channel <a name="open-channel-message"></a>
 When the websocket is established, this message initializes the channel that all subsequent interactions
 with the APU will use.
 
 ### Message elements
 **type** - Message name
 
-**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached devices.
+**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).
+Note that there is another specific setting for terminal baud rate in the open-terminal message. 
 ```json
   {
     "type": "hello-browser",
@@ -37,7 +42,7 @@ Example:
   connection.send(JSON.stringify(wsMessage));
   };
 ```
-## Load Propeller request
+## Load Propeller <a name="load-propeller-message"></a>
 The client sends this message when it wants to download a Propeller Application to the connected
 Propeller device, storing the app in either RAM or EEPROM (which is really RAM & EEPROM together)
 
@@ -60,3 +65,6 @@ Propeller device, storing the app in either RAM or EEPROM (which is really RAM &
   "debug": "false"  
 }
 ```
+
+
+[Top of page](#page-top)
