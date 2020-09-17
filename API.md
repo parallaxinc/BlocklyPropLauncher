@@ -15,9 +15,9 @@ When the websocket is established, this message initializes the channel that all
 with the APU will use.
 
 ### Message elements
-**type** - Message name. (**Required**)
+**type** - Message name, "hello-browser". (**Required**)
 
-**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s). (Optional)
+**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).The default value is 115200. (Optional)
 
 Note that there is another setting specific to the terminal baud rate in the <a href="#serial-terminal-message">serial-terminal</a> message. 
 ```json
@@ -70,6 +70,10 @@ Propeller device, storing the app in either RAM or EEPROM (which is really RAM &
 **action** - "RAM" or "EEPROM" (**Required**)
 
 **portPath** - target port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
+
+_Needs Review:_
+
+_The portPath value can be any of the following; 'enumerated port name from the client's OS', 'The wireless SSID', or 'wired'? Not sure about that and loadPropeller() is equally ambiguous._
 
 **payload** - A base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image.  (**Required**)
 
