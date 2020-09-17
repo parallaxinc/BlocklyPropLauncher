@@ -37,10 +37,11 @@ Example:
   connection.send(JSON.stringify(wsMessage));
   };
 ```
-##Load Propeller request
+## Load Propeller request
 The client sends this message when it wants to download a Propeller Application to the connected
 Propeller device, storing the app in either RAM or EEPROM (which is really RAM & EEPROM together)
-###Message Elements
+
+### Message elements
 **type** - "load-prop"
 
 **action** - "RAM" or "EEPROM"
