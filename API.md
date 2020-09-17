@@ -7,6 +7,7 @@ messages. These messages are listed here and described below.
 * [Load Propeller](#load-propeller-message)
 * [Serial Terminal](#serial-terminal-message)
 * [Port List](#port-list-message)
+* [Port Preference](#port-preference-message)
 
 
 ## Open Channel <a name="open-channel-message"></a>
@@ -14,10 +15,11 @@ When the websocket is established, this message initializes the channel that all
 with the APU will use.
 
 ### Message elements
-**type** - Message name
+**type** - Message name. (**Required**)
 
-**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).
-Note that there is another specific setting for terminal baud rate in the open-terminal message. 
+**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s). (Optional)
+
+Note that there is another setting specific to the terminal baud rate in the <a href="#serial-terminal-message">serial-terminal</a> message. 
 ```json
   {
     "type": "hello-browser",
@@ -26,11 +28,11 @@ Note that there is another specific setting for terminal baud rate in the open-t
 ```
 The BP Launcher responds to this request with a 'hello-client' message containing the following elements:
 
-**type** - A text string containing 'hello-client'.
+**type** - A text string containing 'hello-client' (**Required**).
 
-**version** - The semantic version of the BP Launcher (major, minor, patch)
+**version** - The semantic version of the BP Launcher (major, minor, patch) (**Required**)
 
-**rxBase64** - A boolean flag indicating that the BP Launcher is capable of receiving base64-encoded serial streams. 
+**rxBase64** - A boolean flag indicating that the BP Launcher is capable of receiving base64-encoded serial streams. (**Required**) 
 ```json
 {
   "type": "hello-client",
@@ -57,20 +59,21 @@ Example:
   };
 ```
 
+
 ## Load Propeller <a name="load-propeller-message"></a>
 The client sends this message when it wants to download a Propeller Application to the connected
 Propeller device, storing the app in either RAM or EEPROM (which is really RAM & EEPROM together)
 
 ### Message elements
-**type** - "load-prop"
+**type** - "load-prop" (**Required**)
 
-**action** - "RAM" or "EEPROM"
+**action** - "RAM" or "EEPROM" (**Required**)
 
-**portPath** - target port's name (direct from the port drop-down list); wired or wireless port.
+**portPath** - target port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
 
-**payload** - A base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image
+**payload** - A base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image.  (**Required**)
 
-**debug** - set to 'true' if a terminal is intended to connect to the Propeller after download, otherwise set to false.
+**debug** - set to 'true' if a terminal is intended to connect to the Propeller after download, otherwise set to false. Default is false. (Optional)
 ```json
 {
   "type": "load-prop",
@@ -80,22 +83,54 @@ Propeller device, storing the app in either RAM or EEPROM (which is really RAM &
   "debug": "false"  
 }
 ```
+
+
 ## Serial Terminal <a name="serial-terminal-message"></a>
 The client sends this message to open or close a terminal serial stream, or to transmit data serially to
 the Propeller on a specified port at a specific baud rate.
 
-**type** - "serial-terminal"
+**type** - "serial-terminal" (**Required**)
 
 **action** - One of \["open", "close", or "msg"\] which opens port, closes port, or transmits data
-from the client to the Propeller over port \[portPath\].
+from the client to the Propeller over port \[portPath\]. (**Required**)
 
-**portPath** - Target port's name (direct from the port drop-down list); wired or wireless port.
+**portPath** - Target port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
 
-**baudrate** - Set the desired baud rate for serial communications with the Propeller device.
+**baudrate** - Set the desired baud rate for serial communications with the Propeller device. The default value is 115200. (Optional)
 
-**msg** - Contains data message to transmit to Propeller. This element is only required when the 
-action element is set to "msg".
+**msg** - Contains data message to transmit to Propeller.  (**Required**only when the action element is set to "msg".)
 
+Open Terminal Session:
+```javascript
+  const messageToSend = {
+    type: 'serial-terminal',
+    action: 'open',
+    outTo: 'terminal',
+    portPath: "selected_com_port",
+    baudrate: 115200,
+    msg: 'none'
+  };
+
+  // The connection variable is assumed to hold a valid open websocket handle
+  // Send the message to the BP Launcher
+   connection.send(JSON.stringify(messageToSend));
+```
+
+Open Graph Session:
+```javascript
+     const message = {
+        type: 'serial-terminal',
+        action: 'open',
+        outTo: 'graph',
+        portPath: "selected_com_port",
+        baudrate: 9600,
+        msg: 'none'
+      };
+
+  // The connection variable is assumed to hold a valid open websocket handle
+  // Send the message to the BP Launcher
+   connection.send(JSON.stringify(message));
+```
 
 ## Port List <a name="port-list-message"></a>
 The client sends this message to get a current list of ports that the Launcher sees on the system.
@@ -106,9 +141,11 @@ _Needs Review:_
 _This update continues until the BP Launcher receives another "port-list-request" message with a single response directive or the websocket connection is closed._
 _Also questioning if the **msg** element has any other options. Otherwise, it appears to be redundant._
 
-**type** - "port-list-request"
+**type** - "port-list-request" (**Required**)
 
-**msg** - "port-list-request"
+**msg** - "port-list-request" (**Required**)
+
+Example:
 ```javascript
   // Request a port list from the server
   const message = {
@@ -117,6 +154,15 @@ _Also questioning if the **msg** element has any other options. Otherwise, it ap
   };
 
   connection.send(JSON.stringify(message));
+```
+
+## Port Preference <a name="port-preference-message"></a>
+
+```javascript
+      this.activeConnection.send(JSON.stringify({
+        type: 'pref-port',
+        portPath: portName,
+      }));
 ```
 <!--
 Launcher Version request
