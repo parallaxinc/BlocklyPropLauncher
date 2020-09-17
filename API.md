@@ -6,6 +6,7 @@ messages. These messages are listed here and described below.
 * [Open Channel](#open-channel-message)
 * [Load Propeller](#load-propeller-message)
 * [Serial Terminal](#serial-terminal-message)
+* [Port List](#port-list-message)
 
 
 ## Open Channel <a name="open-channel-message"></a>
@@ -96,15 +97,27 @@ from the client to the Propeller over port \[portPath\].
 action element is set to "msg".
 
 
-## Port List request
+## Port List <a name="port-list-message"></a>
 The client sends this message to get a current list of ports that the Launcher sees on the system.
 This causes Launcher to send the list immediately, but also starts a process in the Launcher that
-automatically transmits a port-list-response message every 5 seconds. This update continues until the
-BP Launcher receives another "port-list-request" message with a single response directive or the websocket
-connection is closed.
+automatically transmits a port-list-response message every 5 seconds.
+
+_Needs Review:_
+_This update continues until the BP Launcher receives another "port-list-request" message with a single response directive or the websocket connection is closed._
+_Also questioning if the **msg** element has any other options. Otherwise, it appears to be redundant._
 
 **type** - "port-list-request"
 
+**msg** - "port-list-request"
+```javascript
+  // Request a port list from the server
+  const message = {
+    type: 'port-list-request',
+    msg: 'port-list-request',
+  };
+
+  connection.send(JSON.stringify(message));
+```
 <!--
 Launcher Version request
 type: "hello-browser"
