@@ -11,15 +11,14 @@ messages. These messages are listed here and described below.
 
 
 ## Open Channel <a name="open-channel-message"></a>
-When the websocket is established, this message initializes the channel that all subsequent interactions
-with the APU will use.
+When the websocket is established, this message initializes the channel that all subsequent interactions with the APU will use.  This message also facilitates reception of the version of BlocklyProp Launcher that the client is speaking to.
 
 ### Message elements
 **type** - Message name, "hello-browser". (**Required**)
 
-**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).The default value is 115200. (Optional)
+**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).The default value is 115200. (Optional and deprecated)
 
-Note that there is another setting specific to the terminal baud rate in the <a href="#serial-terminal-message">serial-terminal</a> message. 
+Note that there is another baud rate setting, specific to the terminal/graph, in the <a href="#serial-terminal-message">serial-terminal</a> message; thus specification vis "hello-browser" is not necessary. 
 ```json
   {
     "type": "hello-browser",
