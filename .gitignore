@@ -75,3 +75,6 @@ Thumbs.db
 
 # Mac finder files
 .DS_Store
+
+# Ultra Edit files
+*.bak

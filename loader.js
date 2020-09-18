@@ -101,7 +101,7 @@ function loadPropeller(sock, portName, action, payload, debug) {
      portName is wired or wireless port's name
      action is 'RAM' or 'EEPROM'
      payload is base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image
-     debug is true if a terminal is intended to connect to the Propeller after download; false otherwise*/
+     debug is "none", "term", or "graph".  "term" or "graph" if a terminal or graphing display (respectively) is intended to connect to the Propeller after download.*/
 
     let binImage;
 

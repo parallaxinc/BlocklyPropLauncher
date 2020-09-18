@@ -7,39 +7,28 @@ messages. These messages are listed here and described below.
 * [Load Propeller](#load-propeller-message)
 * [Serial Terminal](#serial-terminal-message)
 * [Port List](#port-list-message)
-* [Port Preference](#port-preference-message)
+* [Preferred Port](#preferred-port-message)
 
 
 ## Open Channel <a name="open-channel-message"></a>
-When the websocket is established, this message initializes the channel that all subsequent interactions with the APU will use.  This message also facilitates reception of the version of BlocklyProp Launcher that the client is speaking to.
+When the websocket is established, this message initializes the channel that all subsequent interactions with the API will use.  This message also facilitates reception of the version of BlocklyProp Launcher that the client is speaking to.
 
-### Message elements
-**type** - Message name, "hello-browser". (**Required**)
+### Send (client -> Launcher)
 
-**baud** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).The default value is 115200. (Optional and deprecated)
+**type** - "hello-browser" (**Required**)
 
-Note that there is another baud rate setting, specific to the terminal/graph, in the <a href="#serial-terminal-message">serial-terminal</a> message; thus specification vis "hello-browser" is not necessary. 
+**baudrate** - Select a baud rate that the BlocklyProp Launcher will use to communicate with attached Propeller device(s).The default value is 115200. (Optional and deprecated)
+
+  - Deprecated: Another baud rate setting is required, specific to the terminal/graph in the <a href="#serial-terminal-message">serial-terminal</a> message; specification via "hello-browser" is ignored. 
+
 ```json
   {
-    "type": "hello-browser",
-    "baud": "115200"
+    "type": "hello-browser"
   }
 ```
-The BP Launcher responds to this request with a 'hello-client' message containing the following elements:
 
-**type** - A text string containing 'hello-client' (**Required**).
-
-**version** - The semantic version of the BP Launcher (major, minor, patch) (**Required**)
-
-**rxBase64** - A boolean flag indicating that the BP Launcher is capable of receiving base64-encoded serial streams. (**Required**) 
-```json
-{
-  "type": "hello-client",
-  "version": "1.0.4",
-  "rxBase64": "true"
-}
-```
 Example:
+
 ```javascript
   const apiUrl = 'ws://localhost:6009';
   connection = new WebSocket(apiUrl);
@@ -49,8 +38,7 @@ Example:
 
   // Create a Hello message
   const wsMessage = {
-        type: 'hello-browser',
-        baud: '115200',
+        type: 'hello-browser'
       };
 
   // Send the message to the API
@@ -58,50 +46,97 @@ Example:
   };
 ```
 
+### Receive (client <- Launcher)
+The BP Launcher responds to the "hello-browser" request with a "hello-client" message containing the following elements:
+
+**type** - "hello-client" (**Required**).
+
+**version** - The semantic version of the BP Launcher (major, minor, patch) (**Required**)
+
+**api** - The version of the API used by this BP Launcher (major only) (optional; omission means API v1)
+
+**b64Msg** - [future API] A boolean flag indicating that BP Launcher requires all _msg_ and _payload_ elements (both received and sent) as base64-encoded serial streams. (optional; omission means "false," only some _msg_ and _payload_ elements are base64-encoded)
+
+```json
+{
+  "type": "hello-client",
+  "version": "1.0.4",
+  "api": "2",
+  "b64Msg": "true"
+}
+```
 
 ## Load Propeller <a name="load-propeller-message"></a>
-The client sends this message when it wants to download a Propeller Application to the connected
-Propeller device, storing the app in either RAM or EEPROM (which is really RAM & EEPROM together)
+The client sends this message when it wants to download a Propeller Application to the connected Propeller device, storing the app in either RAM or EEPROM (which is really RAM & EEPROM together).
 
-### Message elements
+### Send (client -> Launcher)
+
 **type** - "load-prop" (**Required**)
 
 **action** - "RAM" or "EEPROM" (**Required**)
 
 **portPath** - target port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
+  - The client's port drop-down list contents is filled by BP Launcher and any one of those exact values is what BP Launcher expects back (in the portPath element) to indicate the target port.  Old (pre API v1) versions included the port's path and port's name but has since been simplified to only port name.  Regardless, the element name remains as _portPath_ and client must send the exact value direct from the port drop-down item in any case).
 
-_Needs Review:_
+**payload** - An (always base-64) encoded .elf, .binary, or .eeprom data image containing the Propeller Application.  (**Required**)
 
-_The portPath value can be any of the following; 'enumerated port name from the client's OS', 'The wireless SSID', or 'wired'? Not sure about that and loadPropeller() is equally ambiguous._
+**debug** -  "none", "term", or "graph".  If set to "term" or "graph" then a terminal or graphing display (respectively) is intended to connect to the Propeller after download. 
+ (**Required**)
 
-**payload** - A base-64 encoded .elf, .binary, or .eeprom data containing the Propeller Application image.  (**Required**)
-
-**debug** - set to 'true' if a terminal is intended to connect to the Propeller after download, otherwise set to false. Default is false. (Optional)
 ```json
 {
   "type": "load-prop",
   "action": "RAM",
-  "portPath": "device_name",
+  "portPath": "<device_name>",
   "payload": "D4F2A34AB...",
-  "debug": "false"  
+  "debug": "none"  
+}
+```
+
+### Receive (client <- Launcher)
+The BP Launcher responds to the "load-prop" request with numerous messages to indicate status or to command UI display changes.
+
+**type** - "ui-command" (**Required**).
+
+**action** - "message-compile", "open-terminal", "open-graph", or "close-compile" (**Required**).
+
+**msg** - "." (deprecated), or "\r" + a descriptive string of text, indicating milestone moments in the download process. (**Required** only during "message-compile" _actions_)
+  - "." indicates a progressive step in the download process meant only as an _activity_ indicator on the UI.  This functionality is meant for older (pre v1.0?) versions of the client and is deprecated.
+  - "\r" + descriptive text indicates download operation status in the form ###-message where ### is a 3-digit ID that uniquely indicates the category and intent of the _message_.
+
+```json
+{
+  "type": "ui-command",
+  "action": "message-compile",
+  "msg": "\r002-Downloading"
+}
+```
+--or--
+```json
+{
+  "type": "ui-command",
+  "action": "open-terminal"
 }
 ```
 
 
 ## Serial Terminal <a name="serial-terminal-message"></a>
-The client sends this message to open or close a terminal serial stream, or to transmit data serially to
-the Propeller on a specified port at a specific baud rate.
+The client sends this message to open or close a port for serial data destined for a terminal or graphing display, or to transmit data serially to the Propeller on a specified port at a specific baud rate.  The Propeller also sends messages of this type to communicate serial data to the client.
+
+### Send (client -> Launcher)
 
 **type** - "serial-terminal" (**Required**)
 
-**action** - One of \["open", "close", or "msg"\] which opens port, closes port, or transmits data
-from the client to the Propeller over port \[portPath\]. (**Required**)
+**action** - "open", "close", or "msg" indicates to open port, close port, or transmit data
+from the client to the Propeller over port _portPath_. (**Required**)
 
 **portPath** - Target port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
 
 **baudrate** - Set the desired baud rate for serial communications with the Propeller device. The default value is 115200. (Optional)
 
-**msg** - Contains data message to transmit to Propeller.  (**Required**only when the action element is set to "msg".)
+**msg** - Contains data message to transmit to Propeller.  (**Required** only when _action_ is "msg".)
+
+Examples:
 
 Open Terminal Session:
 ```javascript
@@ -135,52 +170,90 @@ Open Graph Session:
    connection.send(JSON.stringify(message));
 ```
 
-## Port List <a name="port-list-message"></a>
-The client sends this message to get a current list of ports that the Launcher sees on the system.
-This causes Launcher to send the list immediately, but also starts a process in the Launcher that
-automatically transmits a port-list-response message every 5 seconds.
+### Receive (client <- Launcher)
+The BP Launcher may respond to an "open" or "msg" _action_. 
 
-_Needs Review:_
-_This update continues until the BP Launcher receives another "port-list-request" message with a single response directive or the websocket connection is closed._
-_Also questioning if the **msg** element has any other options. Otherwise, it appears to be redundant._
+#### Response to Any Action With Port Issue:
+Any "serial-terminal" _type_ message that specifies a _portPath_ to an invalid port results in a response message sent back to the client of "serial-terminal" _type_ with the error in the _msg_ element.
+  - NOTE: The _action_ element is not populated for this error.
+
+```json
+{
+  "type": "serial-terminal",
+  "msg": "Port '<port_name>' not found.\rPlease close this terminal and select an existing port."
+}
+```
+
+#### Response to "open" Action:
+If the open operation is successful, the BP Launcher will not respond directly; however, the open channel to the Propeller usually results in one or more "serial-terminal" _type_ messages carrying Propeller data back to the client.  See ["Receive (client <- Launcher <- Propeller)"](receive-from-propeller).
+
+If the open operation fails, the BP Launcher sends a "serial-terminal" _type_ message to the client containing the error in _msg_.  
+  - NOTE: The _action_ element is not populated for this error.
+
+```json
+{
+  "type": "serial-terminal",
+  "msg": "Failed to connect.\rPlease close this terminal and select a connected port."
+}
+```
+
+#### Response to "close" Action:
+The BP Launcher does not respond to the client for a "close" _action_; it simply handles the request silently.
+
+#### Response to "msg" Action:
+The BP Launcher does not directly respond to the client for a "msg" _action_ - it simply sends the _msg_ data to the Propeller; however, the Propeller may respond to that data, through the BP Launcher, as indicated below.
+
+### Receive (client <- Launcher <- Propeller) <a name="receive-from-propeller"></a>
+When a port is open for terminal or graph use, data from the Propeller is sent through the BP Launcher to the client using a "serial-terminal" _type_ message.  This message as a _packetID_ element and a _msg_ element.
+
+**type** - "serial-terminal" (**Required**)
+
+**packetID** - An increasing value that uniquely identifies the message packet. (**Required**)
+
+**msg** - Contains base-64 encoded data from the Propeller.  (**Required**)
+
+```json
+{
+  "type": "serial-terminal",
+  "packetID": <1, 2, 3, etc.>,
+  "msg": <b64-encoded_data>
+}
+```
+
+## Port List <a name="port-list-message"></a>
+The client sends this message to get a current list of ports that the Launcher sees on the system.  This causes Launcher to send the list immediately, but also starts a process in the Launcher that automatically transmits a port-list-response message every 5 seconds. This update continues until the BP Launcher sees that the websocket connection is closed.
 
 **type** - "port-list-request" (**Required**)
-
-**msg** - "port-list-request" (**Required**)
 
 Example:
 ```javascript
   // Request a port list from the server
   const message = {
-    type: 'port-list-request',
-    msg: 'port-list-request',
+    type: 'port-list-request'
   };
 
   connection.send(JSON.stringify(message));
 ```
 
-## Port Preference <a name="port-preference-message"></a>
+## Preferred Port <a name="preferred-port-message"></a>
+The client sends this message when the user has selected a new port in the port drop-down list.  "New" port means a port that wasn't already selected immediately before the user's action.
 
+**type** - "pref-port" (**Required**)
+
+**portPath** - port's name (direct from the port drop-down list); wired or wireless port. (**Required**)
+
+Example:
 ```javascript
       this.activeConnection.send(JSON.stringify({
         type: 'pref-port',
         portPath: portName,
       }));
 ```
+
 <!--
-Launcher Version request
-type: "hello-browser"
-baudrate: (optional, defaults to 115200 but is actually unused by Launcher in this case)
 Debug Clear To Send request
 NOT SUPPORTED; believe the intention was to halt Launcher to Solo "serial" transmissions until Solo is ready to receive
 type: "debug-cts"
-This process of exploring what the communication looks like is beneficial for me too.  It was defined long ago, partly by Michele and partly by Matt, during the initial design and later websocket support design.  I've made some changes on the Client and Launcher sides, and very little changes on the BlocklyProp side; just what was needed to match.  It's starting to "come back" to me now.
-
-    Something I think Solo (BlocklyProp too, of course) does is request the port list on a timed basis, sending more and more requests to the Launcher; however, the Launcher automatically sends the list on a timed basis once the first request for the list is made on the websocket.
-
-    Over the websocket channel, BlocklyProp Launcher sends JSON packet messages to Solo as described below:
-
-    Serial Terminal data (from Propeller to Solo)
 -->
 
 [Top of page](#page-top)
