@@ -1,6 +1,6 @@
 /* Copyright (c) 2019 Parallax Inc., All Rights Reserved. */
 
-// jQuery-like convience ;)
+// jQuery-like convince ;)
 function $(id) {
   return document.getElementById(id);
 }
@@ -140,6 +140,7 @@ function isJson(str) {
 }
 
 // the version of this BPclient/app
+// TODO: Obtain version number from somewhere other than the manifest
 var clientVersion = chrome.runtime.getManifest().version;
 
 // Platform metrics (var in DOMContentLoaded listener)
@@ -160,7 +161,7 @@ const winPortOriginLen = 4;
 portPattern = ["",   "/dev/ttyUSB",   "dev/tty",   "/dev/cu.usbserial",   "COM"];
 portDelim =   ["",       "/",            "/",              "/",            "\\"];
 
-// Http and ws servers
+// Http and ws servers (from http.js)
 var server = new http.Server();
 var wsServer = new http.WebSocketServer(server);
 var isServer = false;
@@ -176,12 +177,13 @@ var wxEnableDelay = null;
 var verboseLogging = defaultVerboseLogging;
 var preferredPort = [{name: '', exists: false}];
 
+// Execute the callback after the initial HTML document has been completely loaded and
+// parsed, without waiting for stylesheets, images, and sub-frames to finish loading.
 document.addEventListener('DOMContentLoaded', function() {
-
     // Previous subnet mask (for future comparison)
     var sm = null;
 
-    // Determine platform
+    // Determine platform (UI)
     chrome.runtime.getPlatformInfo(function(platformInfo) {
         if (!chrome.runtime.lastError) {
             let os = platformInfo.os;
@@ -190,6 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // UI
     $('version-text').innerHTML = 'v' + clientVersion;
 
     // Restore settings from storage (if possible)
@@ -210,10 +213,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Save subnet mask for future comparison (must be done here because chrome.storage.sync is asynchronous)
                 sm = sm32bit();
             } else {
+                // Console log error message and continue
                 storageError();
             }
         })
     } else {
+        // Did not retrieve previous settings. Set defaults
         $('bpc-port').value = defaultPort;
         $('bpc-url').value = defaultURL;
         $('sm0').value = defaultSM0;
@@ -227,20 +232,30 @@ document.addEventListener('DOMContentLoaded', function() {
         sm = sm32bit();
     }
 
+    // UI - Launch Solo in a new tab
     $('open-blocklypropsolo').onclick = function() {
         chrome.browser.openTab({ url: "https://solo.parallax.com/"});
     };
 
+    // UI - Refresh connection state
     // TODO: re-write this to use onblur and/or onchange to auto-save.
     $('refresh-connection').onclick = function() {
         disconnect();
         closeServer();
         if(chrome.storage) {
-            chrome.storage.sync.set({'s_port':$('bpc-port').value, 's_url':$('bpc-url').value}, function() {if (chrome.runtime.lastError) {storageError()}});
+            chrome.storage.sync.set({
+                's_port':$('bpc-port').value,
+                's_url':$('bpc-url').value},
+                function() {
+                   if (chrome.runtime.lastError) {
+                       storageError()
+                }
+            });
         }
         connect();
     };
 
+    // UI - WX module support
     $('netmask').addEventListener("blur", function() {
         if (sm32bit() !== sm) {
             // Subnet mask changed; retain new mask (for future comparison) and re-discover WX
@@ -255,6 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, true);
 
+    // UI - Set application settings
     $('open-settings').onclick = function() {
         if($('settings-pane').style.top !== '10px') {
             setTimeout(function() {$('for-os').style.visibility = 'hidden'}, 200);
@@ -268,7 +284,8 @@ document.addEventListener('DOMContentLoaded', function() {
             $('open-settings').className = 'button settings';
         }
     };
-  
+
+    // UI - Set logging level
     $('verbose-logging').onclick = function() {
         verboseLogging = $('verbose-logging').checked;
         log((verboseLogging) ? 'Verbose logging enabled' : 'Verbose logging disabled');
@@ -285,10 +302,13 @@ document.addEventListener('DOMContentLoaded', function() {
             disableWX();
         }
         if(chrome.storage) {
-            chrome.storage.sync.set({'en_wx': $('wx-allow').checked}, function () {if (chrome.runtime.lastError) {storageError()}});
+            chrome.storage.sync.set(
+                {'en_wx': $('wx-allow').checked},
+                function () {if (chrome.runtime.lastError) {storageError()}});
         }
     };
 
+    // UI - WX Module settings support
     $('wmt').onclick = function() {
         if($('wx-module-tab').className === 'tab-unselect tab-right') {
             $('wx-module-tab').className = 'tab-selected tab-right';
@@ -302,6 +322,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    // UI - Settings -> Connection
     $('ppt').onclick = function() {
         if($('port-path-tab').className === 'tab-unselect tab-left') {
             $('wx-module-tab').className = 'tab-unselect tab-right';
@@ -389,7 +410,7 @@ function connect_ws(ws_port, url_path) {
         // Listen for HTTP connections.
         server.listen(port);
         isServer = true;
-  
+
         wsServer.addEventListener('request', function(req) {
             var socket = req.accept();
 

@@ -215,8 +215,8 @@ When a port is open for terminal or graph use, data from the Propeller is sent t
 ```json
 {
   "type": "serial-terminal",
-  "packetID": <1, 2, 3, etc.>,
-  "msg": <b64-encoded_data>
+  "packetID": ",<1, 2, 3, etc.>",
+  "msg": "<b64-encoded_data>"
 }
 ```
 
