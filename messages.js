@@ -20,10 +20,10 @@
 
 // Status Notice IDs ("rsvd" are reserved by PropLoader and/or for future use)
 //rsvd nsOpeningFile               = 001;
-const nsDownloading                = 002;
-const nsVerifyingRAM               = 003;
+const nsDownloading                = 2;
+const nsVerifyingRAM               = 3;
 //rsvd nsOpeningFile               = 004;
-const nsDownloadSuccessful         = 005;
+const nsDownloadSuccessful         = 5;
 //rsvd nsTerminalMode              = 006;
 //rsvd nsWritingToSDCard           = 007;
 //rsvd nsBytesRemaining            = 008;
@@ -32,7 +32,7 @@ const nsDownloadSuccessful         = 005;
 //rsvd nsUsingAlternatePort        = 011;
 //rsvd nsSteppingDownBaudRate      = 012;
 //rsvd nsUsingSingleStageLoader    = 013;
-const nsVerifyingEEPROM            = 014;
+const nsVerifyingEEPROM            = 14;
 
 // Error Notice IDs
 //rsvd neCanOnlyNameWIFIModules    = 100;
@@ -89,22 +89,43 @@ notices = {
     [neCommunicationFailed]        : "Communication failed"   /*Response unexpected*/
 };
 
+/**
+ * Returns textual message indicated by the noticeId, inserts the optional values into it,
+ * and prepends with the noticeId value in the form ###-<message>.
+ *
+ * @param {number} noticeId is the identifier of the notice; ex: nsDownloading
+ * @param {array} values is an optional array of values to stuff into notice, or
+ *      if noticeId = 0, is a custom message.
+ * @return {string}
+ */
 function notice(noticeId = 0, values = []) {
     /* Notice (message) retriever.  Returns textual message indicated by the noticeId, inserts the optional values into it, and prepends with the noticeId value
        in the form ###-<message>.
      noticeId is the identifier of the notice; ex: nsDownloading.
      values is an optional array of values to stuff into notice, or if noticeId = 0, is a custom message.*/
     //Retrieve notice; if defined
-    nMsg = notices[noticeId];
+    let nMsg = notices[noticeId];
     //Fill in variables if needed; if notice undefined, use first values element as notice.
     values.forEach(function(x){nMsg = (nMsg) ? nMsg.replace(/%s/, x) : x;});
-    if (noticeId >= 100) {nMsg = "Error: " + nMsg;}
-    noticeId = "000" + noticeId;
-    nMsg = noticeId.substr(noticeId.length-3) + '-' + nMsg;
+
+    if (noticeId >= 100) {
+        nMsg = "Error: " + nMsg;
+    }
+
+    const noteId = "000" + noticeId.toString();
+    nMsg = noteId.substr(noteId.length-3) + '-' + nMsg;
     return nMsg;
 }
 
+/**
+ * Extracts and returns notice code from msg formatted in the form ###-<message>.
+ * @param msg
+ * @return {number} Returns "000" if none
+ *  *
+ * @deprecated Function is not referenced in any active source code. (2021-04-25)
+ */
 function noticeCode(msg) {
+    let results;
     /*Extracts and returns notice code from msg formatted in the form ###-<message>.  Returns "000" if none.*/
     return Number((results = msg.match(/[0-9]+/)) ? results[0] : "000");
 }

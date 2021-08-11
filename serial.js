@@ -11,14 +11,17 @@
  ***********************************************************/
 
 //TODO Consider enhancing error to indicate if the port is already open (this would only be for developer mistakes though)
+
+/**
+ * Return a promise to open wired or wireless port at portName with baudrate
+ * and connect to browser sock.  If wireless, the port is opened.
+ * @param sock can be null to open port without an associated browser socket.
+ * @param {string} portName is the string name of the wired or wireless port
+ * @param {string} baudrate is optional; defaults to initialBaudrate
+ * @param {string} connMode is the current point of the connection; 'debug', 'programming'
+ * @return {Promise<unknown>} Resolves (with nothing); rejects with Error.
+ */
 function openPort(sock, portName, baudrate, connMode) {
-/* Return a promise to open wired or wireless port at portName with baudrate and connect to browser sock.  If wireless, the port is opened
-   as a Telnet-based debug service.
-   sock can be null to open port without an associated browser socket
-   portName is the string name of the wired or wireless port
-   baudrate is optional; defaults to initialBaudrate
-   connMode is the current point of the connection; 'debug', 'programming'
-   Resolves (with nothing); rejects with Error*/
     return new Promise(function(resolve, reject) {
         baudrate = baudrate ? parseInt(baudrate) : initialBaudrate;
         var port = findPort(byName, portName);
@@ -59,6 +62,14 @@ function openPort(sock, portName, baudrate, connMode) {
     });
 }
 
+/**
+ * Open Propeller command (HTTP) or debug (Telnet) socket on port
+ *
+ * @param port is the port's object
+ * @param {boolean} command is true to open HTTP-based command service and false
+ *      to open Telnet-based Debug service
+ * @return {Promise<unknown>}
+ */
 function openSocket(port, command) {
 /* Open Propeller command (HTTP) or debug (Telnet) socket on port
    port is the port's object
@@ -191,7 +202,8 @@ function setControl(port, options) {
           if (controlResult) {
             resolve();
           } else {
-            reject(Error(notice(000, ["Can not set port " + port.name + "'s options" + (options.hasOwnProperty('dtr') ? " - DTR: " + options.dtr : "")])));
+            reject(Error(notice(0,
+                    ["Can not set port " + port.name + "'s options" + (options.hasOwnProperty('dtr') ? " - DTR: " + options.dtr : "")])));
           }
         });
     });
@@ -205,7 +217,7 @@ function flush(port) {
             if (flushResult) {
               resolve();
             } else {
-              reject(Error(notice(000, ["Can not flush port " + port.name + "'s transmit/receive buffer"])));
+              reject(Error(notice(0, ["Can not flush port " + port.name + "'s transmit/receive buffer"])));
             }
         });
     });

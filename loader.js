@@ -23,8 +23,13 @@ const dsWired = 0;
 const dsHTTP = 1;
 const dsTelnet = 2;
 
-// Propeller Communication (propComm) status; categorizes Propeller responses
-let propComm = {};                                   //Holds current status
+/**
+ * Propeller Communication (propComm) status; categorizes Propeller responses
+ * @type {Object} Holds current status
+ */
+let propComm = {};
+
+
 let mblRespAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader actual responses
 let mblExpdAB = new ArrayBuffer(mblRespSize);        //Buffer for Micro Boot Loader expected responses
 
@@ -144,7 +149,7 @@ function loadPropeller(sock, portName, action, payload, debug) {
         // Use connection to download application to the Propeller
         connect()
             .then(function() {listen(port, true)})                                                                  //Enable listener
-            .then(function() {log(notice(000, ["Scanning port " + portName]), mUser, sock, -1)})                    //Notify what port we're using
+            .then(function() {log(notice(0, ["Scanning port " + portName]), mUser, sock, -1)})                    //Notify what port we're using
             .then(function() {return talkToProp(sock, port, binImage, action === 'EEPROM')})                        //Download user application to RAM or EEPROM
             .then(function() {return changeBaudrate(port, originalBaudrate)})                                       //Restore original baudrate
             .then(function() {                                                                                      //Success!  Open terminal or graph if necessary
@@ -216,14 +221,18 @@ function resetPropComm(port, timeout, stage, error, command) {
         propComm.port = port;                                                                      //Remember wireless Propeller port (if any)
         propComm.response = deferredPromise();                                                     //Create new deferred promise for micro boot loader response
         setPropCommTimer(timeout, (!error) ? notice(nePropellerNotFound) : error, command);        //Default to "Propeller Not Found" error
-    };
+    }
 }
 
+/**
+ * Set timeout timer for Propeller Communication
+ * @param {number} timeout timeout period (in ms)
+ * @param {string} timeoutError string message to issue upon a timeout
+ * @param {boolean} command [ignored unless wireless] must be true to, upon timeout, close
+ *      socket to Wi-Fi Module's HTTP-based command service and false to close socket to
+ *      Propeller via Telnet service.
+ */
 function setPropCommTimer(timeout, timeoutError, command) {
-/*  Set timeout timer for Propeller Communication
-    timeout = timeout period (in ms)
-    timeoutError = string message to issue upon a timeout
-    command [ignored unless wireless] must be true to, upon timeout, close socket to Wi-Fi Module's HTTP-based command service and false to close socket to Propeller via Telnet service*/
     clearPropCommTimer();                                                         //Clear old timer now
     propComm.timeoutError = timeoutError;                                         //Prep for new error possibility
     timeout = Math.trunc(timeout);
@@ -238,18 +247,28 @@ function setPropCommTimer(timeout, timeoutError, command) {
     }, timeout);
 }
 
+/**
+ * Clear propComm timer, if it exists
+ */
 function clearPropCommTimer() {
-    /*  Clear propComm timer, if it exists*/
     if (propComm.timer) {
         clearTimeout(propComm.timer);
         propComm.timer = null;
     }
 }
 
+/**
+ * Actively delay for ms milliseconds.
+ *
+ * @description
+ * This will block on the main thread for the n number of milliseconds specified.
+ *
+ * This should only be used for time-critical delays as it doesn't release to
+ * the task queue but instead consumes CPU time until finished.
+ *
+ * @param ms
+ */
 function wait(ms) {
-    /* Actively delay for ms milliseconds.
-    This should only be used for time-critical delays as it doesn't release to the task queue but instead consumes CPU time until finished.
-    */
     let Done = Date.now() + ms;
     while (Date.now() < Done){}
 }
@@ -289,7 +308,7 @@ function talkToProp(sock, port, binImage, toEEPROM) {
                         send(port, txData, true)
                             .then(function() {if (port.isWired) {return unPause(port)}})                     //Unpause port (if wired)
                             .then(function() {return propComm.response})                                     //Wait for response (may timeout with rejection)
-                            .then(function() {log(notice(000, ["Found Propeller"]), mUser+mDbug, sock, -1)}) //Succeeded!
+                            .then(function() {log(notice(0, ["Found Propeller"]), mUser+mDbug, sock, -1)}) //Succeeded!
                             .then(function() {return resolve()})
                             .catch(function(e) {return reject(e)});                                          //Failed!
                     });
@@ -360,8 +379,8 @@ function talkToProp(sock, port, binImage, toEEPROM) {
             if (toEEPROM) {
                 yield {type: ltProgramEEPROM, nextId: -checksum*2, sendLog: notice(nsVerifyingEEPROM), recvTime: userDeliveryTime+4000, recvErr: notice(neEEPROMVerifyFailed)};
             }
-            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(000, ["Ready for Launch"]), recvTime: userDeliveryTime, recvErr: notice(neCommunicationLost)};
-            yield {type: ltLaunchNow, nextId: -1, sendLog: notice(000, ["Launching"]), recvTime: 0, recvErr: ""};
+            yield {type: ltReadyToLaunch, nextId: packetId-1, sendLog: notice(0, ["Ready for Launch"]), recvTime: userDeliveryTime, recvErr: notice(neCommunicationLost)};
+            yield {type: ltLaunchNow, nextId: -1, sendLog: notice(0, ["Launching"]), recvTime: 0, recvErr: ""};
         }
 
         function finalizeDelivery() {
