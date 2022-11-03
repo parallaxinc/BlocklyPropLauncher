@@ -300,17 +300,9 @@ if [ "$?" != "0" ]; then
     exit 1
 fi
 #
-# libswiftshader_libEGL.dylib
+# libvk_swiftshader.dylib
 #
-codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libswiftshader_libEGL.dylib"
-if [ "$?" != "0" ]; then
-    echo "[Error] Code signing nwjs library failed!" 1>&2
-    exit 1
-fi
-#
-# libswiftshader_libGLESv2.dylib
-#
-codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libswiftshader_libGLESv2.dylib"
+codesign -s "$APP_IDENTITY" --deep -f -v --options runtime --timestamp --entitlements "${ENTITLEMENTS}" "${DISTRIBUTION}${APP_BUNDLE}${NWJS_FW_LIBRARIES}libvk_swiftshader.dylib"
 if [ "$?" != "0" ]; then
     echo "[Error] Code signing nwjs library failed!" 1>&2
     exit 1
