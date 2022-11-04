@@ -7,7 +7,7 @@ chrome.app.runtime.onLaunched.addListener(function() {
         id: "BlocklyProp-Launcher",
         innerBounds: {
             width: 500,
-            height: 414
+            height: 433
         }, state: "normal",
         resizable: false
     }, function(win) {
